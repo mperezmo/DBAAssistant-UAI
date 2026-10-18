@@ -15,9 +15,15 @@ RUN apt-get update \
  && curl -fsSL https://packages.microsoft.com/config/debian/12/prod.list \
     -o /etc/apt/sources.list.d/mssql-release.list \
  && apt-get update \
- && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc \
- && apt-get purge -y curl gnupg && apt-get autoremove -y \
+ && ACCEPT_EULA=Y apt-get install -y --no-install-recommends \
+    msodbcsql18 unixodbc libgssapi-krb5-2 \
+ && apt-get purge -y curl gnupg \
  && rm -rf /var/lib/apt/lists/*
+
+# El driver se carga dinámicamente: si le falta alguna librería del sistema, el error
+# aparece recién al conectar. Este control lo detecta durante la construcción.
+RUN DRIVER="$(ls /opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.*.so.*)" \
+ && ! ldd "$DRIVER" | grep "not found"
 
 RUN pip install --no-cache-dir uv==0.11.32
 
