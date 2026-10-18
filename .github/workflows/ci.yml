@@ -77,5 +77,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Backend
         run: docker build -t dba-assistant-backend ./backend
+      - name: Backend — el driver ODBC carga
+        # Sin servidor la conexión falla igual; lo que no debe ocurrir es que el
+        # driver no pueda cargarse ("Can't open lib").
+        run: |
+          docker run --rm dba-assistant-backend python -c "
+          import pyodbc
+          try:
+              pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};SERVER=127.0.0.1,1;UID=x;PWD=x', timeout=2)
+          except pyodbc.Error as error:
+              assert \"Can't open lib\" not in str(error), error
+              print('Driver ODBC OK:', error.args[0])
+          "
       - name: NGINX
         run: docker build -t dba-assistant-nginx -f nginx/Dockerfile .
