@@ -4,21 +4,18 @@
 
 | # | Tema | Situación |
 |---|------|-----------|
-| 1 | **Modelo multi-tenant** | Definir aislamiento de datos (SQL Server, MongoDB), integración con Auth0 y quién da de alta los tenants. |
-| 2 | **Web Push: VAPID o Firebase** | El diagrama indica VAPID (W3C); el TFI menciona Firebase. |
-| 3 | **Captura de cambios de schema** | Registrar quién ejecutó qué DDL requiere instalar algo en la instancia del cliente (sesión de Extended Events o trigger DDL). |
-| 4 | **Firma digital del PDF de auditoría** | CU-000-009-D: definir certificado o si se omite la firma. |
-| 5 | **Histórico de métricas** | Dónde se guarda la serie temporal (colección time-series de MongoDB o SQL Server). |
-| 6 | **Casos de uso propuestos** | Aprobar los flujos de `docs/casos-de-uso-propuestos.md`. |
-| 7 | **Cambios de estructura de la base SQL Server de la app** | Scripts T-SQL numerados o una herramienta de migraciones. |
-| 8 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local. Al migrar a Azure: Atlas desplegado en Azure o Azure Cosmos DB for MongoDB. |
-| 9 | **Publicación de imágenes Docker** | Diferido hasta definir el registro (Azure Container Registry al migrar). |
-| 10 | **Roles** | Se usan 3 roles; se revisa más adelante frente a los 5 del TFI. |
+| 1 | **Modelo multi-tenant** | Preferencia: una base por tenant. Confirmar si además se mantiene `tenant_id`, la integración con Auth0 Organizations y el mecanismo de alta de tenants. |
+| 2 | **Casos de uso propuestos** | Aprobar los flujos de `docs/casos-de-uso-propuestos.md`. |
+| 3 | **Cambios de estructura de la base SQL Server de la app** | Scripts T-SQL numerados o una herramienta de migraciones. |
+| 4 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local. Al migrar a Azure: Atlas desplegado en Azure o Azure Cosmos DB for MongoDB. |
+| 5 | **Publicación de imágenes Docker** | Diferido hasta definir el registro (Azure Container Registry al migrar). |
+| 6 | **Roles** | Se usan 3 roles; se revisa más adelante frente a los 5 del TFI. |
 
 ## En espera
 
 - Restaurar versión anterior de schema (CU-000-008-C).
 - Alertas por email.
+- Firma digital del PDF de auditoría.
 
 ## Para investigar más adelante
 

@@ -70,6 +70,10 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Biometría móvil | Confirmación con WebAuthn (Face ID / Touch ID o PIN) en la PWA. |
 | Perímetro de consulta | Tablas autorizadas por rol (a detallar). |
 | Restaurar schema | En espera. |
+| Notificaciones push | Web Push con VAPID (W3C), sin servicios de terceros. |
+| Exportación de auditoría | CSV y PDF sin firma digital (firma omitida por ahora). |
+| Histórico de métricas | Colecciones *time-series* de MongoDB. |
+| Histórico de schema | Registra lo ejecutado desde la app: usuario, query y quién la autorizó. Lo ejecutado fuera de la app (SSMS, etc.) queda fuera de alcance. |
 
 ## Módulos por rol
 
@@ -86,5 +90,5 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 
 | Diagrama | Implementación | Motivo |
 |---|---|---|
-| Driver `motor` para MongoDB | API asíncrona de PyMongo (`AsyncMongoClient`) | MongoDB deprecó Motor en 2026; la API asíncrona de PyMongo es su reemplazo oficial y mantiene el mismo modelo de uso. |
+| Driver `motor` para MongoDB | API asíncrona de PyMongo (`AsyncMongoClient`) | MongoDB deprecó Motor en 2026; la API asíncrona de PyMongo es su reemplazo oficial y mantiene el mismo modelo de uso. Aprobado. |
 | MongoDB Atlas | MongoDB en Docker (provisorio) | Pendiente de decisión (ver `docs/pendientes.md`). |
