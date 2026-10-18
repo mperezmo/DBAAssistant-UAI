@@ -31,7 +31,19 @@ docker compose up -d --build
 
 - Aplicación: <https://localhost> (certificado autofirmado: aceptar la advertencia del navegador).
 - Estado de las dependencias: <https://localhost/api/salud>.
-- SQL Server de la aplicación: `localhost,14330` (usuario `sa`), accesible desde SSMS.
+- SQL Server de la aplicación: `localhost,14330`, accesible desde SSMS.
+
+### Conectarse desde SSMS
+
+El SQL Server corre en Linux dentro de Docker, por lo que **no admite autenticación de Windows**:
+
+| Campo | Valor |
+|---|---|
+| Server name | `localhost,14330` |
+| Authentication | **SQL Server Authentication** |
+| Login | `sa` |
+| Password | el valor de `SECRETO_SQLSERVER_PASSWORD` del `.env` |
+| Encryption | Mandatory, con **Trust server certificate** tildado |
 
 ### Desarrollo del backend sin Docker
 
