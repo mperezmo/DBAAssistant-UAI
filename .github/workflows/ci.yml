@@ -9,7 +9,7 @@ on:
 jobs:
   calidad:
     name: Linter y tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: backend
@@ -30,7 +30,7 @@ jobs:
 
   integracion:
     name: Tests de integración
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: calidad
     defaults:
       run:
@@ -61,7 +61,7 @@ jobs:
       - name: Driver ODBC 18
         run: |
           if ! odbcinst -q -d | grep -q "ODBC Driver 18"; then
-            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
             curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list" | sudo tee /etc/apt/sources.list.d/mssql-release.list
             sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
           fi
@@ -71,7 +71,7 @@ jobs:
 
   imagenes:
     name: Build de imágenes Docker
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: calidad
     steps:
       - uses: actions/checkout@v4
