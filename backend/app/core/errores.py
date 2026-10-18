@@ -19,15 +19,24 @@ CATALOGO: dict[str, DefinicionError] = {
     "USR_VAL_001": DefinicionError("El email ya existe.", 409),
     "USR_VAL_002": DefinicionError("Datos requeridos no completados.", 422),
     "USR_VAL_005": DefinicionError("El usuario está deshabilitado.", 403),
+    "USR_VAL_006": DefinicionError(
+        "El usuario fue dado de baja recientemente; se puede rehabilitar.", 409
+    ),
     "USR_AUT_000": DefinicionError("Credenciales inválidas.", 401),
     "USR_AUT_001": DefinicionError(
         "El segundo factor de autenticación es inválido o no se completó.", 401
     ),
+    "USR_AUT_005": DefinicionError("La sesión expiró o no existe.", 401),
+    "USR_AUT_006": DefinicionError("Solicitud no permitida.", 403),
     "USR_AUT_003": DefinicionError("El email todavía no fue verificado.", 401),
     "USR_AUT_004": DefinicionError("La solicitud de ingreso expiró o no es válida.", 400),
     "USR_PER_000": DefinicionError("El rol no tiene permisos para esta acción.", 403),
     "USR_PER_002": DefinicionError("Rol no encontrado.", 404),
     "USR_PER_003": DefinicionError("Los permisos exceden los del rol base.", 422),
+    "USR_PER_004": DefinicionError(
+        "Un Administrador no puede quitarse su propio rol ni darse de baja.", 422
+    ),
+    "USR_PER_005": DefinicionError("Debe quedar al menos un Administrador activo.", 422),
     "AUT_API_000": DefinicionError("Falla en el servicio de identidad.", 502),
     "TEN_VAL_000": DefinicionError("Tenant no encontrado.", 404),
     "TEN_VAL_001": DefinicionError("El identificador del tenant ya existe.", 409),

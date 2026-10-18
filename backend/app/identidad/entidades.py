@@ -1,8 +1,11 @@
 """Entidades de identidad: usuarios, sesiones y permisos por rol."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
 
 ROLES = ("ADMINISTRADOR", "DBA", "CONSULTA")
+AMBIENTES = ("DEV", "TESTING", "PROD")
+DIAS_GRACIA_BAJA = 30
 
 # Módulos del menú habilitados por rol (docs/arquitectura.md, "Módulos por rol").
 MODULOS_POR_ROL: dict[str, frozenset[str]] = {
@@ -46,6 +49,13 @@ class Usuario:
     rol: str
     estado: str
     auth0_usuario_id: str | None
+    ambientes: tuple[str, ...] = field(default_factory=tuple)
+    fecha_baja: datetime | None = None
+    ultimo_ingreso: datetime | None = None
+
+    @property
+    def puede_ingresar(self) -> bool:
+        return self.estado in ("invitado", "activo")
 
 
 @dataclass(frozen=True)

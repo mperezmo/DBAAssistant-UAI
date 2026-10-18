@@ -7,11 +7,11 @@ from fastapi.testclient import TestClient
 from app.core.config import obtener_configuracion
 from app.identidad import servicios
 from app.identidad.auth0 import ClienteAuth0
-from app.identidad.entidades import Usuario
 from app.main import app
 from app.tenants import resolucion
 from app.tenants.entidades import Tenant
 from tests.auth0_falso import AUDIENCIA, CLIENT_ID, DOMINIO, EMISOR, ORGANIZACION, Auth0Falso
+from tests.repositorio_falso import RepositorioUsuariosFalso
 
 TENANT = Tenant(uuid4(), "acme", "ACME S.A.", "DB_T_acme", "db_t_acme", "activo", ORGANIZACION)
 
@@ -33,42 +33,25 @@ def entorno(monkeypatch, redis_falso):
 
     monkeypatch.setattr(resolucion, "obtener_tenant", obtener_tenant)
 
-    usuarios = {
-        "admin@acme.com": Usuario(
-            str(uuid4()), str(TENANT.id), "admin@acme.com", None, "ADMINISTRADOR", "invitado", None
-        ),
-        "consulta@acme.com": Usuario(
-            str(uuid4()),
-            str(TENANT.id),
-            "consulta@acme.com",
-            "Ana",
-            "CONSULTA",
-            "activo",
-            "google|ana",
-        ),
-        "baja@acme.com": Usuario(
-            str(uuid4()), str(TENANT.id), "baja@acme.com", None, "DBA", "inactivo", "auth0|baja"
-        ),
-    }
+    repo = RepositorioUsuariosFalso(str(TENANT.id)).instalar(monkeypatch)
+    repo.agregar("admin@acme.com", "ADMINISTRADOR", "invitado")
+    repo.agregar("consulta@acme.com", "CONSULTA", "activo", "google|ana", "Ana")
+    repo.agregar("baja@acme.com", "DBA", "baja", "auth0|baja")
     activados = []
     eventos = []
+    activar_original = repo.activar
 
-    def buscar(base, tenant_id, auth0_id, email):
-        for usuario in usuarios.values():
-            if usuario.auth0_usuario_id == auth0_id or (
-                usuario.auth0_usuario_id is None and usuario.email == email
-            ):
-                return usuario
-        return None
+    def activar(base, usuario_id, auth0_id, nombre):
+        activados.append(auth0_id)
+        activar_original(base, usuario_id, auth0_id, nombre)
 
     async def registrar(base, evento):
         eventos.append(evento.accion)
 
-    monkeypatch.setattr(servicios.repositorios, "buscar_para_ingreso", buscar)
-    monkeypatch.setattr(servicios.repositorios, "activar", lambda *args: activados.append(args[2]))
+    monkeypatch.setattr(servicios.repositorios, "activar", activar)
     monkeypatch.setattr(servicios.auditoria, "registrar", registrar)
 
-    yield {"auth0": auth0, "activados": activados, "eventos": eventos}
+    yield {"auth0": auth0, "activados": activados, "eventos": eventos, "repo": repo}
     obtener_configuracion.cache_clear()
 
 
@@ -285,3 +268,22 @@ async def test_registrar_direcciones_agrega_las_del_tenant_sin_duplicar(monkeypa
     }
     assert sum(1 for c in auth0.llamadas if c[0] == "PATCH") == 1
     obtener_configuracion.cache_clear()
+
+
+def test_cambio_de_rol_se_ve_al_recargar_y_la_baja_corta_la_sesion(entorno):
+    navegador = _navegador()
+    _ingresar(navegador, entorno["auth0"], sub="google|ana", email="consulta@acme.com")
+    repo = entorno["repo"]
+    ana = repo.obtener_por_email(None, None, "consulta@acme.com")
+
+    repo.actualizar(None, None, ana.id, "Ana", "ADMINISTRADOR", ())
+    assert 'href="/admin"' in navegador.get("/").text
+
+    repo.dar_baja(None, None, ana.id)
+    assert navegador.get("/").headers["location"] == "/ingresar"
+
+
+def test_ingreso_registra_la_fecha(entorno):
+    _ingresar(_navegador(), entorno["auth0"], sub="google|ana", email="consulta@acme.com")
+
+    assert len(entorno["repo"].ingresos) == 1

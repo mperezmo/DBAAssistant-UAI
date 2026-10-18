@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from app.core.errores import ErrorDominio
 from app.identidad.dependencias import sesion_actual, tenant_actual
+from app.identidad.entidades import AMBIENTES, ROLES
 from app.tenants.entidades import Tenant
 from app.web.i18n import traducir
 from app.web.menu import ICONOS, MENU
@@ -39,6 +41,32 @@ async def ingresar(request: Request, tenant: Tenant | None = Depends(tenant_actu
     if await sesion_actual(request, tenant):
         return RedirectResponse("/", status_code=303)
     return plantillas.TemplateResponse(request, "paginas/ingresar.html", {"tenant": tenant})
+
+
+@router.get("/admin", response_class=HTMLResponse)
+async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    if tenant is None:
+        return RedirectResponse("/", status_code=303)
+    sesion = await sesion_actual(request, tenant)
+    if sesion is None:
+        return RedirectResponse("/ingresar", status_code=303)
+    if not sesion.puede_ver("admin"):
+        raise ErrorDominio("USR_PER_000", "admin")
+    return plantillas.TemplateResponse(
+        request,
+        "paginas/admin.html",
+        {
+            "activo": "admin",
+            "sesion": sesion,
+            "tenant": tenant,
+            "roles": ROLES,
+            "ambientes": AMBIENTES,
+            "textos_roles": {rol: traducir(f"rol.{rol}") for rol in ROLES},
+            "textos_estados": {
+                e: traducir(f"estado.{e}") for e in ("invitado", "activo", "baja", "inactivo")
+            },
+        },
+    )
 
 
 @router.get("/sw.js")

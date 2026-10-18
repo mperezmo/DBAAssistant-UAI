@@ -29,3 +29,8 @@
 
 /* Sistema visual del diseño: componentes (sidebar, topbar, cards, tablas, etc.). */
 @import "./diseno.css" layer(components);
+
+/* Alpine.js: oculta elementos hasta que el componente inicializa. */
+[x-cloak] {
+  display: none !important;
+}

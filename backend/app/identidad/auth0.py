@@ -140,6 +140,15 @@ class ClienteAuth0:
         if cambios:
             await self._solicitar("PATCH", ruta, headers=cabeceras, json=cambios)
 
+    async def quitar_de_organizacion(self, organizacion: str, usuario: str) -> None:
+        cabeceras = {"Authorization": f"Bearer {await self._token_administracion()}"}
+        await self._solicitar(
+            "DELETE",
+            f"/api/v2/organizations/{organizacion}/members",
+            headers=cabeceras,
+            json={"members": [usuario]},
+        )
+
     async def crear_organizacion(self, nombre: str, nombre_visible: str) -> str:
         """Crea la organización del tenant con sus conexiones y devuelve su id.
 

@@ -64,7 +64,7 @@ async def completar_ingreso(
     )
     if usuario is None:
         raise ErrorDominio("USR_VAL_000", email)
-    if usuario.estado == "inactivo":
+    if not usuario.puede_ingresar:
         raise ErrorDominio("USR_VAL_005", email)
     if usuario.auth0_usuario_id is None:
         # El primer ingreso vincula por email: exigir que Auth0 lo haya verificado evita
@@ -79,6 +79,7 @@ async def completar_ingreso(
             identidad.get("name"),
         )
 
+    await run_in_threadpool(repositorios.registrar_ingreso, tenant.base_sqlserver, usuario.id)
     sesion = await sesiones.crear(
         {
             "usuario_id": usuario.id,

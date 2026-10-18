@@ -75,6 +75,9 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Biometría móvil | Confirmación con WebAuthn (Face ID / Touch ID o PIN) en la PWA. |
 | Perímetro de consulta | Tablas autorizadas por rol (a detallar). |
 | Restaurar schema | En espera. |
+| Baja de usuarios | Desaparece del Panel Admin y queda deshabilitado 30 días (se puede rehabilitar); luego se elimina y hay que darlo de alta de nuevo. La bitácora conserva su historial. |
+| Cambio de rol | No cierra la sesión: el rol se relee en cada petición y se ve al recargar. |
+| Permisos por ambiente | Por ahora, ambientes habilitados por usuario; las acciones finas se suman con cada módulo. |
 | Notificaciones push | Web Push con VAPID (W3C), sin servicios de terceros. |
 | Exportación de auditoría | CSV y PDF sin firma digital (firma omitida por ahora). |
 | Histórico de métricas | Colecciones *time-series* de MongoDB. |

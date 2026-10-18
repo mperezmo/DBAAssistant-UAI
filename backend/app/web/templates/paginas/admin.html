@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("menu.admin") }}{% endblock %}
+
+{% block contenido %}
+<div class="page-head">
+  <div class="page-eyebrow">{{ t("admin.eyebrow") }}</div>
+  <h1 class="page-title">{{ t("admin.titulo") }} <em>{{ t("admin.titulo_enfasis") }}</em></h1>
+  <p class="page-subtitle">{{ t("admin.subtitulo") }}</p>
+</div>
+
+<section class="card" x-data="gestionUsuarios()" x-init="cargar()">
+  <div class="card-head">
+    <div>
+      <div class="card-eyebrow">{{ t("usuarios.eyebrow") }} · <span x-text="usuarios.length"></span></div>
+      <h3 class="card-title">{{ t("usuarios.titulo") }}</h3>
+    </div>
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" @click="bajas = !bajas; cargar()"
+              x-text="bajas ? '{{ t('usuarios.ver_vigentes') }}' : '{{ t('usuarios.ver_bajas') }}'"></button>
+      <button class="btn btn-primary btn-sm" x-show="!bajas" @click="abrirNuevo()">
+        {% with nombre="plus", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+        {{ t("usuarios.invitar") }}
+      </button>
+    </div>
+  </div>
+
+  <template x-if="aviso">
+    <div class="card-body text-sm" :class="aviso.error ? 'text-danger' : 'text-ok'">
+      <span x-text="aviso.texto"></span>
+      <strong class="font-mono" x-text="aviso.direccion"></strong>
+    </div>
+  </template>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>{{ t("usuarios.col.usuario") }}</th>
+        <th>{{ t("usuarios.col.rol") }}</th>
+        <th>{{ t("usuarios.col.ambientes") }}</th>
+        <th>{{ t("usuarios.col.estado") }}</th>
+        <th x-text="bajas ? '{{ t('usuarios.col.purga') }}' : '{{ t('usuarios.col.ultimo_ingreso') }}'"></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <template x-for="u in usuarios" :key="u.id">
+        <tr>
+          <td>
+            <strong class="text-[13px]" x-text="u.nombre || u.email"></strong>
+            <div class="font-mono text-[11px] text-fg-faint" x-text="u.email"></div>
+          </td>
+          <td><span class="tag" x-text="roles[u.rol]"></span></td>
+          <td class="metric-mono text-[11.5px]" x-text="u.ambientes.join(', ') || '—'"></td>
+          <td><span class="tag" :class="claseEstado(u.estado)" x-text="estados[u.estado]"></span></td>
+          <td class="metric-mono text-[11.5px] text-fg-faint"
+              x-text="bajas ? u.dias_para_purga + ' {{ t('usuarios.dias') }}' : fecha(u.ultimo_ingreso)"></td>
+          <td class="text-right whitespace-nowrap">
+            <template x-if="!bajas">
+              <span>
+                <button class="btn btn-ghost btn-sm" @click="abrirEdicion(u)">{{ t("usuarios.editar") }}</button>
+                <button class="btn btn-ghost btn-sm" @click="darBaja(u)">{{ t("usuarios.baja") }}</button>
+              </span>
+            </template>
+            <template x-if="bajas">
+              <button class="btn btn-ghost btn-sm" @click="rehabilitar(u)">{{ t("usuarios.rehabilitar") }}</button>
+            </template>
+          </td>
+        </tr>
+      </template>
+      <tr x-show="cargado && usuarios.length === 0">
+        <td colspan="6" class="text-center text-fg-muted">{{ t("usuarios.vacio") }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Formulario de alta / edición -->
+  <template x-if="formulario">
+  <div class="fixed inset-0 z-20 flex items-center justify-center bg-black/30"
+       @click.self="formulario = null" @keydown.escape.window="formulario = null">
+    <form class="card w-full max-w-md" @submit.prevent="guardar()">
+      <div class="card-head">
+        <h3 class="card-title" x-text="formulario.id ? '{{ t('usuarios.form.editar') }}' : '{{ t('usuarios.form.nuevo') }}'"></h3>
+      </div>
+      <div class="card-body flex flex-col gap-3">
+        <div class="field">
+          <label for="f-email">{{ t("usuarios.form.email") }}</label>
+          <input id="f-email" type="email" required x-model="formulario.email" :disabled="Boolean(formulario.id)">
+        </div>
+        <div class="field">
+          <label for="f-nombre">{{ t("usuarios.form.nombre") }}</label>
+          <input id="f-nombre" type="text" x-model="formulario.nombre">
+        </div>
+        <div class="field">
+          <label for="f-rol">{{ t("usuarios.form.rol") }}</label>
+          <select id="f-rol" x-model="formulario.rol" class="w-full rounded border border-line p-2">
+            {% for rol in roles %}<option value="{{ rol }}">{{ t("rol." ~ rol) }}</option>{% endfor %}
+          </select>
+        </div>
+        <fieldset>
+          <legend class="mb-2 text-[12.5px] font-medium text-fg-muted">{{ t("usuarios.form.ambientes") }}</legend>
+          <div class="flex gap-5">
+            {% for ambiente in ambientes %}
+            <label class="flex items-center gap-2 font-mono text-[12px]">
+              <input type="checkbox" class="size-4" value="{{ ambiente }}" x-model="formulario.ambientes">
+              {{ ambiente }}
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <p class="text-sm text-danger" x-show="formulario.error" x-text="formulario.error"></p>
+      </div>
+      <div class="card-foot justify-end gap-2">
+        <button type="button" class="btn btn-ghost btn-sm" @click="formulario = null">{{ t("usuarios.form.cancelar") }}</button>
+        <button type="submit" class="btn btn-primary btn-sm">{{ t("usuarios.form.guardar") }}</button>
+      </div>
+    </form>
+  </div>
+  </template>
+</section>
+
+<script>
+  window.TEXTOS_USUARIOS = {
+    roles: {{ textos_roles | tojson }},
+    estados: {{ textos_estados | tojson }},
+    nunca: {{ t("usuarios.nunca") | tojson }},
+    creado: {{ t("usuarios.creado") | tojson }},
+    confirmarBaja: {{ t("usuarios.confirmar_baja") | tojson }},
+  };
+</script>
+<script src="/static/js/admin_usuarios.js"></script>
+{% endblock %}
