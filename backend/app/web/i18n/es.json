@@ -65,5 +65,10 @@
   "estado.invitado": "invitado",
   "estado.activo": "activo",
   "estado.baja": "baja",
-  "estado.inactivo": "inactivo"
+  "estado.inactivo": "inactivo",
+  "servicios.redis.detalle": "Sesiones y caché",
+  "servicios.no_configurado": "No configurado",
+  "servicios.estado.online": "online",
+  "servicios.estado.error": "caído",
+  "servicios.estado.warning": "atención"
 }

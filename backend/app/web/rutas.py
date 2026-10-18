@@ -62,6 +62,9 @@ async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)
             "roles": ROLES,
             "ambientes": AMBIENTES,
             "textos_roles": {rol: traducir(f"rol.{rol}") for rol in ROLES},
+            "textos_servicios": {
+                e: traducir(f"servicios.estado.{e}") for e in ("online", "error", "warning")
+            },
             "textos_estados": {
                 e: traducir(f"estado.{e}") for e in ("invitado", "activo", "baja", "inactivo")
             },

@@ -1,9 +1,11 @@
 """Punto de entrada de la aplicación FastAPI (servida por Uvicorn)."""
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import pyodbc
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,13 +22,25 @@ from app.web import rutas as web
 from app.web.rutas import DIRECTORIO_ESTATICOS, plantillas
 
 log = logging.getLogger(__name__)
+INTENTOS_INICIO = 10
+ESPERA_ENTRE_INTENTOS_SEGUNDOS = 5
 
 
 @asynccontextmanager
 async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
     # Al arrancar se aplican los cambios de estructura pendientes en el catálogo
     # y en las bases de todos los tenants.
-    await run_in_threadpool(tenants.migrar_todo)
+    # Se reintenta porque, al levantar todo junto, SQL Server puede tardar en aceptar
+    # conexiones aunque el contenedor ya figure iniciado.
+    for intento in range(1, INTENTOS_INICIO + 1):
+        try:
+            await run_in_threadpool(tenants.migrar_todo)
+            break
+        except pyodbc.OperationalError as error:
+            if intento == INTENTOS_INICIO:
+                raise
+            log.warning("SQL Server no disponible (intento %s): %s", intento, error)
+            await asyncio.sleep(ESPERA_ENTRE_INTENTOS_SEGUNDOS)
     yield
 
 

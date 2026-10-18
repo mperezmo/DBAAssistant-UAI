@@ -9,6 +9,23 @@
   <p class="page-subtitle">{{ t("admin.subtitulo") }}</p>
 </div>
 
+<div class="grid-4 mb-5" x-data="estadoServicios()" x-init="cargar()">
+  <template x-for="s in servicios" :key="s.nombre">
+    <div class="card p-[18px]">
+      <div class="row mb-2.5">
+        <span class="size-2 rounded-full" :style="`background:${color(s.estado)}`"></span>
+        <strong class="text-sm" x-text="s.nombre"></strong>
+        <span class="flex-1"></span>
+        <span class="metric-mono text-[10px] uppercase tracking-[0.12em]"
+              :style="`color:${color(s.estado)}`" x-text="estados[s.estado]"></span>
+      </div>
+      <div class="text-xs text-fg-muted">
+        <span x-text="s.detalle"></span><span x-show="s.latencia_ms !== null" x-text="` · ${s.latencia_ms} ms`"></span>
+      </div>
+    </div>
+  </template>
+</div>
+
 <section class="card" x-data="gestionUsuarios()" x-init="cargar()">
   <div class="card-head">
     <div>
@@ -123,6 +140,7 @@
   window.TEXTOS_USUARIOS = {
     roles: {{ textos_roles | tojson }},
     estados: {{ textos_estados | tojson }},
+    estadosServicio: {{ textos_servicios | tojson }},
     nunca: {{ t("usuarios.nunca") | tojson }},
     creado: {{ t("usuarios.creado") | tojson }},
     confirmarBaja: {{ t("usuarios.confirmar_baja") | tojson }},

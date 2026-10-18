@@ -248,3 +248,29 @@ async def test_pagina_admin(entorno):
     assert "Gestión de identidades" in respuesta.text
     assert "admin_usuarios.js" in respuesta.text
     assert "nav-item active" in respuesta.text
+
+
+async def test_estado_de_servicios_para_el_panel(entorno, monkeypatch):
+    from app.api import salud
+
+    async def ok():
+        return None
+
+    async def caido():
+        raise ConnectionError("sin respuesta")
+
+    monkeypatch.setitem(salud.VERIFICACIONES, "sqlserver", ok)
+    monkeypatch.setitem(salud.VERIFICACIONES, "mongodb", caido)
+    monkeypatch.setitem(salud.VERIFICACIONES, "redis", ok)
+    monkeypatch.setattr(salud.ClienteAuth0, "verificar", lambda self: ok())
+    navegador = await _navegador_con_sesion(entorno["admin"])
+
+    servicios = navegador.get("/api/salud/servicios").json()["servicios"]
+
+    estados = {s["nombre"]: (s["estado"], s["detalle"]) for s in servicios}
+    assert estados == {
+        "SQL Server": ("online", "DB_T_acme"),
+        "MongoDB": ("error", "db_t_acme"),
+        "Redis": ("online", "Sesiones y caché"),
+        "Auth0": ("online", "dba-test.us.auth0.com"),
+    }

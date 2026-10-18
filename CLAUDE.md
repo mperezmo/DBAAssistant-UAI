@@ -42,12 +42,12 @@ Guía para retomar el proyecto en cada sesión.
 
 - **Sprint 0 (fundaciones):** estructura, Docker Compose, NGINX TLS 1.3, chequeo de
   salud de dependencias, layout del diseño, PWA base, CI.
-- **Sprint 1 (en curso):** multi-tenant (catálogo, base SQL y Mongo por tenant,
-  migraciones automáticas, `crear-tenant` con organización en Auth0), bitácora de
-  auditoría, catálogo de errores, login con Auth0 + MFA por subdominio, sesiones en
-  Redis (8 h fijas), menú por rol, Panel Admin con gestión de usuarios (alta, edición
-  de rol y ambientes, baja con 30 días de gracia y rehabilitación; el rol se relee en
-  cada petición). Pendiente de cierre: prueba del usuario, merge a `main` y tag `v0.1.0`.
+- **Sprint 1 ✅ (`v0.1.0`):** multi-tenant (catálogo, base SQL y Mongo por tenant,
+  migraciones automáticas, `crear-tenant` con organización y URLs en Auth0), bitácora
+  de auditoría, catálogo de errores, login con Auth0 + MFA por subdominio, sesiones en
+  Redis (8 h fijas), menú por rol, Panel Admin con estado de servicios y gestión de
+  usuarios (baja con 30 días de gracia; el rol se relee en cada petición).
+- **Próximo — Sprint 2:** conexiones a SQL Server (CU-000-000).
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.

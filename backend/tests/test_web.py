@@ -21,3 +21,27 @@ def test_traduccion_inexistente_devuelve_la_clave():
 
 def test_idioma_no_disponible_usa_espanol():
     assert traducir("menu.inicio", idioma="xx") == "Inicio"
+
+
+async def test_inicio_reintenta_si_sql_server_no_responde(monkeypatch):
+    import pyodbc
+
+    from app import main
+
+    intentos = []
+
+    def migrar():
+        intentos.append(1)
+        if len(intentos) < 3:
+            raise pyodbc.OperationalError("HYT00", "Login timeout expired")
+
+    async def sin_espera(_):
+        return None
+
+    monkeypatch.setattr(main.tenants, "migrar_todo", migrar)
+    monkeypatch.setattr(main.asyncio, "sleep", sin_espera)
+
+    async with main.ciclo_de_vida(main.app):
+        pass
+
+    assert len(intentos) == 3

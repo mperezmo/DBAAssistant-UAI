@@ -49,6 +49,10 @@ class ClienteAuth0:
             raise ErrorDominio("AUT_API_000", f"{metodo} {ruta}: {error}") from error
         return respuesta.json() if respuesta.content else None
 
+    async def verificar(self) -> None:
+        """Comprueba que el tenant de Auth0 responda (documento de descubrimiento OIDC)."""
+        await self._solicitar("GET", "/.well-known/openid-configuration")
+
     # --- Ingreso de usuarios (OpenID Connect) ---------------------------------
 
     def url_autorizacion(self, redirect_uri: str, state: str, nonce: str, organizacion: str) -> str:
