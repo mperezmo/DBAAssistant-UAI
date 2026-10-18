@@ -218,7 +218,7 @@ def test_cerrar_sesion(entorno):
     respuesta = navegador.post("/auth/salir")
 
     assert respuesta.headers["location"].startswith(f"{EMISOR}v2/logout")
-    assert "returnTo=https%3A%2F%2Facme.localhost%2Fingresar" in respuesta.headers["location"]
+    assert "returnTo=https%3A%2F%2Facme.localhost%2F" in respuesta.headers["location"]
     assert entorno["eventos"] == ["sesion.iniciada", "sesion.cerrada"]
     navegador.cookies.clear()
     assert navegador.get("/").headers["location"] == "/ingresar"
@@ -260,4 +260,28 @@ async def test_crear_organizacion_habilita_conexiones_con_alta_automatica(monkey
             "assign_membership_on_login": True,
         },
     ]
+    obtener_configuracion.cache_clear()
+
+
+async def test_registrar_direcciones_agrega_las_del_tenant_sin_duplicar(monkeypatch):
+    monkeypatch.setenv("AUTH0_DOMAIN", DOMINIO)
+    monkeypatch.setenv("AUTH0_CLIENT_ID", CLIENT_ID)
+    monkeypatch.setenv("AUTH0_ADMIN_CLIENT_ID", "cliente-admin")
+    monkeypatch.setenv("SECRETO_AUTH0_ADMIN_CLIENT_SECRET", "secreto")
+    obtener_configuracion.cache_clear()
+    auth0 = Auth0Falso()
+    cliente = ClienteAuth0(obtener_configuracion(), transporte=auth0.transporte())
+
+    await cliente.registrar_direcciones("https://acme.localhost")
+    await cliente.registrar_direcciones("https://acme.localhost")
+
+    assert auth0.cliente_web == {
+        "callbacks": [
+            "https://otra.localhost/auth/callback",
+            "https://acme.localhost/auth/callback",
+        ],
+        "allowed_logout_urls": ["https://acme.localhost/"],
+        "web_origins": ["https://acme.localhost"],
+    }
+    assert sum(1 for c in auth0.llamadas if c[0] == "PATCH") == 1
     obtener_configuracion.cache_clear()

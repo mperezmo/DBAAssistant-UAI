@@ -113,6 +113,33 @@ class ClienteAuth0:
         )
         return respuesta["access_token"]
 
+    async def registrar_direcciones(self, url_base: str) -> None:
+        """Agrega a la aplicación web las URLs de retorno y cierre de un tenant.
+
+        Cada tenant entra por su propio subdominio y Auth0 solo redirige a URLs
+        registradas; se agregan sin tocar las existentes.
+        """
+        cabeceras = {"Authorization": f"Bearer {await self._token_administracion()}"}
+        ruta = f"/api/v2/clients/{self.cfg.auth0_client_id}"
+        actual = await self._solicitar(
+            "GET",
+            ruta,
+            headers=cabeceras,
+            params={"fields": "callbacks,allowed_logout_urls,web_origins"},
+        )
+        deseadas = {
+            "callbacks": f"{url_base}/auth/callback",
+            "allowed_logout_urls": f"{url_base}/",
+            "web_origins": url_base,
+        }
+        cambios = {
+            campo: [*(actual.get(campo) or []), url]
+            for campo, url in deseadas.items()
+            if url not in (actual.get(campo) or [])
+        }
+        if cambios:
+            await self._solicitar("PATCH", ruta, headers=cabeceras, json=cambios)
+
     async def crear_organizacion(self, nombre: str, nombre_visible: str) -> str:
         """Crea la organización del tenant con sus conexiones y devuelve su id.
 

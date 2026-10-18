@@ -137,7 +137,11 @@ def con_auth0(monkeypatch, entorno):
         llamadas.append(("auth0", nombre, nombre_visible))
         return "org_acme"
 
+    async def registrar_direcciones(self, url_base):
+        llamadas.append(("direcciones", url_base))
+
     monkeypatch.setattr(servicios.ClienteAuth0, "crear_organizacion", crear_organizacion)
+    monkeypatch.setattr(servicios.ClienteAuth0, "registrar_direcciones", registrar_direcciones)
     monkeypatch.setattr(
         servicios.repositorios,
         "actualizar_organizacion",
@@ -150,6 +154,7 @@ def con_auth0(monkeypatch, entorno):
 async def test_aprovisionar_crea_la_organizacion_en_auth0(con_auth0):
     await servicios.aprovisionar("acme", "ACME S.A.", "admin@acme.com")
 
+    assert ("direcciones", "https://acme.localhost") in con_auth0
     assert ("auth0", "acme", "ACME S.A.") in con_auth0
     assert ("organizacion", "org_acme") in con_auth0
     assert con_auth0.index(("organizacion", "org_acme")) < con_auth0.index(("estado", "activo"))
@@ -162,3 +167,17 @@ async def test_tenant_activo_sin_organizacion_se_completa(con_auth0, entorno):
     await servicios.aprovisionar("acme", "ACME S.A.", "admin@acme.com")
 
     assert ("organizacion", "org_acme") in con_auth0
+
+
+async def test_sincronizar_auth0_registra_las_direcciones(con_auth0, entorno):
+    _, estado = entorno
+    estado["existente"] = _tenant("activo")
+
+    assert await servicios.sincronizar_auth0("acme") == "https://acme.localhost"
+    assert ("direcciones", "https://acme.localhost") in con_auth0
+
+
+async def test_sincronizar_auth0_tenant_inexistente(con_auth0):
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.sincronizar_auth0("nadie")
+    assert error.value.codigo == "TEN_VAL_000"

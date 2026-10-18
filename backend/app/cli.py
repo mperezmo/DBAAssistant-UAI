@@ -3,6 +3,7 @@
 Uso (dentro del contenedor del backend):
     python -m app.cli crear-tenant --slug acme --nombre "ACME S.A." --admin admin@acme.com
     python -m app.cli migrar
+    python -m app.cli sincronizar-auth0 --slug acme
 """
 
 import argparse
@@ -33,6 +34,11 @@ def _migrar(_: argparse.Namespace) -> None:
     print("Estructura actualizada en el catálogo y en todos los tenants.")
 
 
+def _sincronizar_auth0(args: argparse.Namespace) -> None:
+    url = asyncio.run(servicios.sincronizar_auth0(args.slug))
+    print(f"Direcciones de {url} registradas en Auth0.")
+
+
 def main(argumentos: list[str] | None = None) -> int:
     configurar_registro(obtener_configuracion().log_nivel)
     parser = argparse.ArgumentParser(prog="python -m app.cli")
@@ -46,6 +52,12 @@ def main(argumentos: list[str] | None = None) -> int:
 
     migrar = comandos.add_parser("migrar", help="Aplica los cambios de estructura pendientes.")
     migrar.set_defaults(funcion=_migrar)
+
+    sincronizar = comandos.add_parser(
+        "sincronizar-auth0", help="Registra en Auth0 las direcciones de acceso de un tenant."
+    )
+    sincronizar.add_argument("--slug", required=True)
+    sincronizar.set_defaults(funcion=_sincronizar_auth0)
 
     args = parser.parse_args(argumentos)
     try:

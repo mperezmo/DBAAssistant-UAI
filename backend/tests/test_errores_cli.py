@@ -53,3 +53,13 @@ def test_cli_migrar(monkeypatch, capsys):
 
     assert cli.main(["migrar"]) == 0
     assert "actualizada" in capsys.readouterr().out
+
+
+def test_cli_sincronizar_auth0(monkeypatch, capsys):
+    async def sincronizar(slug):
+        return f"https://{slug}.localhost"
+
+    monkeypatch.setattr(cli.servicios, "sincronizar_auth0", sincronizar)
+
+    assert cli.main(["sincronizar-auth0", "--slug", "demo"]) == 0
+    assert "https://demo.localhost" in capsys.readouterr().out

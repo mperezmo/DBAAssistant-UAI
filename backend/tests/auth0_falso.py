@@ -22,6 +22,11 @@ class Auth0Falso:
         self.jwks = {"keys": [{**jwk, "kid": "k1", "alg": "RS256", "use": "sig"}]}
         self.identidad = {}
         self.llamadas: list[tuple[str, str, dict]] = []
+        self.cliente_web = {
+            "callbacks": ["https://otra.localhost/auth/callback"],
+            "allowed_logout_urls": [],
+            "web_origins": None,
+        }
 
     def firmar(self, **claims) -> str:
         base = {"iss": EMISOR, "iat": int(time.time()), "exp": int(time.time()) + 600}
@@ -54,6 +59,11 @@ class Auth0Falso:
         if ruta == "/api/v2/connections":
             nombre = solicitud.url.params["name"]
             return httpx2.Response(200, json=[{"id": f"con_{nombre}"}])
+        if ruta == f"/api/v2/clients/{CLIENT_ID}" and solicitud.method == "GET":
+            return httpx2.Response(200, json=self.cliente_web)
+        if ruta == f"/api/v2/clients/{CLIENT_ID}" and solicitud.method == "PATCH":
+            self.cliente_web.update(datos)
+            return httpx2.Response(200, json=self.cliente_web)
         if ruta.endswith("/enabled_connections"):
             return httpx2.Response(201, json={})
         return httpx2.Response(404)

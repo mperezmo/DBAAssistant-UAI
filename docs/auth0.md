@@ -26,13 +26,10 @@ Ese valor va en `AUTH0_DOMAIN`.
 
 1. **Applications → Applications → Create Application**.
 2. Nombre: `DBA Assistant`. Tipo: **Regular Web Applications**.
-3. Pestaña **Settings**:
-   - **Allowed Callback URLs**: `https://{organization_name}.localhost/auth/callback`
-   - **Allowed Logout URLs**: `https://{organization_name}.localhost/`
-   - **Allowed Web Origins**: `https://{organization_name}.localhost`
-
-   `{organization_name}` se escribe tal cual: Auth0 lo reemplaza por el nombre de la
-   organización, que coincide con el identificador del tenant (por ejemplo `acme`).
+3. Pestaña **Settings**: las URLs permitidas (*Callback*, *Logout* y *Web Origins*) no se
+   cargan a mano. `crear-tenant` agrega automáticamente las de cada cliente
+   (`https://<cliente>.localhost/...`). Para un tenant ya creado se pueden volver a
+   registrar con `python -m app.cli sincronizar-auth0 --slug <cliente>`.
 4. Pestaña **Organizations** (dentro de la aplicación):
    - **Types of Users**: *Business Users*.
    - **Login Flow**: *No Prompt* (la empresa se deduce de la dirección).
@@ -84,6 +81,7 @@ Permite que la app cree las organizaciones e invite usuarios sin intervención m
    - `read:organization_members`, `delete:organization_members`
    - `read:users`, `update:users`, `delete:users`
    - `read:connections`
+   - `read:clients`, `update:clients` (para registrar las URLs de cada cliente)
 4. Anotar el **Client ID** y el **Client Secret** de esta aplicación.
 
 ## 8. Variables de entorno

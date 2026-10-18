@@ -62,7 +62,7 @@ async def salir(request: Request, tenant: Tenant | None = Depends(tenant_actual)
     sesion = await sesion_actual(request, tenant)
     if sesion:
         await servicios.cerrar_sesion(tenant, sesion, ip_cliente(request))
-    url = servicios.cliente_auth0().url_cierre_sesion(url_retorno(request, "/ingresar"))
+    url = servicios.cliente_auth0().url_cierre_sesion(url_retorno(request, "/"))
     respuesta = RedirectResponse(url, status_code=303)
     respuesta.delete_cookie(sesiones.COOKIE)
     return respuesta

@@ -63,7 +63,9 @@ async def aprovisionar(slug: str, nombre: str, email_administrador: str) -> Tena
         await run_in_threadpool(repositorios.crear_administrador, tenant, email_administrador)
         if cfg.auth0_configurado and not tenant.auth0_organizacion_id:
             # El nombre de la organización es el slug: Auth0 lo usa en las URLs de retorno.
-            organizacion = await ClienteAuth0(cfg).crear_organizacion(slug, nombre)
+            auth0 = ClienteAuth0(cfg)
+            await auth0.registrar_direcciones(f"https://{slug}.{cfg.dominio_base}")
+            organizacion = await auth0.crear_organizacion(slug, nombre)
             await run_in_threadpool(repositorios.actualizar_organizacion, tenant.id, organizacion)
         elif not cfg.auth0_configurado:
             log.warning("Auth0 no configurado: el tenant %s queda sin organización", slug)
@@ -83,3 +85,14 @@ async def aprovisionar(slug: str, nombre: str, email_administrador: str) -> Tena
     )
     log.info("Tenant %s aprovisionado", slug)
     return await run_in_threadpool(repositorios.obtener_por_slug, slug)
+
+
+async def sincronizar_auth0(slug: str) -> str:
+    """Vuelve a registrar en Auth0 las direcciones de acceso de un tenant existente."""
+    cfg = obtener_configuracion()
+    tenant = await run_in_threadpool(repositorios.obtener_por_slug, slug)
+    if tenant is None:
+        raise ErrorDominio("TEN_VAL_000", slug)
+    url_base = f"https://{slug}.{cfg.dominio_base}"
+    await ClienteAuth0(cfg).registrar_direcciones(url_base)
+    return url_base
