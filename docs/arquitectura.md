@@ -49,20 +49,27 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Python | 3.14, la última versión estable. |
 | Dependencias | `uv` con `pyproject.toml` y `uv.lock`. |
 | Linter / tests | `ruff` (lint y formato) y `pytest` con cobertura mínima del 80%. |
-| SQL Server | Contiene toda la estructura funcional de la app. Imagen 2022 en Docker, accesible desde SSMS en `localhost,14330`. |
-| MongoDB | Solo auditoría, glosarios de las bases monitoreadas y logs. |
+| SQL Server | Estructura funcional: tenants, conexiones, usuarios, roles, permisos por ambiente, métricas y umbrales, reglas de alerta, alertas, workarounds y versiones. Imagen 2022 en Docker, accesible desde SSMS en `localhost,14330`. |
+| MongoDB | Bitácoras (transacciones, auditoría, excepciones, sandbox), contexto de negocio, informes de buenas prácticas, snapshots de schema y dispositivos push. |
 | Redis | Contenedor propio. TTL configurables solo por variable de entorno. |
 | Secretos | `.env` en local, detrás de una interfaz; Key Vault por ambiente al migrar a Azure. |
 | IA | Claude Haiku 5.5 por defecto. |
 | MFA | Obligatorio al ingresar; segundo factor nuevamente al ejecutar acciones sobre conexiones PROD. |
-| Login | Solo Google (a futuro, correo empresarial). |
+| Login | Google y email + contraseña, siempre con MFA. |
 | Roles | Tres: Administrador, DBA y Consulta (no los cinco del diseño). Módulos por rol en la tabla siguiente. |
 | Instancias monitoreadas | Solo SQL Server sobre Windows. Las registra el usuario. |
 | Sandbox | Un contenedor persistente por cada IP registrada, con todas sus bases. Solo estructura. Se sincroniza a diario y se verifica alineación antes de cada validación. |
 | Ejecución | Dry-run en sandbox y confirmación del usuario antes de ejecutar en la base real. |
-| Alertas | Motor caído, base caída, bloqueos y poco espacio (disco, datos y log). Réplica, más adelante. |
+| Alertas | Motor caído, base caída, bloqueos y poco espacio (disco, datos y log). Réplica, más adelante. Notificación por la PWA; email más adelante. |
 | Ambientes | Uno solo por ahora. Ramas `main` y `dev`. |
 | Idioma | Español; textos en `app/web/i18n/` para agregar inglés después. |
+| Multi-tenant | Desde el inicio: cada empresa cliente aislada del resto. |
+| Monitoreo | Refresco de métricas cada 3 segundos. |
+| Retención | Bitácoras y excepciones: 5 años (requisito del TFI). |
+| Capas | Cada módulo con `api`, `servicios`, `repositorios` y `entidades`; catálogo central de códigos de error del TFI. |
+| Biometría móvil | Confirmación con WebAuthn (Face ID / Touch ID o PIN) en la PWA. |
+| Perímetro de consulta | Tablas autorizadas por rol (a detallar). |
+| Restaurar schema | En espera. |
 
 ## Módulos por rol
 
