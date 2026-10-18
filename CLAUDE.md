@@ -28,8 +28,11 @@ Guía para retomar el proyecto en cada sesión.
 ## Estructura
 
 - `backend/app/core/`: configuración, secretos (interfaz para Key Vault) y logging.
-- `backend/app/datos/`: SQL Server (pyodbc), MongoDB (PyMongo async) y Redis.
-- `backend/app/modulos/`: un paquete por bloque del backend del diagrama.
+- `backend/app/datos/`: SQL Server (pyodbc), MongoDB (PyMongo async), Redis y migraciones.
+- `backend/app/tenants/`: catálogo y aprovisionamiento de tenants; `backend/app/cli.py`: comandos.
+- `backend/app/core/errores.py`: catálogo de códigos de error (nomenclatura del TFI).
+- `backend/app/modulos/`: un paquete por bloque del diagrama, en capas `api`, `servicios`,
+  `repositorios` y `entidades`.
 - `backend/app/web/`: plantillas Jinja2, estáticos, i18n y menú.
 - `backend/tailwind/`: estilos (tokens del diseño + Tailwind).
 - `nginx/`: reverse proxy con TLS 1.3.
@@ -38,5 +41,9 @@ Guía para retomar el proyecto en cada sesión.
 
 - **Sprint 0 (fundaciones):** estructura, Docker Compose, NGINX TLS 1.3, chequeo de
   salud de dependencias, layout del diseño, PWA base, CI.
-- Próximo: casos de uso de negocio (los provee el usuario).
+- **Sprint 1 (en curso):** multi-tenant (catálogo, base SQL y Mongo por tenant,
+  migraciones automáticas, `crear-tenant`), bitácora de auditoría, catálogo de errores.
+  Falta: login Auth0 + MFA, usuarios y roles.
+- Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
+  `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.

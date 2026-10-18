@@ -33,6 +33,26 @@ docker compose up -d --build
 - Estado de las dependencias: <https://localhost/api/salud>.
 - SQL Server de la aplicación: `localhost,14330`, accesible desde SSMS.
 
+### Alta de un cliente (tenant)
+
+Cada cliente tiene su propia base SQL Server y su propia base MongoDB. El alta es
+un único comando que crea todo y registra al primer Administrador:
+
+```bash
+docker compose exec backend python -m app.cli crear-tenant \
+  --slug acme --nombre "ACME S.A." --admin admin@acme.com
+```
+
+Si un paso falla, el tenant queda en estado `error` y volver a ejecutar el mismo
+comando retoma el aprovisionamiento.
+
+Los cambios de estructura de las bases (`backend/app/datos/migraciones/`) se
+aplican solos al arrancar el backend. También se pueden aplicar a mano:
+
+```bash
+docker compose exec backend python -m app.cli migrar
+```
+
 ### Conectarse desde SSMS
 
 El SQL Server corre en Linux dentro de Docker, por lo que **no admite autenticación de Windows**:
@@ -61,7 +81,8 @@ uv run uvicorn app.main:app --reload
 ```bash
 cd backend
 uv run ruff check . && uv run ruff format --check .
-uv run pytest
+uv run pytest                       # unitarios (cobertura mínima 80%)
+uv run pytest -m integracion --no-cov   # requiere SQL Server y MongoDB (ver tests/integracion)
 ```
 
 ## Ramas

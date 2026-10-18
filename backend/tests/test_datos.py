@@ -6,9 +6,9 @@ from app.datos import sqlserver
 
 
 def test_cadena_conexion_usa_driver_odbc_y_cifrado():
-    cfg = Configuracion(sqlserver_host="db", sqlserver_puerto=1433, sqlserver_base="app")
+    cfg = Configuracion(sqlserver_host="db", sqlserver_puerto=1433)
 
-    cadena = sqlserver.cadena_conexion(cfg, "cl;ave")
+    cadena = sqlserver.cadena_conexion(cfg, "cl;ave", "app")
 
     assert "DRIVER={ODBC Driver 18 for SQL Server}" in cadena
     assert "SERVER=db,1433" in cadena

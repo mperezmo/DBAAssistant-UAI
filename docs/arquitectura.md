@@ -58,12 +58,15 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Login | Google y email + contraseña, siempre con MFA. |
 | Roles | Tres: Administrador, DBA y Consulta (no los cinco del diseño). Módulos por rol en la tabla siguiente. |
 | Instancias monitoreadas | Solo SQL Server sobre Windows. Las registra el usuario. |
-| Sandbox | Un contenedor persistente por cada IP registrada, con todas sus bases. Solo estructura. Se sincroniza a diario y se verifica alineación antes de cada validación. |
+| Sandbox (detalle) | Un contenedor persistente por cada IP registrada, con todas sus bases. Solo estructura. Se sincroniza a diario y se verifica alineación antes de cada validación. |
 | Ejecución | Dry-run en sandbox y confirmación del usuario antes de ejecutar en la base real. |
 | Alertas | Motor caído, base caída, bloqueos y poco espacio (disco, datos y log). Réplica, más adelante. Notificación por la PWA; email más adelante. |
 | Ambientes | Uno solo por ahora. Ramas `main` y `dev`. |
 | Idioma | Español; textos en `app/web/i18n/` para agregar inglés después. |
-| Multi-tenant | Desde el inicio: cada empresa cliente aislada del resto. |
+| Multi-tenant | Desde el inicio. Base central `<prefijo>_Catalogo` con la lista de tenants; por cada tenant una base SQL Server `<prefijo>_T_<slug>` y una base MongoDB `<prefijo>_t_<slug>`. Las tablas llevan además `tenant_id` como segunda barrera. Alta automática con `python -m app.cli crear-tenant`. |
+| Identidad por tenant | Auth0 Organizations: una organización por cliente. |
+| Sandbox | Un contenedor por IP registrada y por tenant. |
+| Cambios de estructura | Scripts T-SQL numerados en `backend/app/datos/migraciones/{catalogo,tenant}`, aplicados automáticamente al arrancar. |
 | Monitoreo | Refresco de métricas cada 3 segundos. |
 | Retención | Bitácoras y excepciones: 5 años (requisito del TFI). |
 | Capas | Cada módulo con `api`, `servicios`, `repositorios` y `entidades`; catálogo central de códigos de error del TFI. |

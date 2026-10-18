@@ -17,17 +17,19 @@ class Configuracion(BaseSettings):
     app_entorno: str = "desarrollo"
     log_nivel: str = "INFO"
 
-    # Base SQL Server propia de la aplicación (estructura funcional).
+    # SQL Server propio de la aplicación: una base central (catálogo de tenants)
+    # y una base por tenant con la estructura funcional.
     sqlserver_host: str = "sqlserver"
     sqlserver_puerto: int = 1433
-    sqlserver_base: str = "master"
+    sqlserver_prefijo_base: str = "DBAAssistant"
     sqlserver_usuario: str = "sa"
     sqlserver_driver: str = "ODBC Driver 18 for SQL Server"
     sqlserver_confiar_certificado: bool = True
     sqlserver_timeout_segundos: int = 5
 
-    # MongoDB: auditoría, glosarios de las bases monitoreadas y logs.
-    mongodb_base: str = "dba_assistant"
+    # MongoDB: una base por tenant (bitácoras, contexto de negocio, métricas)
+    # y una de plataforma para eventos sin tenant.
+    mongodb_prefijo_base: str = "dba_assistant"
 
     # Redis: caché de queries de IA, contexto y métricas. TTL en segundos.
     redis_url: str = "redis://redis:6379/0"
@@ -37,6 +39,14 @@ class Configuracion(BaseSettings):
 
     # IA generativa (Anthropic Claude API).
     ia_modelo: str = "claude-haiku-5-5"
+
+    @property
+    def sqlserver_base_catalogo(self) -> str:
+        return f"{self.sqlserver_prefijo_base}_Catalogo"
+
+    @property
+    def mongodb_base_plataforma(self) -> str:
+        return f"{self.mongodb_prefijo_base}_plataforma"
 
 
 @lru_cache
