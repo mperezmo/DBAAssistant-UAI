@@ -20,7 +20,9 @@ CATALOGO: dict[str, DefinicionError] = {
     "USR_VAL_002": DefinicionError("Datos requeridos no completados.", 422),
     "USR_VAL_005": DefinicionError("El usuario está deshabilitado.", 403),
     "USR_AUT_000": DefinicionError("Credenciales inválidas.", 401),
-    "USR_AUT_001": DefinicionError("El segundo factor de autenticación es inválido.", 401),
+    "USR_AUT_001": DefinicionError(
+        "El segundo factor de autenticación es inválido o no se completó.", 401
+    ),
     "USR_AUT_003": DefinicionError("El email todavía no fue verificado.", 401),
     "USR_AUT_004": DefinicionError("La solicitud de ingreso expiró o no es válida.", 400),
     "USR_PER_000": DefinicionError("El rol no tiene permisos para esta acción.", 403),
