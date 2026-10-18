@@ -51,7 +51,7 @@ Los nombres de menús pueden variar levemente según la versión del panel de Au
 
 ## 6. Roles
 
-1. **User Management → Roles → Create Role**, uno por cada rol definido (ver `docs/pendientes.md`).
+1. **User Management → Roles → Create Role**, uno por rol: `Administrador`, `DBA` y `Consulta`.
 2. En cada rol, pestaña **Permissions → Add Permissions**, elegir la API `DBA Assistant API` y asignar los permisos correspondientes.
 
 ## 7. Roles dentro del token

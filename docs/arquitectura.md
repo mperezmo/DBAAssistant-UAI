@@ -49,13 +49,14 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Python | 3.14, la última versión estable. |
 | Dependencias | `uv` con `pyproject.toml` y `uv.lock`. |
 | Linter / tests | `ruff` (lint y formato) y `pytest` con cobertura mínima del 80%. |
-| SQL Server | Contiene toda la estructura funcional de la app. Imagen 2022 en Docker. |
+| SQL Server | Contiene toda la estructura funcional de la app. Imagen 2022 en Docker, accesible desde SSMS en `localhost,14330`. |
 | MongoDB | Solo auditoría, glosarios de las bases monitoreadas y logs. |
-| Redis | Contenedor propio. TTL configurables por variable de entorno. |
+| Redis | Contenedor propio. TTL configurables solo por variable de entorno. |
 | Secretos | `.env` en local, detrás de una interfaz; Key Vault por ambiente al migrar a Azure. |
 | IA | Claude Haiku 5.5 por defecto. |
 | MFA | Obligatorio al ingresar; segundo factor nuevamente al ejecutar acciones sobre conexiones PROD. |
 | Login | Solo Google (a futuro, correo empresarial). |
+| Roles | Tres: Administrador, DBA y Consulta (no los cinco del diseño). |
 | Instancias monitoreadas | Solo SQL Server sobre Windows. Las registra el usuario. |
 | Sandbox | Un contenedor persistente por cada IP registrada, con todas sus bases. Solo estructura. Se sincroniza a diario y se verifica alineación antes de cada validación. |
 | Ejecución | Dry-run en sandbox y confirmación del usuario antes de ejecutar en la base real. |

@@ -4,12 +4,10 @@
 
 | # | Tema | Situación |
 |---|------|-----------|
-| 1 | **Roles** | El diseño define 5 roles: DBA Senior, DBA Junior, Desarrollador, Usuario de Negocio y Administrador, cada uno con sus módulos habilitados. Se había propuesto un esquema de 3 (Administrador, DBA, Consulta). Falta confirmar cuál se usa. |
-| 2 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local; el diagrama indica Atlas. |
-| 3 | **Copia de la base de la app en el SQL Server local** | Definir si alcanza con acceder por SSMS al contenedor (`localhost,14330`) o si se necesita una copia en otra instancia, y con qué mecanismo. |
-| 4 | **Migraciones del esquema SQL Server** | Elegir entre scripts SQL versionados o una herramienta de migraciones. |
-| 5 | **TTL de caché editables desde la app** | Hoy se configuran por variables de entorno. |
-| 6 | **Publicación de imágenes Docker** | El pipeline del diagrama incluye *Docker push*; queda diferido hasta definir el registro (Azure Container Registry al migrar). |
+| 1 | **Módulos por rol** | Se usan 3 roles (Administrador, DBA, Consulta). Falta confirmar qué módulos habilita cada uno. |
+| 2 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local; el diagrama indica Atlas. Al migrar a Azure: Atlas desplegado en Azure o Azure Cosmos DB for MongoDB. |
+| 3 | **Cambios de estructura de la base SQL Server de la app** | Elegir entre scripts T-SQL numerados o una herramienta de migraciones. |
+| 4 | **Publicación de imágenes Docker** | El pipeline del diagrama incluye *Docker push*; queda diferido hasta definir el registro (Azure Container Registry al migrar). |
 
 ## Para investigar más adelante
 
