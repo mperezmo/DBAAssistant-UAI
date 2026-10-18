@@ -29,7 +29,8 @@ cp .env.example .env        # completar la contraseña de SQL Server y demás va
 docker compose up -d --build
 ```
 
-- Aplicación: <https://localhost> (certificado autofirmado: aceptar la advertencia del navegador).
+- Aplicación: cada empresa entra por su subdominio, por ejemplo <https://acme.localhost>
+  (certificado autofirmado: aceptar la advertencia del navegador).
 - Estado de las dependencias: <https://localhost/api/salud>.
 - SQL Server de la aplicación: `localhost,14330`, accesible desde SSMS.
 
@@ -42,6 +43,10 @@ un único comando que crea todo y registra al primer Administrador:
 docker compose exec backend python -m app.cli crear-tenant \
   --slug acme --nombre "ACME S.A." --admin admin@acme.com
 ```
+
+Crea también la organización del cliente en Auth0 (ver `docs/auth0.md`). Desde ese
+momento el Administrador ingresa por `https://acme.localhost` con Google o con email y
+contraseña; en el primer ingreso Auth0 le pide configurar el doble factor.
 
 Si un paso falla, el tenant queda en estado `error` y volver a ejecutar el mismo
 comando retoma el aprovisionamiento.

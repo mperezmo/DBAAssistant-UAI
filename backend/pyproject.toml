@@ -12,15 +12,17 @@ dependencies = [
     "pyodbc>=5.3",
     "pymongo>=4.19",
     "redis>=8.1",
+    "httpx2>=2.14.0",
+    "pyjwt[crypto]>=2.15.1",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8",
     "pytest-cov>=6",
-    "httpx2>=2.13.1",
     "ruff>=0.14",
     "pytest-asyncio>=1.4.0",
+    "fakeredis>=2.40.0",
 ]
 
 [tool.uv]
@@ -34,6 +36,10 @@ target-version = "py314"
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "N"]
 # Las excepciones se nombran en español con prefijo (ErrorDominio, ErrorMigracion).
 ignore = ["N818"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Depends() en los parámetros es el patrón de inyección de dependencias de FastAPI.
+extend-immutable-calls = ["fastapi.Depends"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

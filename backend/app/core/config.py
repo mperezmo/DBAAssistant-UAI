@@ -37,8 +37,22 @@ class Configuracion(BaseSettings):
     cache_ttl_contexto: int = 600
     cache_ttl_metricas: int = 30
 
+    # Identidad (Auth0). Cada tenant es una Organization y entra por su subdominio
+    # (<slug>.<dominio_base>).
+    dominio_base: str = "localhost"
+    auth0_domain: str = ""
+    auth0_client_id: str = ""
+    auth0_audience: str = ""
+    auth0_admin_client_id: str = ""
+    auth0_exigir_mfa: bool = True
+    sesion_duracion_segundos: int = 8 * 60 * 60
+
     # IA generativa (Anthropic Claude API).
     ia_modelo: str = "claude-haiku-5-5"
+
+    @property
+    def auth0_configurado(self) -> bool:
+        return bool(self.auth0_domain and self.auth0_client_id)
 
     @property
     def sqlserver_base_catalogo(self) -> str:

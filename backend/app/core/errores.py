@@ -21,6 +21,8 @@ CATALOGO: dict[str, DefinicionError] = {
     "USR_VAL_005": DefinicionError("El usuario está deshabilitado.", 403),
     "USR_AUT_000": DefinicionError("Credenciales inválidas.", 401),
     "USR_AUT_001": DefinicionError("El segundo factor de autenticación es inválido.", 401),
+    "USR_AUT_003": DefinicionError("El email todavía no fue verificado.", 401),
+    "USR_AUT_004": DefinicionError("La solicitud de ingreso expiró o no es válida.", 400),
     "USR_PER_000": DefinicionError("El rol no tiene permisos para esta acción.", 403),
     "USR_PER_002": DefinicionError("Rol no encontrado.", 404),
     "USR_PER_003": DefinicionError("Los permisos exceden los del rol base.", 422),
@@ -28,6 +30,7 @@ CATALOGO: dict[str, DefinicionError] = {
     "TEN_VAL_000": DefinicionError("Tenant no encontrado.", 404),
     "TEN_VAL_001": DefinicionError("El identificador del tenant ya existe.", 409),
     "TEN_VAL_002": DefinicionError("El identificador del tenant no es válido.", 422),
+    "TEN_VAL_003": DefinicionError("La empresa no está habilitada.", 403),
     "TEN_APR_000": DefinicionError("Falló el aprovisionamiento del tenant.", 500),
 }
 

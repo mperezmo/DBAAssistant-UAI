@@ -21,6 +21,11 @@ def _crear_tenant(args: argparse.Namespace) -> None:
     print(f"  SQL Server: {tenant.base_sqlserver}")
     print(f"  MongoDB:    {tenant.base_mongodb}")
     print(f"  Administrador invitado: {args.admin}")
+    if tenant.auth0_organizacion_id:
+        print(f"  Organización Auth0: {tenant.auth0_organizacion_id}")
+        print(f"  Acceso: https://{tenant.slug}.{obtener_configuracion().dominio_base}")
+    else:
+        print("  Atención: Auth0 no está configurado; el tenant no tiene organización.")
 
 
 def _migrar(_: argparse.Namespace) -> None:

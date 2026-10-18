@@ -43,8 +43,13 @@ def entorno(monkeypatch):
         llamadas.append(("auditoria", evento.accion))
 
     monkeypatch.setattr(servicios, "migrar_catalogo", lambda: llamadas.append(("catalogo",)))
+
+    def crear(*_):
+        estado["existente"] = _tenant()
+        return estado["existente"]
+
     monkeypatch.setattr(servicios.repositorios, "obtener_por_slug", lambda s: estado["existente"])
-    monkeypatch.setattr(servicios.repositorios, "crear", lambda *a: _tenant())
+    monkeypatch.setattr(servicios.repositorios, "crear", crear)
     monkeypatch.setattr(
         servicios.repositorios,
         "actualizar_estado",
@@ -119,3 +124,41 @@ async def test_aprovisionar_valida_datos(entorno, nombre, email):
     with pytest.raises(ErrorDominio) as error:
         await servicios.aprovisionar("acme", nombre, email)
     assert error.value.codigo == "USR_VAL_002"
+
+
+@pytest.fixture
+def con_auth0(monkeypatch, entorno):
+    llamadas, _ = entorno
+    monkeypatch.setenv("AUTH0_DOMAIN", "dba-test.us.auth0.com")
+    monkeypatch.setenv("AUTH0_CLIENT_ID", "cliente-web")
+    servicios.obtener_configuracion.cache_clear()
+
+    async def crear_organizacion(self, nombre, nombre_visible):
+        llamadas.append(("auth0", nombre, nombre_visible))
+        return "org_acme"
+
+    monkeypatch.setattr(servicios.ClienteAuth0, "crear_organizacion", crear_organizacion)
+    monkeypatch.setattr(
+        servicios.repositorios,
+        "actualizar_organizacion",
+        lambda tid, org: llamadas.append(("organizacion", org)),
+    )
+    yield llamadas
+    servicios.obtener_configuracion.cache_clear()
+
+
+async def test_aprovisionar_crea_la_organizacion_en_auth0(con_auth0):
+    await servicios.aprovisionar("acme", "ACME S.A.", "admin@acme.com")
+
+    assert ("auth0", "acme", "ACME S.A.") in con_auth0
+    assert ("organizacion", "org_acme") in con_auth0
+    assert con_auth0.index(("organizacion", "org_acme")) < con_auth0.index(("estado", "activo"))
+
+
+async def test_tenant_activo_sin_organizacion_se_completa(con_auth0, entorno):
+    _, estado = entorno
+    estado["existente"] = _tenant("activo")
+
+    await servicios.aprovisionar("acme", "ACME S.A.", "admin@acme.com")
+
+    assert ("organizacion", "org_acme") in con_auth0

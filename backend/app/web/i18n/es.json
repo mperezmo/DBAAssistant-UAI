@@ -18,5 +18,17 @@
   "inicio.titulo": "Inicio",
   "inicio.subtitulo": "Resumen operativo de las instancias SQL Server registradas.",
   "inicio.vacio.titulo": "Todavía no hay instancias registradas",
-  "inicio.vacio.texto": "Cuando se registre la primera instancia, acá se verá su estado, las alertas activas y la actividad reciente."
+  "inicio.vacio.texto": "Cuando se registre la primera instancia, acá se verá su estado, las alertas activas y la actividad reciente.",
+  "ingreso.subtitulo": "Database operations",
+  "ingreso.boton": "Ingresar",
+  "ingreso.ayuda": "Se ingresa con Google o con email y contraseña, siempre con doble factor.",
+  "sesion.salir": "Cerrar sesión",
+  "rol.ADMINISTRADOR": "Administrador",
+  "rol.DBA": "DBA",
+  "rol.CONSULTA": "Consulta",
+  "sin_empresa.titulo": "Ingresá desde la dirección de tu empresa",
+  "sin_empresa.texto": "Cada empresa tiene su propia dirección de acceso, por ejemplo acme.dominio. Si no la conocés, pedila al administrador de tu empresa.",
+  "error.titulo": "No se pudo completar la operación",
+  "error.volver": "Volver al ingreso",
+  "error.codigo": "Código"
 }

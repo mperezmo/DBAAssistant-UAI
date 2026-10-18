@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}{{ t("app.nombre") }}{% endblock %}</title>
+  <meta name="theme-color" content="#1E4FBF">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="auth-screen">
+  <div class="auth-card">
+    <div class="auth-brand-stack">
+      {% with tam=40 %}{% include "parciales/logo.html" %}{% endwith %}
+      <div class="auth-brand-name">{{ t("app.nombre") }}</div>
+      <div class="auth-brand-sub">{% block subtitulo %}{{ t("ingreso.subtitulo") }}{% endblock %}</div>
+    </div>
+    <div class="auth-form">
+      {% block contenido %}{% endblock %}
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -29,6 +29,7 @@ Guía para retomar el proyecto en cada sesión.
 
 - `backend/app/core/`: configuración, secretos (interfaz para Key Vault) y logging.
 - `backend/app/datos/`: SQL Server (pyodbc), MongoDB (PyMongo async), Redis y migraciones.
+- `backend/app/identidad/`: Auth0 (OIDC y Management API), sesiones y login.
 - `backend/app/tenants/`: catálogo y aprovisionamiento de tenants; `backend/app/cli.py`: comandos.
 - `backend/app/core/errores.py`: catálogo de códigos de error (nomenclatura del TFI).
 - `backend/app/modulos/`: un paquete por bloque del diagrama, en capas `api`, `servicios`,
@@ -42,8 +43,9 @@ Guía para retomar el proyecto en cada sesión.
 - **Sprint 0 (fundaciones):** estructura, Docker Compose, NGINX TLS 1.3, chequeo de
   salud de dependencias, layout del diseño, PWA base, CI.
 - **Sprint 1 (en curso):** multi-tenant (catálogo, base SQL y Mongo por tenant,
-  migraciones automáticas, `crear-tenant`), bitácora de auditoría, catálogo de errores.
-  Falta: login Auth0 + MFA, usuarios y roles.
+  migraciones automáticas, `crear-tenant` con organización en Auth0), bitácora de
+  auditoría, catálogo de errores, login con Auth0 + MFA por subdominio, sesiones en
+  Redis (8 h fijas), menú por rol. Falta: gestión de usuarios y roles (CU-001-000/002).
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.

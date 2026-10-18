@@ -83,6 +83,18 @@ def actualizar_estado(tenant_id: UUID, estado: str, detalle_error: str | None = 
         conexion.commit()
 
 
+def actualizar_organizacion(tenant_id: UUID, organizacion_id: str) -> None:
+    with sqlserver.conectar(_base()) as conexion:
+        conexion.cursor().execute(
+            """UPDATE dbo.tenant
+               SET auth0_organizacion_id = ?, actualizado_en = SYSUTCDATETIME()
+               WHERE id = ?""",
+            organizacion_id,
+            str(tenant_id),
+        )
+        conexion.commit()
+
+
 def crear_administrador(tenant: Tenant, email: str) -> None:
     """Registra en la base del tenant a su primer Administrador (estado invitado).
 

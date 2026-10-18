@@ -1,0 +1,10 @@
+{% extends "base_simple.html" %}
+
+{% block subtitulo %}{{ tenant.nombre }}{% endblock %}
+
+{% block contenido %}
+<form method="get" action="/auth/login">
+  <button type="submit" class="btn btn-primary btn-block">{{ t("ingreso.boton") }}</button>
+</form>
+<div class="auth-foot">{{ t("ingreso.ayuda") }}</div>
+{% endblock %}
