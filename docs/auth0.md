@@ -41,6 +41,9 @@ Ese valor va en `AUTH0_DOMAIN`.
 2. Nombre: `DBA Assistant API`. Identifier: `https://api.dba-assistant` (es un
    identificador, no necesita existir). Algoritmo: **RS256**.
 3. No hace falta activar RBAC: los roles los maneja la app.
+4. En la aplicación `DBA Assistant`, pestaña **API Access**, fila **DBA Assistant API** →
+   **Edit** → habilitar **User-delegated Access** (sin tildar permisos). Sin esto Auth0
+   responde *"Client … is not authorized to access resource server"*.
 
 ## 4. Formas de ingreso
 
