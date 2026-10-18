@@ -64,7 +64,9 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Ambientes | Uno solo por ahora. Ramas `main` y `dev`. |
 | Idioma | Español; textos en `app/web/i18n/` para agregar inglés después. |
 | Multi-tenant | Desde el inicio. Base central `<prefijo>_Catalogo` con la lista de tenants; por cada tenant una base SQL Server `<prefijo>_T_<slug>` y una base MongoDB `<prefijo>_t_<slug>`. Las tablas llevan además `tenant_id` como segunda barrera. Alta automática con `python -m app.cli crear-tenant`. |
-| Identidad por tenant | Auth0 Organizations: una organización por cliente. |
+| Identidad por tenant | Auth0 Organizations: una organización por cliente; cada cliente entra por su subdominio (`<cliente>.localhost` en desarrollo). |
+| Sesión | Login en el backend con Auth0; JWT guardado en Redis y cookie segura (HttpOnly) en el navegador. Duración fija de 8 horas, sin cierre por inactividad. |
+| Roles | Se guardan en la base del tenant; Auth0 solo verifica identidad, MFA y pertenencia a la organización. |
 | Sandbox | Un contenedor por IP registrada y por tenant. |
 | Cambios de estructura | Scripts T-SQL numerados en `backend/app/datos/migraciones/{catalogo,tenant}`, aplicados automáticamente al arrancar. |
 | Monitoreo | Refresco de métricas cada 3 segundos. |
