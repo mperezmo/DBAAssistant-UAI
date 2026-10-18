@@ -30,7 +30,8 @@ Ese valor va en `AUTH0_DOMAIN`.
    cargan a mano. `crear-tenant` agrega automáticamente las de cada cliente
    (`https://<cliente>.localhost/...`). Para un tenant ya creado se pueden volver a
    registrar con `python -m app.cli sincronizar-auth0 --slug <cliente>`.
-4. Pestaña **Organizations** (dentro de la aplicación):
+4. Pestaña **Login Experience** (en versiones anteriores del panel, **Organizations**).
+   Sin esto Auth0 responde *"parameter organization is not allowed for this client"*:
    - **Types of Users**: *Business Users*.
    - **Login Flow**: *No Prompt* (la empresa se deduce de la dirección).
 5. Guardar y anotar **Domain**, **Client ID** y **Client Secret**.
