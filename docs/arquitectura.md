@@ -56,13 +56,24 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | IA | Claude Haiku 5.5 por defecto. |
 | MFA | Obligatorio al ingresar; segundo factor nuevamente al ejecutar acciones sobre conexiones PROD. |
 | Login | Solo Google (a futuro, correo empresarial). |
-| Roles | Tres: Administrador, DBA y Consulta (no los cinco del diseño). |
+| Roles | Tres: Administrador, DBA y Consulta (no los cinco del diseño). Módulos por rol en la tabla siguiente. |
 | Instancias monitoreadas | Solo SQL Server sobre Windows. Las registra el usuario. |
 | Sandbox | Un contenedor persistente por cada IP registrada, con todas sus bases. Solo estructura. Se sincroniza a diario y se verifica alineación antes de cada validación. |
 | Ejecución | Dry-run en sandbox y confirmación del usuario antes de ejecutar en la base real. |
 | Alertas | Motor caído, base caída, bloqueos y poco espacio (disco, datos y log). Réplica, más adelante. |
 | Ambientes | Uno solo por ahora. Ramas `main` y `dev`. |
 | Idioma | Español; textos en `app/web/i18n/` para agregar inglés después. |
+
+## Módulos por rol
+
+| Módulo | Administrador | DBA | Consulta |
+|---|---|---|---|
+| Inicio, Alertas, Monitoreo | ✔ | ✔ | Solo lectura |
+| Chat IA | ✔ | ✔ | Solo consultas SELECT |
+| Contexto de Negocio, Histórico de Schema | ✔ | ✔ | Solo lectura |
+| Workarounds, Sandbox | ✔ | ✔ | ✘ |
+| Auditoría (incluye visor de logs) | ✔ | ✔ | ✘ |
+| Panel Admin (conexiones, usuarios, reglas) | ✔ | ✘ | ✘ |
 
 ## Desvíos respecto del diagrama
 

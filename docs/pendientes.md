@@ -4,10 +4,9 @@
 
 | # | Tema | Situación |
 |---|------|-----------|
-| 1 | **Módulos por rol** | Se usan 3 roles (Administrador, DBA, Consulta). Falta confirmar qué módulos habilita cada uno. |
-| 2 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local; el diagrama indica Atlas. Al migrar a Azure: Atlas desplegado en Azure o Azure Cosmos DB for MongoDB. |
-| 3 | **Cambios de estructura de la base SQL Server de la app** | Elegir entre scripts T-SQL numerados o una herramienta de migraciones. |
-| 4 | **Publicación de imágenes Docker** | El pipeline del diagrama incluye *Docker push*; queda diferido hasta definir el registro (Azure Container Registry al migrar). |
+| 1 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local; el diagrama indica Atlas. Al migrar a Azure: Atlas desplegado en Azure o Azure Cosmos DB for MongoDB. |
+| 2 | **Cambios de estructura de la base SQL Server de la app** | Elegir entre scripts T-SQL numerados o una herramienta de migraciones. |
+| 3 | **Publicación de imágenes Docker** | El pipeline del diagrama incluye *Docker push*; queda diferido hasta definir el registro (Azure Container Registry al migrar). |
 
 ## Para investigar más adelante
 
