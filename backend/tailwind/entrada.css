@@ -1,0 +1,31 @@
+/*
+ * Hoja de estilos de entrada para Tailwind CSS.
+ *
+ * Se compila con el ejecutable oficial de Tailwind (sin Node) y genera
+ * app/web/static/css/app.css. Los tokens visuales salen del diseño de
+ * referencia (design/DBA Assistant.html) y se exponen también como tema de
+ * Tailwind para poder usarlos como utilidades (bg-accent, text-fg-muted, etc.).
+ */
+@import "tailwindcss";
+
+@source "../app/web/templates";
+@source "../app/web/static/js";
+
+@theme {
+  --color-accent: #1E4FBF;
+  --color-accent-strong: #0A2F8F;
+  --color-danger: #C9462C;
+  --color-warn: #B88321;
+  --color-ok: #4F7A47;
+  --color-fg: #0E1218;
+  --color-fg-muted: #525B66;
+  --color-fg-faint: #7A828D;
+  --color-line: #E3E6EA;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Sistema visual del diseño: componentes (sidebar, topbar, cards, tablas, etc.). */
+@import "./diseno.css" layer(components);

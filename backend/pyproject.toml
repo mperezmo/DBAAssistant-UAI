@@ -1,0 +1,37 @@
+[project]
+name = "dba-assistant"
+version = "0.1.0"
+description = "Asistente para administración y optimización de SQL Server con IA generativa."
+readme = "../README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.143",
+    "uvicorn[standard]>=0.54",
+    "jinja2>=3.1",
+    "pydantic-settings>=2.16",
+    "pyodbc>=5.3",
+    "pymongo>=4.19",
+    "redis>=8.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=6",
+    "httpx2>=2.13.1",
+    "ruff>=0.14",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "N"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=app --cov-report=term-missing --cov-fail-under=80"

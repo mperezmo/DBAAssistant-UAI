@@ -1,0 +1,14 @@
+{
+  "name": "DBA Assistant",
+  "short_name": "DBA Assistant",
+  "description": "Asistente para administración y optimización de SQL Server.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F7F8F9",
+  "theme_color": "#1E4FBF",
+  "icons": [
+    { "src": "/static/img/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,24 @@
+# Configuración local y secretos
+.env
+*.pem
+*.key
+*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Estilos compilados y herramientas descargadas
+backend/app/web/static/css/app.css
+backend/tailwind/bin/
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

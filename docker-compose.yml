@@ -1,0 +1,66 @@
+# Entorno local completo de DBA Assistant.
+# Uso: cp .env.example .env  (completar valores)  &&  docker compose up -d --build
+# La aplicación queda en https://localhost (certificado autofirmado).
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certificados:/etc/nginx/certs
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    env_file: .env
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  # Base SQL Server propia de la aplicación. Accesible desde SSMS en localhost,14330.
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SECRETO_SQLSERVER_PASSWORD}
+    ports:
+      - "14330:1433"
+    volumes:
+      - sqlserver-datos:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # MongoDB local (auditoría, glosarios y logs).
+  mongo:
+    image: mongo:8
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-datos:/data/db
+    restart: unless-stopped
+
+  # Caché self-hosted.
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+
+volumes:
+  certificados:
+  sqlserver-datos:
+  mongo-datos:

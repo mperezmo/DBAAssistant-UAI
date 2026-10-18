@@ -1,0 +1,22 @@
+{
+  "app.nombre": "DBA Assistant",
+  "app.etiqueta": "Console v1.0",
+  "menu.operaciones": "Operaciones",
+  "menu.conocimiento": "Conocimiento",
+  "menu.sistema": "Sistema",
+  "menu.inicio": "Inicio",
+  "menu.chat": "Chat IA",
+  "menu.monitor": "Monitoreo",
+  "menu.alertas": "Alertas",
+  "menu.workarounds": "Workarounds",
+  "menu.sandbox": "Sandbox",
+  "menu.contexto": "Contexto de Negocio",
+  "menu.schema": "Histórico de Schema",
+  "menu.auditoria": "Auditoría",
+  "menu.admin": "Panel Admin",
+  "menu.proximamente": "Disponible próximamente",
+  "inicio.titulo": "Inicio",
+  "inicio.subtitulo": "Resumen operativo de las instancias SQL Server registradas.",
+  "inicio.vacio.titulo": "Todavía no hay instancias registradas",
+  "inicio.vacio.texto": "Cuando se registre la primera instancia, acá se verá su estado, las alertas activas y la actividad reciente."
+}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("inicio.titulo") }}{% endblock %}
+
+{% block contenido %}
+<div class="page-head">
+  <div class="page-eyebrow">{{ t("menu.operaciones") }}</div>
+  <h1 class="page-title">{{ t("inicio.titulo") }}</h1>
+  <p class="page-subtitle">{{ t("inicio.subtitulo") }}</p>
+</div>
+
+<section class="card">
+  <div class="card-body flex flex-col items-center gap-3 py-12 text-center">
+    <span class="text-fg-faint">{% with nombre="db", tam=32 %}{% include "parciales/icono.html" %}{% endwith %}</span>
+    <h2 class="card-title">{{ t("inicio.vacio.titulo") }}</h2>
+    <p class="max-w-md text-sm text-fg-muted">{{ t("inicio.vacio.texto") }}</p>
+  </div>
+</section>
+{% endblock %}

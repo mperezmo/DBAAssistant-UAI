@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}{{ t("app.nombre") }}{% endblock %}</title>
+  <meta name="theme-color" content="#1E4FBF">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script defer src="/static/js/vendor/alpine-3.17.4.min.js"></script>
+  <script defer src="/static/js/app.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      {% include "parciales/logo.html" %}
+      <div>
+        <div class="sidebar-brand-name">{{ t("app.nombre") }}</div>
+        <div class="sidebar-brand-tag">{{ t("app.etiqueta") }}</div>
+      </div>
+    </div>
+
+    <nav>
+      {% for seccion in menu %}
+      <div class="nav-section">
+        <div class="nav-section-title">{{ t(seccion.clave) }}</div>
+        {% for item in seccion.items %}
+          {% if item.ruta %}
+          <a href="{{ item.ruta }}" class="nav-item {% if activo == item.id %}active{% endif %}">
+            {% with nombre=item.icono %}{% include "parciales/icono.html" %}{% endwith %}
+            <span>{{ t(item.clave) }}</span>
+          </a>
+          {% else %}
+          <span class="nav-item disabled" title="{{ t('menu.proximamente') }}">
+            {% with nombre=item.icono %}{% include "parciales/icono.html" %}{% endwith %}
+            <span>{{ t(item.clave) }}</span>
+          </span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <span>{{ t("app.nombre") }}</span>
+        <span class="sep">/</span>
+        <strong>{% block miga %}{% endblock %}</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+    </header>
+
+    <main class="page">
+      {% block contenido %}{% endblock %}
+    </main>
+  </div>
+</div>
+</body>
+</html>
