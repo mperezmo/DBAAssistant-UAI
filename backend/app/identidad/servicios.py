@@ -147,7 +147,9 @@ async def _confirmar_segundo_factor(
     # La reautenticación debe hacerla la misma persona de la sesión, y recién.
     if usuario is None or usuario.auth0_usuario_id != identidad["sub"]:
         raise ErrorDominio("USR_AUT_000", "La identidad no coincide con la sesión.")
-    if time.time() - identidad.get("auth_time", 0) > MAXIMA_ANTIGUEDAD_AUTENTICACION_SEGUNDOS:
+    tolerancia = obtener_configuracion().auth0_tolerancia_reloj_segundos
+    antiguedad = time.time() - identidad.get("auth_time", 0)
+    if antiguedad > MAXIMA_ANTIGUEDAD_AUTENTICACION_SEGUNDOS + tolerancia:
         raise ErrorDominio("USR_AUT_001", "La autenticación no es reciente.")
     await sesiones.registrar_segundo_factor(sesion_id)
     await auditoria.registrar(

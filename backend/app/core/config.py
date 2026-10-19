@@ -45,6 +45,8 @@ class Configuracion(BaseSettings):
     auth0_audience: str = ""
     auth0_admin_client_id: str = ""
     auth0_exigir_mfa: bool = True
+    # Tolerancia ante relojes desfasados entre Auth0 y el servidor (p. ej. Docker en WSL2).
+    auth0_tolerancia_reloj_segundos: int = 60
     sesion_duracion_segundos: int = 8 * 60 * 60
 
     # IA generativa (Anthropic Claude API).

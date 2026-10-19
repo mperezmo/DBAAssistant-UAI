@@ -108,7 +108,12 @@ class ClienteAuth0:
             kid = jwt.get_unverified_header(token).get("kid")
             clave = (await self._claves())[kid]
             return jwt.decode(
-                token, clave.key, algorithms=["RS256"], audience=audiencia, issuer=self.emisor
+                token,
+                clave.key,
+                algorithms=["RS256"],
+                audience=audiencia,
+                issuer=self.emisor,
+                leeway=self.cfg.auth0_tolerancia_reloj_segundos,
             )
         except (jwt.PyJWTError, KeyError) as error:
             raise ErrorDominio("USR_AUT_000", f"Token inválido: {error}") from error

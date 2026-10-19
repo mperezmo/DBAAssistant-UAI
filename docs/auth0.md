@@ -65,6 +65,18 @@ Ese valor va en `AUTH0_DOMAIN`.
 1. **Security → Multi-factor Auth**.
 2. Activar **One-time Password** (Google Authenticator, Microsoft Authenticator, etc.).
 3. En **Require Multi-factor Auth** elegir **Always**.
+4. Para que Auth0 no se saltee el código por "recordar este dispositivo" (la app exige
+   MFA en cada ingreso y en cada confirmación de acciones PROD), crear una Action:
+   **Actions → Library → Create Action → Build from scratch**, nombre `Exigir MFA siempre`,
+   trigger **Login / Post Login**, con el código:
+
+   ```js
+   exports.onExecutePostLogin = async (event, api) => {
+     api.multifactor.enable("any", { allowRememberBrowser: false });
+   };
+   ```
+
+   **Deploy** y luego **Actions → Triggers → post-login**: arrastrarla al flujo y **Apply**.
 
 ## 6. Organizations
 

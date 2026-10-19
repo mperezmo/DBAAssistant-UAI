@@ -1,3 +1,4 @@
+import time
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
@@ -287,3 +288,22 @@ def test_ingreso_registra_la_fecha(entorno):
     _ingresar(_navegador(), entorno["auth0"], sub="google|ana", email="consulta@acme.com")
 
     assert len(entorno["repo"].ingresos) == 1
+
+
+@pytest.mark.parametrize("adelanto,aceptado", [(30, True), (300, False)])
+def test_tolerancia_de_reloj_entre_auth0_y_el_servidor(entorno, monkeypatch, adelanto, aceptado):
+    """Auth0 con el reloj adelantado (o el servidor atrasado): se tolera hasta 60 s."""
+    navegador = _navegador()
+    original = entorno["auth0"].firmar
+
+    def firmar_adelantado(**claims):
+        ahora = int(time.time()) + adelanto
+        return original(iat=ahora, nbf=ahora, exp=ahora + 600, **claims)
+
+    monkeypatch.setattr(entorno["auth0"], "firmar", firmar_adelantado)
+
+    respuesta, _ = _ingresar(
+        navegador, entorno["auth0"], sub="google|ana", email="consulta@acme.com"
+    )
+
+    assert (respuesta.status_code == 303) is aceptado
