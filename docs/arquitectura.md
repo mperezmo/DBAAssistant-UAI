@@ -77,6 +77,10 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Restaurar schema | En espera. |
 | Baja de usuarios | Desaparece del Panel Admin y queda deshabilitado 30 días (se puede rehabilitar); luego se elimina y hay que darlo de alta de nuevo. La bitácora conserva su historial. |
 | Cambio de rol | No cierra la sesión: el rol se relee en cada petición y se ve al recargar. |
+| Conexiones | Una conexión es una instancia SQL Server (las bases se eligen al usarla). Autenticación SQL (usuario y contraseña). Datos opcionales de WinRM para el servicio de Windows. Las gestionan Administrador y DBA desde el menú **Conexiones**. |
+| Credenciales de conexiones | Cifradas (Fernet) en la base del tenant con la clave maestra `SECRETO_CLAVE_CIFRADO`; al migrar a Azure pasan a Key Vault. La API nunca devuelve contraseñas. |
+| Certificado de las instancias | Siempre se confía en el certificado del servidor (las instancias de clientes suelen usar certificados autofirmados). La conexión igual viaja cifrada. |
+| Acciones sobre PROD | Exigen confirmar con el segundo factor en el momento (Auth0 vuelve a pedir login y código); la confirmación vale 5 minutos. El MFA del ingreso no cuenta. |
 | Permisos por ambiente | Por ahora, ambientes habilitados por usuario; las acciones finas se suman con cada módulo. |
 | Notificaciones push | Web Push con VAPID (W3C), sin servicios de terceros. |
 | Exportación de auditoría | CSV y PDF sin firma digital (firma omitida por ahora). |
@@ -100,5 +104,6 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 |---|---|---|
 | Driver `motor` para MongoDB | API asíncrona de PyMongo (`AsyncMongoClient`) | MongoDB deprecó Motor en 2026; la API asíncrona de PyMongo es su reemplazo oficial y mantiene el mismo modelo de uso. Aprobado. |
 | Pantalla de ingreso del diseño con campos de email, contraseña y código MFA | La pantalla de la app solo tiene el botón **Ingresar**; credenciales y MFA se cargan en la pantalla de Auth0 (Universal Login) | Las credenciales nunca pasan por la app: es la práctica recomendada por Auth0 y la que permite Google + MFA. La pantalla de Auth0 se puede personalizar con los colores del diseño. |
+| Conexiones dentro del Panel Admin | Menú propio **Conexiones** en Sistema | El DBA también gestiona conexiones y el Panel Admin es solo del Administrador. |
 | Invitación por email al nuevo usuario (CU-001-000-A) | El usuario se da de alta en la base del tenant y entra por la dirección de su empresa | El envío de emails quedó para más adelante. Auth0 suma a la organización a quien se autentica, pero la app solo deja entrar a quien está dado de alta en el tenant y, en el primer ingreso, con email verificado. |
 | MongoDB Atlas | MongoDB en Docker (provisorio) | Pendiente de decisión (ver `docs/pendientes.md`). |

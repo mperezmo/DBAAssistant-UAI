@@ -34,6 +34,17 @@ docker compose up -d --build
 - Estado de las dependencias: <https://localhost/api/salud>.
 - SQL Server de la aplicación: `localhost,14330`, accesible desde SSMS.
 
+### Clave de cifrado de credenciales
+
+Las contraseñas de las conexiones se guardan cifradas. Antes del primer uso se genera
+la clave maestra y se agrega al `.env`:
+
+```bash
+docker compose run --rm backend python -m app.cli generar-clave
+```
+
+Si la clave se pierde o cambia, hay que volver a cargar las contraseñas de las conexiones.
+
 ### Alta de un cliente (tenant)
 
 Cada cliente tiene su propia base SQL Server y su propia base MongoDB. El alta es

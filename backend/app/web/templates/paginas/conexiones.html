@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("menu.conexiones") }}{% endblock %}
+
+{% block contenido %}
+<div class="page-head">
+  <div class="page-eyebrow">{{ t("conexiones.eyebrow") }}</div>
+  <h1 class="page-title">{{ t("conexiones.titulo") }} <em>{{ t("conexiones.titulo_enfasis") }}</em></h1>
+  <p class="page-subtitle">{{ t("conexiones.subtitulo") }}</p>
+</div>
+
+<section class="card" x-data="gestionConexiones()" x-init="iniciar()">
+  <div class="card-head">
+    <div>
+      <div class="card-eyebrow">{{ t("conexiones.card_eyebrow") }} · <span x-text="conexiones.length"></span></div>
+      <h3 class="card-title">{{ t("conexiones.card_titulo") }}</h3>
+    </div>
+    <button class="btn btn-primary btn-sm" @click="abrirNueva()">
+      {% with nombre="plus", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+      {{ t("conexiones.nueva") }}
+    </button>
+  </div>
+
+  <template x-if="aviso">
+    <div class="card-body text-sm" :class="aviso.error ? 'text-danger' : 'text-ok'" x-text="aviso.texto"></div>
+  </template>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>{{ t("conexiones.col.alias") }}</th>
+        <th>{{ t("conexiones.col.servidor") }}</th>
+        <th>{{ t("conexiones.col.ambiente") }}</th>
+        <th>{{ t("conexiones.col.usuario") }}</th>
+        <th>{{ t("conexiones.col.windows") }}</th>
+        <th>{{ t("conexiones.col.prueba") }}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <template x-for="c in conexiones" :key="c.id">
+        <tr>
+          <td class="metric-mono text-[12px] font-semibold" x-text="c.alias"></td>
+          <td class="metric-mono text-[11.5px] text-fg-muted" x-text="servidor(c)"></td>
+          <td><span class="tag" :class="claseAmbiente(c.ambiente)" x-text="c.ambiente"></span></td>
+          <td class="metric-mono text-[11.5px]" x-text="c.usuario_sql"></td>
+          <td class="metric-mono text-[11.5px] text-fg-faint"
+              x-text="c.tiene_winrm ? `${c.winrm_usuario} · ${c.winrm_puerto}` : '{{ t('conexiones.sin_winrm') }}'"></td>
+          <td class="text-[11.5px]">
+            <span x-show="pruebas[c.id]?.estado === 'probando'" class="text-fg-faint">{{ t("conexiones.probando") }}</span>
+            <span x-show="pruebas[c.id]?.estado === 'ok'" class="tag tag-green" :title="pruebas[c.id]?.texto">{{ t("conexiones.ok") }}</span>
+            <span x-show="pruebas[c.id]?.estado === 'error'" class="tag tag-red" :title="pruebas[c.id]?.texto">CON_DB_000</span>
+          </td>
+          <td class="text-right whitespace-nowrap">
+            <button class="btn btn-ghost btn-sm" @click="probarGuardada(c)">{{ t("conexiones.probar") }}</button>
+            <button class="btn btn-ghost btn-sm" @click="abrirEdicion(c)">{{ t("conexiones.editar") }}</button>
+            <button class="btn btn-ghost btn-sm" @click="eliminar(c)">{{ t("conexiones.eliminar") }}</button>
+          </td>
+        </tr>
+      </template>
+      <tr x-show="cargado && conexiones.length === 0">
+        <td colspan="7" class="text-center text-fg-muted">{{ t("conexiones.vacio") }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <template x-if="formulario">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-8"
+       @click.self="formulario = null" @keydown.escape.window="formulario = null">
+    <form class="card w-full max-w-xl" @submit.prevent="guardar()">
+      <div class="card-head">
+        <h3 class="card-title" x-text="formulario.id ? '{{ t('conexiones.form.editar') }}' : '{{ t('conexiones.form.nueva') }}'"></h3>
+      </div>
+      <div class="card-body flex flex-col gap-3">
+        <div class="card-eyebrow">{{ t("conexiones.form.sql") }}</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="field">
+            <label for="c-alias">{{ t("conexiones.form.alias") }}</label>
+            <input id="c-alias" required maxlength="60" x-model="formulario.alias">
+          </div>
+          <div class="field">
+            <label for="c-ambiente">{{ t("conexiones.form.ambiente") }}</label>
+            <select id="c-ambiente" x-model="formulario.ambiente" class="w-full rounded border border-line p-2">
+              {% for ambiente in ambientes %}<option value="{{ ambiente }}">{{ ambiente }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field col-span-2">
+            <label for="c-host">{{ t("conexiones.form.host") }}</label>
+            <input id="c-host" required x-model="formulario.host">
+          </div>
+          <div class="field">
+            <label for="c-puerto">{{ t("conexiones.form.puerto") }}</label>
+            <input id="c-puerto" type="number" min="1" max="65535" placeholder="1433" x-model.number="formulario.puerto">
+          </div>
+          <div class="field">
+            <label for="c-instancia">{{ t("conexiones.form.instancia") }}</label>
+            <input id="c-instancia" x-model="formulario.instancia">
+          </div>
+          <div class="field">
+            <label for="c-usuario">{{ t("conexiones.form.usuario") }}</label>
+            <input id="c-usuario" required autocomplete="off" x-model="formulario.usuario_sql">
+          </div>
+          <div class="field">
+            <label for="c-password">{{ t("conexiones.form.password") }}</label>
+            <input id="c-password" type="password" autocomplete="new-password" :required="!formulario.id"
+                   :placeholder="formulario.id ? '{{ t('conexiones.form.password_conservar') }}' : ''"
+                   x-model="formulario.password_sql">
+          </div>
+        </div>
+
+        <div class="card-eyebrow mt-2">{{ t("conexiones.form.windows") }}</div>
+        <p class="-mt-2 text-xs text-fg-muted">{{ t("conexiones.form.windows_ayuda") }}</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="field">
+            <label for="c-wusuario">{{ t("conexiones.form.winrm_usuario") }}</label>
+            <input id="c-wusuario" autocomplete="off" placeholder="DOMINIO\usuario" x-model="formulario.winrm_usuario">
+          </div>
+          <div class="field">
+            <label for="c-wpassword">{{ t("conexiones.form.winrm_password") }}</label>
+            <input id="c-wpassword" type="password" autocomplete="new-password"
+                   :placeholder="formulario.id && formulario.tiene_winrm ? '{{ t('conexiones.form.password_conservar') }}' : ''"
+                   x-model="formulario.winrm_password">
+          </div>
+          <div class="field">
+            <label for="c-wpuerto">{{ t("conexiones.form.winrm_puerto") }}</label>
+            <input id="c-wpuerto" type="number" min="1" max="65535"
+                   :placeholder="formulario.winrm_https ? '5986' : '5985'" x-model.number="formulario.winrm_puerto">
+          </div>
+          <label class="flex items-center gap-2 self-end pb-3 text-sm">
+            <input type="checkbox" class="size-4" x-model="formulario.winrm_https"> {{ t("conexiones.form.winrm_https") }}
+          </label>
+        </div>
+
+        <p class="text-sm" x-show="formulario.mensaje" :class="formulario.mensajeError ? 'text-danger' : 'text-ok'"
+           x-text="formulario.mensaje"></p>
+      </div>
+      <div class="card-foot justify-between gap-2">
+        <button type="button" class="btn btn-ghost btn-sm" @click="probarFormulario()" :disabled="formulario.probando">
+          <span x-text="formulario.probando ? '{{ t('conexiones.probando') }}' : '{{ t('conexiones.form.probar') }}'"></span>
+        </button>
+        <div class="row">
+          <button type="button" class="btn btn-ghost btn-sm" @click="formulario = null">{{ t("conexiones.form.cancelar") }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">{{ t("conexiones.form.guardar") }}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+  </template>
+</section>
+
+<script>
+  window.TEXTOS_CONEXIONES = {
+    confirmarEliminar: {{ t("conexiones.confirmar_eliminar") | tojson }},
+    confirmarMfa: {{ t("conexiones.confirmar_mfa") | tojson }},
+    resultado: {{ t("conexiones.resultado") | tojson }},
+  };
+</script>
+<script src="/static/js/conexiones.js"></script>
+{% endblock %}

@@ -4,12 +4,14 @@ Uso (dentro del contenedor del backend):
     python -m app.cli crear-tenant --slug acme --nombre "ACME S.A." --admin admin@acme.com
     python -m app.cli migrar
     python -m app.cli sincronizar-auth0 --slug acme
+    python -m app.cli generar-clave
 """
 
 import argparse
 import asyncio
 import sys
 
+from app.core import cifrado
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.core.registro import configurar_registro
@@ -39,6 +41,11 @@ def _sincronizar_auth0(args: argparse.Namespace) -> None:
     print(f"Direcciones de {url} registradas en Auth0.")
 
 
+def _generar_clave(_: argparse.Namespace) -> None:
+    print("Agregar al .env (no compartir ni versionar):")
+    print(f"SECRETO_CLAVE_CIFRADO={cifrado.generar_clave()}")
+
+
 def main(argumentos: list[str] | None = None) -> int:
     configurar_registro(obtener_configuracion().log_nivel)
     parser = argparse.ArgumentParser(prog="python -m app.cli")
@@ -58,6 +65,11 @@ def main(argumentos: list[str] | None = None) -> int:
     )
     sincronizar.add_argument("--slug", required=True)
     sincronizar.set_defaults(funcion=_sincronizar_auth0)
+
+    generar = comandos.add_parser(
+        "generar-clave", help="Genera la clave maestra para cifrar credenciales."
+    )
+    generar.set_defaults(funcion=_generar_clave)
 
     args = parser.parse_args(argumentos)
     try:

@@ -25,6 +25,8 @@ def _redis() -> Redis:
 
 
 async def crear(datos: dict, duracion_segundos: int, tokens: dict) -> Sesion:
+    # El segundo factor del ingreso no habilita acciones sobre PROD: esas se confirman en
+    # el momento (ver identidad/reautenticacion.py).
     sesion = Sesion(id=secrets.token_urlsafe(32), creada_en=time.time(), **datos)
     registro = {"sesion": sesion.a_dict(), "tokens": tokens}
     await _redis().set(PREFIJO_SESION + sesion.id, json.dumps(registro), ex=duracion_segundos)
@@ -36,6 +38,18 @@ async def obtener(sesion_id: str | None) -> Sesion | None:
         return None
     crudo = await _redis().get(PREFIJO_SESION + sesion_id)
     return Sesion(**json.loads(crudo)["sesion"]) if crudo else None
+
+
+async def registrar_segundo_factor(sesion_id: str) -> None:
+    """Marca que el usuario acaba de confirmar su identidad con el segundo factor."""
+    clave = PREFIJO_SESION + sesion_id
+    crudo = await _redis().get(clave)
+    if not crudo:
+        return
+    registro = json.loads(crudo)
+    registro["sesion"]["segundo_factor_en"] = time.time()
+    # keepttl: la reautenticación no extiende la duración fija de la sesión.
+    await _redis().set(clave, json.dumps(registro), keepttl=True)
 
 
 async def eliminar(sesion_id: str) -> None:

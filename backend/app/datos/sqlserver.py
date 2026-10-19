@@ -67,3 +67,45 @@ def verificar() -> None:
     """Ejecuta una consulta trivial; lanza excepción si el motor no responde."""
     with conectar(BASE_SISTEMA) as conexion:
         conexion.cursor().execute("SELECT 1").fetchone()
+
+
+def servidor_externo(host: str, puerto: int | None, instancia: str | None) -> str:
+    """Arma el SERVER de ODBC: con puerto explícito se usa ``host,puerto``; con instancia
+    con nombre y sin puerto, ``host\\instancia`` (requiere el servicio SQL Browser)."""
+    if puerto:
+        return f"{host},{puerto}"
+    if instancia:
+        return f"{host}\\{instancia}"
+    return host
+
+
+@contextmanager
+def conectar_externo(
+    servidor: str, usuario: str, password: str, base: str = BASE_SISTEMA, timeout: int = 5
+) -> Iterator[pyodbc.Connection]:
+    """Conexión a una instancia SQL Server de un cliente, con autenticación SQL.
+
+    Se confía en el certificado del servidor porque las instancias de los clientes suelen
+    usar certificados autofirmados (decisión documentada en docs/arquitectura.md).
+    """
+    cfg = obtener_configuracion()
+    partes = {
+        "DRIVER": f"{{{cfg.sqlserver_driver}}}",
+        "SERVER": servidor,
+        "DATABASE": base,
+        "UID": usuario,
+        "PWD": f"{{{password}}}",
+        "Encrypt": "yes",
+        "TrustServerCertificate": "yes",
+    }
+    # autocommit evita dejar transacciones implícitas abiertas en las conexiones que el
+    # driver devuelve al pool; las operaciones de escritura las abrirán explícitamente.
+    conexion = pyodbc.connect(
+        ";".join(f"{clave}={valor}" for clave, valor in partes.items()),
+        timeout=timeout,
+        autocommit=True,
+    )
+    try:
+        yield conexion
+    finally:
+        conexion.close()

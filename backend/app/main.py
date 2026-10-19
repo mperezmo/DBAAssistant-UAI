@@ -17,6 +17,7 @@ from app.core.errores import ErrorDominio
 from app.core.registro import configurar_registro
 from app.identidad import api as identidad
 from app.identidad import api_usuarios
+from app.modulos.conexiones import api as conexiones
 from app.tenants import servicios as tenants
 from app.web import rutas as web
 from app.web.rutas import DIRECTORIO_ESTATICOS, plantillas
@@ -69,6 +70,7 @@ def crear_app() -> FastAPI:
     app.include_router(salud.router)
     app.include_router(identidad.router)
     app.include_router(api_usuarios.router)
+    app.include_router(conexiones.router)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

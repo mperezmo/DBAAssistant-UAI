@@ -21,6 +21,7 @@ MODULOS_POR_ROL: dict[str, frozenset[str]] = {
             "schema",
             "auditoria",
             "admin",
+            "conexiones",
         }
     ),
     "DBA": frozenset(
@@ -34,6 +35,7 @@ MODULOS_POR_ROL: dict[str, frozenset[str]] = {
             "contexto",
             "schema",
             "auditoria",
+            "conexiones",
         }
     ),
     "CONSULTA": frozenset({"inicio", "chat", "monitor", "alertas", "contexto", "schema"}),
@@ -68,6 +70,8 @@ class Sesion:
     nombre: str
     rol: str
     creada_en: float
+    # Momento de la última confirmación con segundo factor, que habilita acciones en PROD.
+    segundo_factor_en: float | None = None
 
     def puede_ver(self, modulo: str) -> bool:
         return modulo in MODULOS_POR_ROL.get(self.rol, frozenset())

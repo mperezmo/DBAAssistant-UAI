@@ -55,7 +55,14 @@ class ClienteAuth0:
 
     # --- Ingreso de usuarios (OpenID Connect) ---------------------------------
 
-    def url_autorizacion(self, redirect_uri: str, state: str, nonce: str, organizacion: str) -> str:
+    def url_autorizacion(
+        self,
+        redirect_uri: str,
+        state: str,
+        nonce: str,
+        organizacion: str,
+        reautenticar: bool = False,
+    ) -> str:
         parametros = {
             "response_type": "code",
             "client_id": self.cfg.auth0_client_id,
@@ -66,6 +73,10 @@ class ClienteAuth0:
             "nonce": nonce,
             "organization": organizacion,
         }
+        if reautenticar:
+            # Obliga a Auth0 a autenticar de nuevo (y, con la política "Always", a pedir
+            # el segundo factor) aunque exista una sesión de Auth0 vigente.
+            parametros.update(prompt="login", max_age="0")
         return f"{self.emisor}authorize?{urlencode(parametros)}"
 
     def url_cierre_sesion(self, volver_a: str) -> str:

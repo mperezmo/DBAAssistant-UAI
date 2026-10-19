@@ -37,7 +37,13 @@ MENU: tuple[SeccionMenu, ...] = (
             ItemMenu("auditoria", "menu.auditoria", "audit"),
         ),
     ),
-    SeccionMenu("menu.sistema", (ItemMenu("admin", "menu.admin", "settings", "/admin"),)),
+    SeccionMenu(
+        "menu.sistema",
+        (
+            ItemMenu("conexiones", "menu.conexiones", "db", "/conexiones"),
+            ItemMenu("admin", "menu.admin", "settings", "/admin"),
+        ),
+    ),
 )
 
 # Trazos SVG de los íconos de línea del diseño (viewBox 0 0 20 20).

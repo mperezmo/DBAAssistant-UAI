@@ -3,20 +3,7 @@
 document.addEventListener("alpine:init", () => {
   const TEXTOS = window.TEXTOS_USUARIOS;
 
-  async function api(metodo, ruta, cuerpo) {
-    const respuesta = await fetch(ruta, {
-      method: metodo,
-      headers: { "Content-Type": "application/json", "X-Solicitud": "dba" },
-      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
-    });
-    if (respuesta.status === 401) {
-      window.location.href = "/ingresar";
-      return null;
-    }
-    const datos = respuesta.status === 204 ? null : await respuesta.json();
-    if (!respuesta.ok) throw new Error(`${datos.mensaje} (${datos.codigo})`);
-    return datos;
-  }
+  const api = window.DBA.api;
 
   // Tarjetas de estado de servicios (mismos colores que el diseño).
   Alpine.data("estadoServicios", () => ({

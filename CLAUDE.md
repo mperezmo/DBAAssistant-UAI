@@ -29,7 +29,8 @@ Guía para retomar el proyecto en cada sesión.
 
 - `backend/app/core/`: configuración, secretos (interfaz para Key Vault) y logging.
 - `backend/app/datos/`: SQL Server (pyodbc), MongoDB (PyMongo async), Redis y migraciones.
-- `backend/app/identidad/`: Auth0 (OIDC y Management API), sesiones y login.
+- `backend/app/identidad/`: Auth0 (OIDC y Management API), sesiones, login, usuarios y
+  reautenticación con segundo factor.
 - `backend/app/tenants/`: catálogo y aprovisionamiento de tenants; `backend/app/cli.py`: comandos.
 - `backend/app/core/errores.py`: catálogo de códigos de error (nomenclatura del TFI).
 - `backend/app/modulos/`: un paquete por bloque del diagrama, en capas `api`, `servicios`,
@@ -47,7 +48,9 @@ Guía para retomar el proyecto en cada sesión.
   de auditoría, catálogo de errores, login con Auth0 + MFA por subdominio, sesiones en
   Redis (8 h fijas), menú por rol, Panel Admin con estado de servicios y gestión de
   usuarios (baja con 30 días de gracia; el rol se relee en cada petición).
-- **Próximo — Sprint 2:** conexiones a SQL Server (CU-000-000).
+- **Sprint 2 (en curso):** conexiones a SQL Server (CU-000-000): CRUD, prueba de
+  conexión, credenciales cifradas (`core/cifrado.py`), datos WinRM; reautenticación con
+  segundo factor para acciones sobre PROD (`identidad/reautenticacion.py`).
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.

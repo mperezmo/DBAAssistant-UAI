@@ -26,6 +26,21 @@ async def login(request: Request, tenant: Tenant | None = Depends(tenant_actual)
     return RedirectResponse(url, status_code=303)
 
 
+@router.get("/confirmar")
+async def confirmar(
+    request: Request, volver: str = "/", tenant: Tenant | None = Depends(tenant_actual)
+):
+    """Reautenticación con segundo factor para habilitar acciones sobre PROD."""
+    tenant = _exigir_tenant(tenant)
+    sesion = await sesion_actual(request, tenant)
+    if sesion is None:
+        return RedirectResponse("/ingresar", status_code=303)
+    url = await servicios.iniciar_ingreso(
+        tenant, url_retorno(request, "/auth/callback"), reautenticar=sesion, volver=volver
+    )
+    return RedirectResponse(url, status_code=303)
+
+
 @router.get("/callback")
 async def callback(
     request: Request,
@@ -37,14 +52,17 @@ async def callback(
 ):
     if error or not code or not state:
         raise ErrorDominio("USR_AUT_000", error_description or error)
-    sesion = await servicios.completar_ingreso(
+    resultado = await servicios.completar_ingreso(
         _exigir_tenant(tenant),
         code,
         state,
         url_retorno(request, "/auth/callback"),
         ip_cliente(request),
     )
-    respuesta = RedirectResponse("/", status_code=303)
+    respuesta = RedirectResponse(resultado.volver, status_code=303)
+    if resultado.reautenticacion:
+        return respuesta
+    sesion = resultado.sesion
     respuesta.set_cookie(
         sesiones.COOKIE,
         sesion.id,

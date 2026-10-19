@@ -1,13 +1,15 @@
 """Casos de uso de sesión: Log in con MFA (CU-001-001-A) y Log off (CU-001-001-B)."""
 
 import secrets
+import time
+from dataclasses import dataclass
 from functools import lru_cache
 
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
-from app.identidad import repositorios, sesiones
+from app.identidad import reautenticacion, repositorios, sesiones
 from app.identidad.auth0 import ClienteAuth0
 from app.identidad.entidades import Sesion
 from app.modulos.auditoria import repositorios as auditoria
@@ -25,19 +27,43 @@ def _verificar_tenant_habilitado(tenant: Tenant) -> None:
         raise ErrorDominio("TEN_VAL_003", tenant.slug)
 
 
-async def iniciar_ingreso(tenant: Tenant, redirect_uri: str) -> str:
-    """Prepara el ingreso y devuelve la URL de Auth0 a la que se redirige al usuario."""
+@dataclass(frozen=True)
+class ResultadoIngreso:
+    sesion: Sesion
+    volver: str
+    reautenticacion: bool
+
+
+async def iniciar_ingreso(
+    tenant: Tenant,
+    redirect_uri: str,
+    reautenticar: Sesion | None = None,
+    volver: str = "/",
+) -> str:
+    """Prepara el ingreso y devuelve la URL de Auth0 a la que se redirige al usuario.
+
+    Con ``reautenticar`` no se abre una sesión nueva: el usuario confirma su identidad
+    con el segundo factor y vuelve a ``volver``.
+    """
     _verificar_tenant_habilitado(tenant)
     state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-    await sesiones.guardar_ingreso(state, {"nonce": nonce, "tenant": tenant.slug})
+    await sesiones.guardar_ingreso(
+        state,
+        {
+            "nonce": nonce,
+            "tenant": tenant.slug,
+            "sesion_id": reautenticar.id if reautenticar else None,
+            "volver": reautenticacion.ruta_de_retorno_valida(volver),
+        },
+    )
     return cliente_auth0().url_autorizacion(
-        redirect_uri, state, nonce, tenant.auth0_organizacion_id
+        redirect_uri, state, nonce, tenant.auth0_organizacion_id, reautenticar is not None
     )
 
 
 async def completar_ingreso(
     tenant: Tenant, codigo: str, state: str, redirect_uri: str, ip: str | None
-) -> Sesion:
+) -> ResultadoIngreso:
     """Valida la respuesta de Auth0, identifica al usuario del tenant y abre la sesión."""
     _verificar_tenant_habilitado(tenant)
     cfg = obtener_configuracion()
@@ -59,6 +85,10 @@ async def completar_ingreso(
         raise ErrorDominio("USR_AUT_001", "No se completó el segundo factor.")
 
     auth0_id, email = identidad["sub"], (identidad.get("email") or "").lower()
+    if ingreso.get("sesion_id"):
+        sesion = await _confirmar_segundo_factor(tenant, ingreso["sesion_id"], identidad, ip)
+        return ResultadoIngreso(sesion, ingreso["volver"], reautenticacion=True)
+
     usuario = await run_in_threadpool(
         repositorios.buscar_para_ingreso, tenant.base_sqlserver, str(tenant.id), auth0_id, email
     )
@@ -96,6 +126,37 @@ async def completar_ingreso(
         tenant.base_mongodb,
         EventoAuditoria(
             accion="sesion.iniciada", usuario=usuario.email, tenant_id=str(tenant.id), ip=ip
+        ),
+    )
+    return ResultadoIngreso(sesion, ingreso.get("volver", "/"), reautenticacion=False)
+
+
+# Margen para aceptar que la autenticación informada por Auth0 es la recién realizada.
+MAXIMA_ANTIGUEDAD_AUTENTICACION_SEGUNDOS = 120
+
+
+async def _confirmar_segundo_factor(
+    tenant: Tenant, sesion_id: str, identidad: dict, ip: str | None
+) -> Sesion:
+    sesion = await sesiones.obtener(sesion_id)
+    if sesion is None:
+        raise ErrorDominio("USR_AUT_005")
+    usuario = await run_in_threadpool(
+        repositorios.obtener, tenant.base_sqlserver, str(tenant.id), sesion.usuario_id
+    )
+    # La reautenticación debe hacerla la misma persona de la sesión, y recién.
+    if usuario is None or usuario.auth0_usuario_id != identidad["sub"]:
+        raise ErrorDominio("USR_AUT_000", "La identidad no coincide con la sesión.")
+    if time.time() - identidad.get("auth_time", 0) > MAXIMA_ANTIGUEDAD_AUTENTICACION_SEGUNDOS:
+        raise ErrorDominio("USR_AUT_001", "La autenticación no es reciente.")
+    await sesiones.registrar_segundo_factor(sesion_id)
+    await auditoria.registrar(
+        tenant.base_mongodb,
+        EventoAuditoria(
+            accion="sesion.segundo_factor_confirmado",
+            usuario=sesion.email,
+            tenant_id=str(tenant.id),
+            ip=ip,
         ),
     )
     return sesion

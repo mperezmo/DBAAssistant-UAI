@@ -43,22 +43,39 @@ async def ingresar(request: Request, tenant: Tenant | None = Depends(tenant_actu
     return plantillas.TemplateResponse(request, "paginas/ingresar.html", {"tenant": tenant})
 
 
-@router.get("/admin", response_class=HTMLResponse)
-async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+async def _pagina_de_modulo(
+    request: Request, tenant: Tenant | None, modulo: str, plantilla: str, contexto: dict
+):
+    """Renderiza una página que exige sesión y acceso del rol al módulo."""
     if tenant is None:
         return RedirectResponse("/", status_code=303)
     sesion = await sesion_actual(request, tenant)
     if sesion is None:
         return RedirectResponse("/ingresar", status_code=303)
-    if not sesion.puede_ver("admin"):
-        raise ErrorDominio("USR_PER_000", "admin")
+    if not sesion.puede_ver(modulo):
+        raise ErrorDominio("USR_PER_000", modulo)
     return plantillas.TemplateResponse(
         request,
+        plantilla,
+        {"activo": modulo, "sesion": sesion, "tenant": tenant, **contexto},
+    )
+
+
+@router.get("/conexiones", response_class=HTMLResponse)
+async def conexiones(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(
+        request, tenant, "conexiones", "paginas/conexiones.html", {"ambientes": AMBIENTES}
+    )
+
+
+@router.get("/admin", response_class=HTMLResponse)
+async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(
+        request,
+        tenant,
+        "admin",
         "paginas/admin.html",
         {
-            "activo": "admin",
-            "sesion": sesion,
-            "tenant": tenant,
             "roles": ROLES,
             "ambientes": AMBIENTES,
             "textos_roles": {rol: traducir(f"rol.{rol}") for rol in ROLES},
