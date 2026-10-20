@@ -20,7 +20,7 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | MongoDB 6+ (motor) | `backend/app/datos/mongo.py`, servicio `mongo` |
 | Azure Key Vault | `backend/app/core/secretos.py` — hoy lee `.env`; al migrar se agrega el proveedor de Key Vault |
 | Anthropic Claude API | Módulo `chat_ia` (modelo configurable, por defecto Claude Haiku 5.5) |
-| Sandbox Docker | Módulo `sandbox` |
+| Sandbox Docker | Servicio `sandbox` (`backend/app/sandbox_servicio`, imagen `Dockerfile.sandbox`) que administra los contenedores; el backend lo usa desde el módulo `sandbox` |
 | GitHub Actions | `.github/workflows/ci.yml` |
 | Azure Deploy | Diferido hasta que el sistema esté funcional |
 
@@ -92,6 +92,10 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Ventana de mantenimiento | Por conexión, con zona horaria (Buenos Aires por defecto). Rebuild de índices y update statistics fuera de la ventana requieren la autorización de otro Administrador o DBA; el pedido vence a las 24 h y, autorizado, el solicitante tiene 2 h para ejecutarlo. |
 | Ejecución automática | Solo integrados aptos ante eventos: log > 90% → shrink del log o checkpoint; instancia sin conexión → iniciar servicio. La configura el DBA; para PROD o todas las conexiones exige segundo factor. Cada ejecución se audita y se avisa al equipo DBA. |
 | Workarounds desde el celular | La biblioteca, la alerta y la ejecución funcionan en pantalla chica (menú desplegable); la biometría (WebAuthn) se suma en el sprint móvil. |
+| Sandbox | Servicio aparte, único con acceso al socket de Docker y sin puertos publicados; el backend lo usa por la red interna con un token compartido. Un contenedor SQL Server 2022 Developer por servidor de origen y tenant, con 2 GB de RAM y volumen propio. |
+| Estructura del Sandbox | sqlpackage (paquete oficial de Microsoft desde NuGet, sobre .NET 8): extrae el esquema sin datos ni usuarios y recrea cada base en el Sandbox. Sincronización diaria a la hora local de cada conexión (03:00 por defecto) y a pedido. Antes de cada validación se compara una huella de la estructura con el origen; si no coincide o tiene más de 24 h, se avisa (SBX_SNP_000). |
+| Ejecución en Sandbox | Compilación previa (NOEXEC), luego ejecución con SET STATISTICS XML (tiempo, filas, plan real) dentro de una transacción que siempre se revierte; timeout de 60 s. Cada ejecución queda en la bitácora de Sandbox (MongoDB). |
+| Promover a PROD | Solo DBA. Muestra filas y plan estimados en la base real (SHOWPLAN) frente al Sandbox; exige segundo factor si la conexión es PROD; ejecuta en una transacción y revierte ante una falla. Se registra en la bitácora de transacciones con flag de promoción y se avisa al equipo DBA. |
 | Desestimar alertas | Administrador o DBA marcan una condición de una instancia como esperada (por ejemplo, una base offline a propósito), con motivo y vencimiento opcional (24 h, 7 d, 30 d, una fecha o sin vencimiento). La alerta se cierra como "desestimada" y la condición no vuelve a alertar mientras esté vigente; se lista en Alertas → Desestimadas y se puede reactivar. Todo auditado. |
 | Exportación de auditoría | CSV y PDF sin firma digital (firma omitida por ahora). |
 | Histórico de métricas | Colecciones *time-series* de MongoDB, retención de 30 días (`MONITOR_RETENCION_DIAS`). Rangos de 1 h, 24 h, 7 d y 30 d, promediados por tramo. |

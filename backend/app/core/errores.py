@@ -70,6 +70,18 @@ CATALOGO: dict[str, DefinicionError] = {
     "WKR_AUT_002": DefinicionError(
         "Solo los workarounds integrados aptos pueden ejecutarse automáticamente.", 422
     ),
+    "SBX_DCK_000": DefinicionError("Error en el contenedor Sandbox.", 502),
+    "SBX_SNP_000": DefinicionError(
+        "La estructura del Sandbox tiene más de 24 horas o no coincide con el origen.", 200
+    ),
+    "SBX_SNP_001": DefinicionError(
+        "El Sandbox todavía no tiene esa base: sincronizalo y volvé a intentar.", 409
+    ),
+    "SBX_TMO_000": DefinicionError("Tiempo de ejecución excedido (60 s).", 408),
+    "SBX_PRM_000": DefinicionError(
+        "Solo se puede promover una ejecución exitosa que no haya sido promovida.", 409
+    ),
+    "SQL_EXE_000": DefinicionError("Falla en la ejecución sobre la instancia.", 422),
     "WRM_000": DefinicionError("No se logró conectar al servidor Windows (WinRM).", 422),
     "AKV_000": DefinicionError("Falla en el almacenamiento de credenciales.", 500),
     "AMB_VAL_000": DefinicionError(

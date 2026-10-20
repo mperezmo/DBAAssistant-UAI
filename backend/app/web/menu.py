@@ -26,7 +26,7 @@ MENU: tuple[SeccionMenu, ...] = (
             ItemMenu("monitor", "menu.monitor", "monitor", "/monitor"),
             ItemMenu("alertas", "menu.alertas", "bell", "/alertas"),
             ItemMenu("workarounds", "menu.workarounds", "play", "/workarounds"),
-            ItemMenu("sandbox", "menu.sandbox", "sandbox"),
+            ItemMenu("sandbox", "menu.sandbox", "sandbox", "/sandbox"),
         ),
     ),
     SeccionMenu(

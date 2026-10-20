@@ -8,7 +8,12 @@ from pydantic import BaseModel, Field
 
 from app.identidad.dependencias import requerir_modulo
 from app.modulos.conexiones import servicios
-from app.modulos.conexiones.entidades import ZONA_HORARIA_POR_DEFECTO, Conexion, DatosConexion
+from app.modulos.conexiones.entidades import (
+    SINCRONIZACION_SANDBOX,
+    ZONA_HORARIA_POR_DEFECTO,
+    Conexion,
+    DatosConexion,
+)
 
 router = APIRouter(prefix="/api/conexiones", tags=["conexiones"])
 contexto = Depends(requerir_modulo("conexiones"))
@@ -29,6 +34,7 @@ class ConexionEntrada(BaseModel):
     ventana_inicio: time | None = None
     ventana_fin: time | None = None
     zona_horaria: str = Field(default=ZONA_HORARIA_POR_DEFECTO, max_length=64)
+    sandbox_sincronizacion: time = SINCRONIZACION_SANDBOX
 
     def a_datos(self) -> DatosConexion:
         return DatosConexion(**self.model_dump())
@@ -59,6 +65,7 @@ def _a_json(c: Conexion) -> dict:
         "ventana_inicio": c.ventana_inicio.strftime("%H:%M") if c.ventana_inicio else None,
         "ventana_fin": c.ventana_fin.strftime("%H:%M") if c.ventana_fin else None,
         "zona_horaria": c.zona_horaria,
+        "sandbox_sincronizacion": c.sandbox_sincronizacion.strftime("%H:%M"),
     }
 
 

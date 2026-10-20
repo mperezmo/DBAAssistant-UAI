@@ -28,6 +28,19 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # Sandbox: crea los contenedores SQL Server de validación. Es el único servicio con
+  # acceso al motor de Docker y no publica puertos (solo lo usa el backend).
+  sandbox:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.sandbox
+    env_file: .env
+    environment:
+      SANDBOX_RED: dba-assistant
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
   # Base SQL Server propia de la aplicación. Accesible desde SSMS en localhost,14330.
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -59,6 +72,11 @@ services:
     image: redis:8-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
+
+# Red con nombre fijo: los contenedores del Sandbox se suman a ella.
+networks:
+  default:
+    name: dba-assistant
 
 volumes:
   certificados:

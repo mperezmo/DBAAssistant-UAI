@@ -238,6 +238,7 @@ async def _guardar(
         ventana_inicio=datos.ventana_inicio,
         ventana_fin=datos.ventana_fin,
         zona_horaria=datos.zona_horaria,
+        sandbox_sincronizacion=datos.sandbox_sincronizacion,
     )
     conexion_id = await run_in_threadpool(
         repositorios.guardar, tenant.base_sqlserver, conexion, actual is None

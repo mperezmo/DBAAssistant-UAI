@@ -6,7 +6,7 @@ from app.modulos.conexiones.entidades import Conexion
 COLUMNAS = (
     "id, tenant_id, alias, host, puerto, instancia, ambiente, usuario_sql,"
     " password_sql_cifrada, winrm_usuario, winrm_password_cifrada, winrm_puerto, winrm_https,"
-    " ventana_inicio, ventana_fin, zona_horaria"
+    " ventana_inicio, ventana_fin, zona_horaria, sandbox_sincronizacion"
 )
 
 
@@ -28,6 +28,7 @@ def _a_entidad(fila) -> Conexion:
         ventana_inicio=fila.ventana_inicio,
         ventana_fin=fila.ventana_fin,
         zona_horaria=fila.zona_horaria,
+        sandbox_sincronizacion=fila.sandbox_sincronizacion,
     )
 
 
@@ -93,6 +94,7 @@ def guardar(base: str, c: Conexion, nueva: bool) -> str:
         c.ventana_inicio,
         c.ventana_fin,
         c.zona_horaria,
+        c.sandbox_sincronizacion,
     )
     with sqlserver.conectar(base) as conexion:
         cursor = conexion.cursor()
@@ -101,9 +103,9 @@ def guardar(base: str, c: Conexion, nueva: bool) -> str:
                 """INSERT INTO dbo.conexion (alias, host, puerto, instancia, ambiente,
                        usuario_sql, password_sql_cifrada, winrm_usuario,
                        winrm_password_cifrada, winrm_puerto, winrm_https, ventana_inicio,
-                       ventana_fin, zona_horaria, tenant_id)
+                       ventana_fin, zona_horaria, sandbox_sincronizacion, tenant_id)
                    OUTPUT inserted.id
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 *valores,
                 c.tenant_id,
             ).fetchone()[0]
@@ -115,6 +117,7 @@ def guardar(base: str, c: Conexion, nueva: bool) -> str:
                        usuario_sql = ?, password_sql_cifrada = ?, winrm_usuario = ?,
                        winrm_password_cifrada = ?, winrm_puerto = ?, winrm_https = ?,
                        ventana_inicio = ?, ventana_fin = ?, zona_horaria = ?,
+                       sandbox_sincronizacion = ?,
                        actualizado_en = SYSUTCDATETIME()
                    WHERE tenant_id = ? AND id = ?""",
                 *valores,

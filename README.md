@@ -120,6 +120,14 @@ docker compose exec backend python -m app.cli probar-correo --para tu@email.com
 `VAPID_CONTACTO` no es para esto: es el contacto que el protocolo Web Push informa a los
 servicios push.
 
+### Sandbox
+
+El servicio `sandbox` crea un contenedor SQL Server por cada servidor registrado (unos
+2 GB de RAM cada uno) y necesita acceso al socket de Docker. En el `.env` completar
+`SECRETO_SANDBOX_TOKEN` (una cadena aleatoria larga) y `SECRETO_SANDBOX_SA_PASSWORD`.
+La primera sincronización de un servidor descarga la imagen de SQL Server y tarda
+varios minutos.
+
 ### Desarrollo del backend sin Docker
 
 Requiere [uv](https://docs.astral.sh/uv/) y el driver *ODBC Driver 18 for SQL Server*.

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import time
 
 ZONA_HORARIA_POR_DEFECTO = "America/Argentina/Buenos_Aires"
+SINCRONIZACION_SANDBOX = time(3, 0)
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,8 @@ class Conexion:
     ventana_inicio: time | None = None
     ventana_fin: time | None = None
     zona_horaria: str = ZONA_HORARIA_POR_DEFECTO
+    # Hora local de la sincronización diaria de la estructura en el Sandbox.
+    sandbox_sincronizacion: time = SINCRONIZACION_SANDBOX
 
     @property
     def tiene_winrm(self) -> bool:
@@ -51,6 +54,7 @@ class DatosConexion:
     ventana_inicio: time | None = None
     ventana_fin: time | None = None
     zona_horaria: str = ZONA_HORARIA_POR_DEFECTO
+    sandbox_sincronizacion: time = SINCRONIZACION_SANDBOX
 
 
 @dataclass(frozen=True)

@@ -22,6 +22,8 @@ from app.modulos.alertas.motor import Motor
 from app.modulos.conexiones import api as conexiones
 from app.modulos.monitor import api as monitor
 from app.modulos.monitor.recolector import Recolector
+from app.modulos.sandbox import api as sandbox
+from app.modulos.sandbox.programador import Programador
 from app.modulos.web_push import api as web_push
 from app.modulos.workarounds import api as workarounds
 from app.modulos.workarounds import servicios as workarounds_servicios
@@ -59,7 +61,12 @@ async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
     if obtener_configuracion().monitor_recolector_activo:
         recolector = Recolector(evaluador=Motor(automatizador=Automatizador()))
         tarea = asyncio.create_task(recolector.ejecutar())
+    programador = None
+    if obtener_configuracion().sandbox_programador_activo:
+        programador = asyncio.create_task(Programador().ejecutar())
     yield
+    if programador:
+        programador.cancel()
     if tarea:
         tarea.cancel()
         recolector.detener()
@@ -95,6 +102,7 @@ def crear_app() -> FastAPI:
     app.include_router(alertas.router)
     app.include_router(web_push.router)
     app.include_router(workarounds.router)
+    app.include_router(sandbox.router)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("menu.sandbox") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="sandbox()" x-init="iniciar()">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("sandbox.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("sandbox.titulo") }} <em>{{ t("sandbox.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle" x-text="subtitulo()"></p>
+  </div>
+
+  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+
+  <div class="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+    <!-- Editor -->
+    <section class="card lg:self-start">
+      <div class="card-head flex-wrap gap-3">
+        <div>
+          <div class="card-eyebrow">{{ t("sandbox.editor.eyebrow") }}</div>
+          <h3 class="card-title">{{ t("sandbox.editor.titulo") }}</h3>
+        </div>
+        <span class="tag" :class="claseEstado()">
+          <span class="live-dot inline-block size-1.5" x-show="estado?.estado === 'listo'"></span>
+          <span x-text="TEXTOS.estados[estado?.estado || 'sin_crear']"></span>
+        </span>
+      </div>
+      <div class="grid gap-3 border-b border-line px-5 py-3 sm:grid-cols-2">
+        <select class="rounded border border-line px-3 py-2 text-sm" x-model="conexionId" @change="cambioConexion()" aria-label="{{ t('sandbox.instancia') }}">
+          <template x-for="c in conexiones" :key="c.id"><option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option></template>
+        </select>
+        <select class="rounded border border-line px-3 py-2 text-sm" x-model="base" aria-label="{{ t('sandbox.base') }}">
+          <option value="">{{ t("sandbox.base") }}</option>
+          <template x-for="b in basesListas()" :key="b"><option :value="b" x-text="b"></option></template>
+        </select>
+      </div>
+      <textarea class="block min-h-[280px] w-full resize-y border-0 px-5 py-4 font-mono text-[12.5px] leading-relaxed outline-none"
+                style="background: var(--bg-sunk)" spellcheck="false" x-model="sql"
+                placeholder="-- {{ t('sandbox.editor.placeholder') }}"></textarea>
+      <div class="card-foot flex-wrap justify-between gap-2">
+        <span class="font-mono text-[11px] text-fg-faint" x-text="estadisticas()"></span>
+        <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" @click="ejecutar(true)" :disabled="!puedeEjecutar()">{{ t("sandbox.validar_sintaxis") }}</button>
+          <button class="btn btn-primary btn-sm" @click="ejecutar(false)" :disabled="!puedeEjecutar()">
+            {% with nombre="sandbox", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+            <span x-text="ejecutando ? TEXTOS.ejecutando : TEXTOS.ejecutar"></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <div class="space-y-5">
+      <!-- Resultado -->
+      <section class="card" x-show="resultado" x-cloak>
+        <template x-if="resultado">
+          <div>
+            <div class="card-head">
+              <div>
+                <div class="card-eyebrow">{{ t("sandbox.resultado.eyebrow") }}</div>
+                <h3 class="card-title">{{ t("sandbox.resultado.titulo") }}</h3>
+              </div>
+              <span class="tag" :class="resultado.estado === 'ok' ? 'tag-green' : 'tag-red'" x-text="TEXTOS.resultados[resultado.estado] || resultado.estado"></span>
+            </div>
+            <div class="card-body">
+              <p class="mb-3 text-sm text-danger" x-show="resultado.error" x-text="resultado.error"></p>
+              <p class="mb-3 text-xs text-warn" x-show="(resultado.avisos || []).length">{{ t("sandbox.aviso_estructura") }}</p>
+              <div class="grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-2.5 text-[13px]" x-show="resultado.duracion_ms !== undefined && !resultado.solo_sintaxis">
+                <span class="text-fg-muted">{{ t("sandbox.resultado.tiempo") }}</span><strong class="metric-mono" x-text="`${(resultado.duracion_ms / 1000).toFixed(2)} s`"></strong>
+                <span class="text-fg-muted">{{ t("sandbox.resultado.filas") }}</span><strong class="metric-mono" x-text="(resultado.filas || 0).toLocaleString()"></strong>
+                <span class="text-fg-muted">{{ t("sandbox.resultado.plan") }}</span><strong class="metric-mono" style="color: var(--sage)" x-text="resultado.plan?.operador || '—'"></strong>
+                <span class="text-fg-muted">{{ t("sandbox.resultado.costo") }}</span><strong class="metric-mono" x-text="resultado.plan ? `${resultado.plan.costo} · I/O ${resultado.plan.costo_io}` : '—'"></strong>
+                <span class="text-fg-muted">{{ t("sandbox.resultado.estructura") }}</span><strong class="metric-mono" x-text="antiguedad(resultado.estructura_del)"></strong>
+              </div>
+              <p class="text-sm text-ok" x-show="resultado.solo_sintaxis && resultado.estado === 'ok'">{{ t("sandbox.sintaxis_ok") }}</p>
+              <template x-if="resultado.id && resultado.estado === 'ok' && puedePromover">
+                <div>
+                  <div class="ornament mx-auto my-[18px] max-w-[160px]">◆</div>
+                  <button class="btn btn-primary btn-block" @click="previa(resultado)" x-show="!resultado.promocion">{{ t("sandbox.promover") }} →</button>
+                  <p class="text-center text-sm text-ok" x-show="resultado.promocion" x-text="TEXTOS.promovida"></p>
+                  <div class="mt-2.5 text-center font-mono text-[11px] tracking-[0.08em] text-fg-faint">{{ t("sandbox.promover_nota") }}</div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- Estado del contenedor -->
+      <section class="card-deco">
+        <div class="card-deco-inner">
+          <div class="card-eyebrow mb-2">{{ t("sandbox.contenedor.eyebrow") }}</div>
+          <div class="grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1.5 font-mono text-xs">
+            <span class="text-fg-faint">{{ t("sandbox.contenedor.imagen") }}</span><span x-text="estado?.contenedor?.imagen || '—'"></span>
+            <span class="text-fg-faint">{{ t("sandbox.contenedor.estado") }}</span><span x-text="estado?.contenedor?.estado || (estado?.contenedor?.disponible === false ? TEXTOS.servicioNoDisponible : '—')"></span>
+            <span class="text-fg-faint">{{ t("sandbox.contenedor.memoria") }}</span><span x-text="estado?.contenedor?.memoria_limite || '—'"></span>
+            <span class="text-fg-faint">{{ t("sandbox.contenedor.estructura") }}</span><span x-text="estado?.sincronizado_en ? antiguedad(estado.sincronizado_en) : '—'"></span>
+            <span class="text-fg-faint">{{ t("sandbox.contenedor.diaria") }}</span><span x-text="estado?.sincronizacion_diaria || '—'"></span>
+            <span class="text-fg-faint">{{ t("sandbox.contenedor.bases") }}</span><span x-text="textoBases()"></span>
+          </div>
+          <p class="mt-2 text-xs text-danger" x-show="estado?.error" x-text="estado?.error"></p>
+          <button class="btn btn-ghost btn-sm mt-3" @click="sincronizar()" :disabled="estado?.estado === 'sincronizando'"
+                  x-text="estado?.estado === 'sincronizando' ? TEXTOS.sincronizando : TEXTOS.sincronizar"></button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Resultados y mensajes de la ejecución -->
+  <section class="card mt-5" x-show="resultado?.muestra || (resultado?.mensajes || []).length" x-cloak>
+    <div class="card-head"><h3 class="card-title">{{ t("sandbox.muestra.titulo") }}</h3></div>
+    <div class="overflow-x-auto" x-show="resultado?.muestra">
+      <table class="data-table text-[12px]">
+        <thead><tr><template x-for="c in (resultado?.muestra?.columnas || [])" :key="c"><th x-text="c"></th></template></tr></thead>
+        <tbody>
+          <template x-for="(f, i) in (resultado?.muestra?.filas || [])" :key="i">
+            <tr><template x-for="(v, j) in f" :key="j"><td class="metric-mono" x-text="v ?? 'NULL'"></td></template></tr>
+          </template>
+          <tr x-show="resultado?.muestra && !resultado.muestra.filas.length"><td class="text-fg-muted" :colspan="resultado?.muestra?.columnas.length">{{ t("sandbox.muestra.vacia") }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body font-mono text-[11.5px] text-fg-muted" x-show="(resultado?.mensajes || []).length">
+      <template x-for="(m, i) in (resultado?.mensajes || [])" :key="i"><div x-text="m"></div></template>
+    </div>
+  </section>
+
+  <!-- Historial (CU-000-002-C) -->
+  <section class="card mt-5">
+    <div class="card-head flex-wrap gap-3">
+      <div>
+        <div class="card-eyebrow">{{ t("sandbox.historial.eyebrow") }}</div>
+        <h3 class="card-title">{{ t("sandbox.historial.titulo") }}</h3>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <select class="rounded border border-line px-2 py-1.5 text-sm" x-model="filtros.estado" @change="cargarHistorial()">
+          <option value="">{{ t("sandbox.historial.todos") }}</option>
+          {% for e in ["ok", "error", "sintaxis", "timeout"] %}<option value="{{ e }}">{{ t("sandbox.resultado_estado." ~ e) }}</option>{% endfor %}
+        </select>
+        <input class="rounded border border-line px-2 py-1.5 text-sm" placeholder="{{ t('sandbox.historial.usuario') }}" x-model.debounce.500ms="filtros.usuario" @input="cargarHistorial()">
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="data-table text-[12px]">
+        <thead><tr><th>{{ t("sandbox.historial.fecha") }}</th><th>{{ t("sandbox.historial.instancia") }}</th><th>{{ t("sandbox.historial.usuario") }}</th><th>{{ t("sandbox.historial.consulta") }}</th><th>{{ t("sandbox.historial.resultado") }}</th></tr></thead>
+        <tbody>
+          <template x-for="r in historial" :key="r.id">
+            <tr class="cursor-pointer" @click="ver(r)">
+              <td class="metric-mono whitespace-nowrap" x-text="fecha(r.ts)"></td>
+              <td x-text="`${r.conexion_alias} · ${r.base}`"></td>
+              <td x-text="r.usuario"></td>
+              <td class="metric-mono max-w-[320px] truncate" x-text="r.sql"></td>
+              <td>
+                <span class="tag" :class="r.estado === 'ok' ? 'tag-green' : 'tag-red'" x-text="TEXTOS.resultados[r.estado] || r.estado"></span>
+                <span class="tag tag-blue" x-show="r.promocion">{{ t("sandbox.historial.promovida") }}</span>
+              </td>
+            </tr>
+          </template>
+          <tr x-show="!historial.length"><td colspan="5" class="text-center text-fg-muted">{{ t("sandbox.historial.vacio") }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Promoción a PROD (CU-000-002-B) -->
+  <template x-if="promocion">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
+       @click.self="promocion = null" @keydown.escape.window="promocion = null">
+    <div class="card mx-2 w-full max-w-xl">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow" x-text="`${promocion.datos?.conexion || ''} · ${promocion.datos?.ambiente || ''} · ${promocion.datos?.base || ''}`"></div>
+          <h3 class="card-title">{{ t("sandbox.promocion.titulo") }}</h3>
+        </div>
+      </div>
+      <div class="card-body space-y-3 text-[13px]">
+        <p class="text-fg-muted" x-show="!promocion.datos && !promocion.mensaje">{{ t("sandbox.promocion.analizando") }}</p>
+        <template x-if="promocion.datos">
+          <table class="data-table">
+            <thead><tr><th></th><th>{{ t("sandbox.promocion.sandbox") }}</th><th>{{ t("sandbox.promocion.real") }}</th></tr></thead>
+            <tbody>
+              <tr><td>{{ t("sandbox.promocion.filas") }}</td><td class="metric-mono" x-text="promocion.datos.sandbox.filas"></td><td class="metric-mono" x-text="`~${promocion.datos.real.filas_estimadas}`"></td></tr>
+              <tr><td>{{ t("sandbox.promocion.plan") }}</td><td class="metric-mono" x-text="promocion.datos.sandbox.operador || '—'"></td><td class="metric-mono" x-text="promocion.datos.real.operador || '—'"></td></tr>
+              <tr><td>{{ t("sandbox.promocion.costo") }}</td><td class="metric-mono" x-text="promocion.datos.sandbox.costo ?? '—'"></td><td class="metric-mono" x-text="promocion.datos.real.costo"></td></tr>
+            </tbody>
+          </table>
+        </template>
+        <p class="text-xs text-fg-muted">{{ t("sandbox.promocion.ayuda") }}</p>
+        <p class="text-sm" :class="promocion.exito ? 'text-ok' : 'text-danger'" x-show="promocion.mensaje" x-text="promocion.mensaje"></p>
+      </div>
+      <div class="card-foot justify-end gap-2">
+        <button class="btn btn-ghost btn-sm" @click="promocion = null">{{ t("sandbox.cerrar") }}</button>
+        <button class="btn btn-primary btn-sm" x-show="promocion.datos && !promocion.exito" :disabled="promocion.enviando" @click="promover()">{{ t("sandbox.promocion.confirmar") }}</button>
+      </div>
+    </div>
+  </div>
+  </template>
+</div>
+
+<script>
+  window.TEXTOS_SANDBOX = {
+    estados: { {% for e in ["sin_crear", "sincronizando", "listo", "error"] %}{{ e | tojson }}: {{ t("sandbox.estado." ~ e) | tojson }},{% endfor %} },
+    resultados: { {% for e in ["ok", "error", "sintaxis", "timeout"] %}{{ e | tojson }}: {{ t("sandbox.resultado_estado." ~ e) | tojson }},{% endfor %} },
+    subtitulo: {{ t("sandbox.subtitulo") | tojson }},
+    ejecutar: {{ t("sandbox.ejecutar") | tojson }},
+    ejecutando: {{ t("sandbox.ejecutando") | tojson }},
+    sincronizar: {{ t("sandbox.sincronizar") | tojson }},
+    sincronizando: {{ t("sandbox.sincronizando") | tojson }},
+    servicioNoDisponible: {{ t("sandbox.servicio_no_disponible") | tojson }},
+    estadisticas: {{ t("sandbox.editor.estadisticas") | tojson }},
+    hace: {{ t("sandbox.hace") | tojson }},
+    promovida: {{ t("sandbox.promovida") | tojson }},
+    promovidaOk: {{ t("sandbox.promocion.ok") | tojson }},
+    confirmarMfa: {{ t("sandbox.promocion.confirmar_mfa") | tojson }},
+    sinBases: {{ t("sandbox.sin_bases") | tojson }},
+  };
+</script>
+<script src="/static/js/sandbox.js?v={{ version_estaticos }}"></script>
+{% endblock %}

@@ -56,6 +56,12 @@ class Configuracion(BaseSettings):
     smtp_remitente: str = ""
     smtp_starttls: bool = True
 
+    # Servicio Sandbox (red interna). El token compartido es un secreto
+    # (SECRETO_SANDBOX_TOKEN). Con el programador activo, la estructura de cada
+    # servidor se sincroniza a diario a la hora configurada en la conexión.
+    sandbox_url: str = "http://sandbox:8100"
+    sandbox_programador_activo: bool = True
+
     # Identidad (Auth0). Cada tenant es una Organization y entra por su subdominio
     # (<slug>.<dominio_base>).
     dominio_base: str = "localhost"

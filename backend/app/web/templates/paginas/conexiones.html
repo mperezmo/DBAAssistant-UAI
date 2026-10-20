@@ -142,7 +142,7 @@
 
         <div class="card-eyebrow mt-2">{{ t("conexiones.form.ventana") }}</div>
         <p class="-mt-2 text-xs text-fg-muted">{{ t("conexiones.form.ventana_ayuda") }}</p>
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div class="field">
             <label for="c-vinicio">{{ t("conexiones.form.ventana_inicio") }}</label>
             <input id="c-vinicio" type="time" x-model="formulario.ventana_inicio">
@@ -150,6 +150,10 @@
           <div class="field">
             <label for="c-vfin">{{ t("conexiones.form.ventana_fin") }}</label>
             <input id="c-vfin" type="time" x-model="formulario.ventana_fin">
+          </div>
+          <div class="field">
+            <label for="c-sbx">{{ t("conexiones.form.sandbox_sincronizacion") }}</label>
+            <input id="c-sbx" type="time" x-model="formulario.sandbox_sincronizacion">
           </div>
           <div class="field">
             <label for="c-zona">{{ t("conexiones.form.zona_horaria") }}</label>

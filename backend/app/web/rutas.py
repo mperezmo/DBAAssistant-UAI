@@ -123,6 +123,11 @@ async def workarounds(request: Request, tenant: Tenant | None = Depends(tenant_a
     )
 
 
+@router.get("/sandbox", response_class=HTMLResponse)
+async def sandbox(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(request, tenant, "sandbox", "paginas/sandbox.html", {})
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
     return await _pagina_de_modulo(
