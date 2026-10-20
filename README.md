@@ -29,6 +29,10 @@ cp .env.example .env        # completar la contraseña de SQL Server y demás va
 docker compose up -d --build
 ```
 
+Después de cada `git pull`, volver a construir **todas** las imágenes con
+`docker compose up -d --build`: NGINX incluye los estilos y el JavaScript de la
+interfaz, así que reconstruir solo el backend deja la interfaz desactualizada.
+
 - Aplicación: cada empresa entra por su subdominio, por ejemplo <https://acme.localhost>
   (certificado autofirmado: aceptar la advertencia del navegador).
 - Estado de las dependencias: <https://localhost/api/salud>.

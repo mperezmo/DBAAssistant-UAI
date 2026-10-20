@@ -1,18 +1,10 @@
 // Service worker de la PWA.
-// Guarda en caché los recursos estáticos para acelerar la carga; las páginas y
-// la API siempre se piden a la red porque muestran información en vivo.
-const CACHE = "dba-assistant-v1";
-const RECURSOS = [
-  "/static/css/app.css",
-  "/static/js/app.js",
-  "/static/js/vendor/alpine-3.17.4.min.js",
-  "/static/img/logo.svg",
-];
+// Los recursos estáticos se piden siempre a la red (para tomar cada versión nueva) y
+// se guardan en caché solo como respaldo cuando no hay conexión. Las páginas y la API
+// no se cachean porque muestran información en vivo.
+const CACHE = "dba-assistant-v2";
 
-self.addEventListener("install", (evento) => {
-  evento.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(RECURSOS)));
-  self.skipWaiting();
-});
+self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (evento) => {
   evento.waitUntil(
@@ -27,6 +19,12 @@ self.addEventListener("fetch", (evento) => {
   const url = new URL(evento.request.url);
   if (evento.request.method !== "GET" || !url.pathname.startsWith("/static/")) return;
   evento.respondWith(
-    caches.match(evento.request).then((respuesta) => respuesta || fetch(evento.request))
+    fetch(evento.request)
+      .then((respuesta) => {
+        const copia = respuesta.clone();
+        caches.open(CACHE).then((cache) => cache.put(evento.request, copia));
+        return respuesta;
+      })
+      .catch(() => caches.match(evento.request))
   );
 });
