@@ -46,7 +46,9 @@ jobs:
           --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Integracion#2026 -Q 'SELECT 1'"
           --health-interval 10s --health-retries 12 --health-start-period 30s
       mongo:
-        image: mongo:8
+        # MongoDB 8.x no arranca en kernels Linux 6.19+ (SERVER-121912), que ya usan los
+        # runners de GitHub. 7.0 cumple el requisito del diagrama (6+) y sí arranca.
+        image: mongo:7.0
         ports: ["27017:27017"]
     env:
       SQLSERVER_HOST: localhost
