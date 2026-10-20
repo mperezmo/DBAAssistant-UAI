@@ -100,7 +100,9 @@ async def test_resumen_con_datos_reales(prefijo_aislado, entorno):
         str(tenant.id), dev.id, {"estado": "ok", "valores": {"sesiones": 5}, "bloqueos": []}
     )
 
-    resumen = await servicios.resumen(tenant, dba, "PROD", ahora)
+    # SQL Server guarda creado_en en DATETIME2(0), que redondea al segundo: se mide un poco
+    # después para que la instancia recién creada tenga un período positivo.
+    resumen = await servicios.resumen(tenant, dba, "PROD", ahora + timedelta(seconds=2))
     assert resumen["instancias"] == {"total": 1, "nuevas_mes": 1}
     assert resumen["alertas"] == {"activas": 2, "criticas": 1}
     assert 90 <= resumen["salud"]["latencia_p95"] <= 100
