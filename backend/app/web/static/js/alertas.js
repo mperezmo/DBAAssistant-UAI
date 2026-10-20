@@ -179,7 +179,7 @@ document.addEventListener("alpine:init", () => {
     nuevaRegla() {
       this.reglas.formulario = {
         id: null, nombre: "", metrica: "cpu", operador: ">", valor: "", severidad: "warning",
-        conexion_id: "", sostenida_segundos: 60, destinatarios: ["DBA"], push: false, activa: true,
+        conexion_id: "", sostenida_segundos: 60, destinatarios: ["DBA"], push: false, email: false, activa: true,
         mensaje: "", guardando: false,
       };
     },
@@ -194,7 +194,7 @@ document.addEventListener("alpine:init", () => {
         nombre: f.nombre, metrica: f.metrica, operador: f.operador, valor: Number(f.valor),
         severidad: f.severidad, conexion_id: f.conexion_id || null,
         sostenida_segundos: Number(f.sostenida_segundos), destinatarios: f.destinatarios,
-        push: f.push, activa: f.activa,
+        push: f.push, email: f.email, activa: f.activa,
       };
       try {
         if (f.id) await api("PUT", `/api/alertas/reglas/${f.id}`, cuerpo);

@@ -293,5 +293,8 @@
   "alertas.duracion.7d": "7 días",
   "alertas.duracion.30d": "30 días",
   "alertas.duracion.indefinida": "Sin vencimiento",
-  "alertas.duracion.fecha": "Hasta una fecha"
+  "alertas.duracion.fecha": "Hasta una fecha",
+  "alertas.correo.asunto": "[{severidad}] {instancia} · {titulo}",
+  "alertas.correo.cuerpo": "{titulo}\n\n{descripcion}\n\nSeveridad: {severidad}\nInstancia: {instancia} ({servidor})\nAmbiente: {ambiente}\n\nVer el detalle y atenderla: {url}\n\n— DBA Assistant · {empresa}",
+  "alertas.reglas.form.email": "Enviar email"
 }

@@ -223,7 +223,7 @@
                   <td class="metric-mono text-[11.5px]" x-text="textoCondicion(r)"></td>
                   <td><span class="tag" :class="claseSeveridad(r.severidad)" x-text="TEXTOS.severidades[r.severidad]"></span></td>
                   <td class="text-[12px]" x-text="nombreConexion(r.conexion_id)"></td>
-                  <td class="text-[12px]" x-text="r.destinatarios.map((rol) => TEXTOS.roles[rol]).join(', ') + (r.push ? ' · push' : '')"></td>
+                  <td class="text-[12px]" x-text="r.destinatarios.map((rol) => TEXTOS.roles[rol]).join(', ') + (r.push ? ' · push' : '') + (r.email ? ' · email' : '')"></td>
                   <td class="whitespace-nowrap text-right">
                     <button class="btn btn-ghost btn-sm" @click="editarRegla(r)">{{ t("alertas.reglas.editar") }}</button>
                     <button class="btn btn-ghost btn-sm" @click="eliminarRegla(r)">{{ t("alertas.reglas.eliminar") }}</button>
@@ -295,6 +295,7 @@
                 <label class="flex items-center gap-2"><input type="checkbox" class="size-4" value="{{ rol }}" x-model="reglas.formulario.destinatarios"> {{ textos_roles[rol] }}</label>
                 {% endfor %}
                 <label class="flex items-center gap-2"><input type="checkbox" class="size-4" x-model="reglas.formulario.push"> {{ t("alertas.reglas.form.push") }}</label>
+                <label class="flex items-center gap-2"><input type="checkbox" class="size-4" x-model="reglas.formulario.email"> {{ t("alertas.reglas.form.email") }}</label>
                 <label class="flex items-center gap-2"><input type="checkbox" class="size-4" x-model="reglas.formulario.activa"> {{ t("alertas.reglas.form.activa") }}</label>
               </div>
             </div>

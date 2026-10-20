@@ -30,6 +30,7 @@ class ReglaEntrada(BaseModel):
     sostenida_segundos: int = SOSTENIDA_POR_DEFECTO_SEGUNDOS
     destinatarios: list[str] = Field(max_length=3)
     push: bool = False
+    email: bool = False
     activa: bool = True
 
     def a_regla(self) -> Regla:

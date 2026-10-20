@@ -10,21 +10,17 @@
 - Las condiciones desestimadas por un DBA no generan alertas mientras estén vigentes.
 """
 
-import logging
 import time
 
 from starlette.concurrency import run_in_threadpool
 
 from app.datos import sqlserver
-from app.modulos.alertas import condiciones, repositorios
-from app.modulos.alertas.entidades import Condicion, ResultadoDisparo, rango_severidad
+from app.modulos.alertas import condiciones, notificaciones, repositorios
+from app.modulos.alertas.entidades import Condicion, rango_severidad
 from app.modulos.conexiones.entidades import Conexion
 from app.modulos.monitor import repositorios as monitor
 from app.modulos.monitor.entidades import Lectura
-from app.modulos.web_push import servicios as push
 from app.tenants.entidades import Tenant
-
-log = logging.getLogger(__name__)
 
 VIGENCIA_CONFIGURACION_SEGUNDOS = 30
 REFRESCO_ALERTA_SEGUNDOS = 60
@@ -110,24 +106,8 @@ class Motor:
             self._en_curso[clave] = (c.severidad, ahora)
             return
         self._en_curso[clave] = (resultado.alerta.severidad, ahora)
-        if c.push and (resultado.nueva or resultado.escalo):
-            await self._notificar(tenant, resultado, c)
-
-    async def _notificar(self, tenant: Tenant, resultado: ResultadoDisparo, c: Condicion) -> None:
-        a = resultado.alerta
-        try:
-            await push.enviar(
-                tenant,
-                c.destinatarios,
-                {
-                    "titulo": f"{a.severidad.upper()} · {a.conexion_alias}",
-                    "cuerpo": a.titulo,
-                    "url": f"/alertas?id={a.id}",
-                    "etiqueta": f"alerta-{a.id}",
-                },
-            )
-        except Exception:
-            log.exception("NTF_PSH_000 alerta %s", a.id)
+        if (c.push or c.email) and (resultado.nueva or resultado.escalo):
+            await notificaciones.notificar(tenant, resultado.alerta, c)
 
     async def _cargar_en_curso(self, tenant: Tenant) -> None:
         """Al arrancar se retoman las alertas activas para poder normalizarlas."""

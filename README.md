@@ -107,6 +107,19 @@ El recolector empieza a leer una conexión nueva en hasta 30 segundos.
 El navegador solo registra el service worker con HTTPS y un certificado confiable; con el
 certificado autofirmado de desarrollo el push no se activa.
 
+### Notificaciones por correo
+
+Completar la sección SMTP del `.env` (por ejemplo, Gmail con una contraseña de aplicación)
+y verificar el envío:
+
+```bash
+docker compose up -d backend
+docker compose exec backend python -m app.cli probar-correo --para tu@email.com
+```
+
+`VAPID_CONTACTO` no es para esto: es el contacto que el protocolo Web Push informa a los
+servicios push.
+
 ### Desarrollo del backend sin Docker
 
 Requiere [uv](https://docs.astral.sh/uv/) y el driver *ODBC Driver 18 for SQL Server*.

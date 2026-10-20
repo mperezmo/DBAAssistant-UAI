@@ -219,3 +219,24 @@ def contar_administradores_vigentes(base: str, tenant_id: str) -> int:
             )
             .fetchone()[0]
         )
+
+
+def emails_por_roles(base: str, tenant_id: str, roles: tuple[str, ...]) -> list[str]:
+    """Emails de los usuarios habilitados con alguno de los roles (destinatarios de avisos)."""
+    if not roles:
+        return []
+    marcadores = ", ".join("?" for _ in roles)
+    with sqlserver.conectar(base) as conexion:
+        filas = (
+            conexion.cursor()
+            .execute(
+                f"""SELECT email FROM dbo.usuario
+                    WHERE tenant_id = ? AND estado IN ('invitado', 'activo')
+                      AND rol IN ({marcadores})
+                    ORDER BY email""",
+                tenant_id,
+                *roles,
+            )
+            .fetchall()
+        )
+    return [f.email for f in filas]

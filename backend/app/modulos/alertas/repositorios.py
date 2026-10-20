@@ -12,7 +12,7 @@ from app.modulos.alertas.entidades import (
 
 COLUMNAS_REGLA = (
     "id, tenant_id, nombre, metrica, operador, valor, severidad, conexion_id,"
-    " sostenida_segundos, destinatarios, push, activa, creada_por"
+    " sostenida_segundos, destinatarios, push, activa, creada_por, email"
 )
 COLUMNAS_ALERTA = (
     "id, tenant_id, conexion_id, conexion_alias, servidor, ambiente, origen, clave, regla_id,"
@@ -38,6 +38,7 @@ def _regla(f) -> Regla:
         push=bool(f.push),
         activa=bool(f.activa),
         creada_por=f.creada_por,
+        email=bool(f.email),
     )
 
 
@@ -134,16 +135,17 @@ def guardar_regla(base: str, r: Regla, nueva: bool) -> str:
         ",".join(r.destinatarios),
         r.push,
         r.activa,
+        r.email,
     )
     with sqlserver.conectar(base) as conexion:
         cursor = conexion.cursor()
         if nueva:
             regla_id = cursor.execute(
                 """INSERT INTO dbo.regla_alerta (nombre, metrica, operador, valor, severidad,
-                       conexion_id, sostenida_segundos, destinatarios, push, activa,
+                       conexion_id, sostenida_segundos, destinatarios, push, activa, email,
                        creada_por, tenant_id)
                    OUTPUT inserted.id
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 *valores,
                 r.creada_por,
                 r.tenant_id,
@@ -154,7 +156,7 @@ def guardar_regla(base: str, r: Regla, nueva: bool) -> str:
                 """UPDATE dbo.regla_alerta
                    SET nombre = ?, metrica = ?, operador = ?, valor = ?, severidad = ?,
                        conexion_id = ?, sostenida_segundos = ?, destinatarios = ?, push = ?,
-                       activa = ?
+                       activa = ?, email = ?
                    WHERE tenant_id = ? AND id = ?""",
                 *valores,
                 r.tenant_id,

@@ -48,6 +48,14 @@ class Configuracion(BaseSettings):
     vapid_clave_publica: str = ""
     vapid_contacto: str = ""
 
+    # Correo saliente (SMTP) para notificar alertas. La contraseña es un secreto
+    # (SECRETO_SMTP_PASSWORD). Sin servidor configurado no se envían correos.
+    smtp_host: str = ""
+    smtp_puerto: int = 587
+    smtp_usuario: str = ""
+    smtp_remitente: str = ""
+    smtp_starttls: bool = True
+
     # Identidad (Auth0). Cada tenant es una Organization y entra por su subdominio
     # (<slug>.<dominio_base>).
     dominio_base: str = "localhost"

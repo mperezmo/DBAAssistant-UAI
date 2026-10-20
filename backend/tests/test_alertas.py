@@ -7,7 +7,8 @@ import pytest
 
 from app import cli
 from app.core.errores import ErrorDominio
-from app.modulos.alertas import condiciones, motor, repositorios, servicios
+from app.datos import correo
+from app.modulos.alertas import condiciones, motor, notificaciones, repositorios, servicios
 from app.modulos.alertas.entidades import (
     Alerta,
     Condicion,
@@ -286,7 +287,7 @@ def alertas(entorno, monkeypatch):  # noqa: F811
         return 1
 
     reloj = SimpleNamespace(ahora=1000.0)
-    monkeypatch.setattr(motor.push, "enviar", enviar)
+    monkeypatch.setattr(notificaciones.push, "enviar", enviar)
     monkeypatch.setattr(motor.time, "monotonic", lambda: reloj.ahora)
     return {**entorno, "alertas": repo, "enviados": enviados, "reloj": reloj}
 
@@ -377,7 +378,7 @@ async def test_motor_tolera_fallas_del_push(alertas, monkeypatch):
     async def fallar(*_):
         raise RuntimeError("sin red")
 
-    monkeypatch.setattr(motor.push, "enviar", fallar)
+    monkeypatch.setattr(notificaciones.push, "enviar", fallar)
     m = motor.Motor()
     await m.evaluar(TENANT, conexion, None)
     alertas["reloj"].ahora += 5
@@ -622,7 +623,7 @@ async def test_desestimar_silencia_la_condicion_hasta_reactivarla(alertas):
     assert alerta.clave == "evento:base:HIST"
 
     with pytest.raises(ErrorDominio) as error:
-        await servicios.desestimar(TENANT, _actor("ADMINISTRADOR"), alerta.id, "x", None)
+        await servicios.desestimar(TENANT, _actor("CONSULTA"), alerta.id, "x", None)
     assert error.value.codigo == "USR_PER_000"
     for motivo, hasta in ((" ", None), ("ok", datetime(2020, 1, 1, tzinfo=UTC))):
         with pytest.raises(ErrorDominio) as error:
@@ -682,3 +683,98 @@ async def test_api_desestimadas(alertas):
         f"/api/alertas/desestimadas/{desestimada['id']}/reactivar", headers=CABECERA
     )
     assert reactivar.status_code == 204
+
+
+# --- Correo -------------------------------------------------------------------------
+
+
+@pytest.fixture
+def smtp(monkeypatch):
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("SMTP_USUARIO", "avisos@acme.com")
+    monkeypatch.setenv("SMTP_REMITENTE", "DBA Assistant <avisos@acme.com>")
+    monkeypatch.setenv("SECRETO_SMTP_PASSWORD", "clave")
+    from app.core.config import obtener_configuracion
+
+    obtener_configuracion.cache_clear()
+    enviados = []
+
+    class SMTPFalso:
+        def __init__(self, host, puerto, timeout):
+            enviados.append(("conexion", host, puerto))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def starttls(self):
+            enviados.append(("starttls",))
+
+        def login(self, usuario, password):
+            enviados.append(("login", usuario, password))
+
+        def send_message(self, mensaje, to_addrs):
+            enviados.append(("mensaje", mensaje["Subject"], to_addrs, mensaje.get_content()))
+
+    monkeypatch.setattr(correo.smtplib, "SMTP", SMTPFalso)
+    yield enviados
+    obtener_configuracion.cache_clear()
+
+
+def test_correo_por_smtp_con_starttls_y_login(smtp):
+    assert correo.configurado()
+    correo.enviar(["a@acme.com", "b@acme.com"], "Asunto", "Texto")
+    assert smtp[:3] == [
+        ("conexion", "smtp.example.com", 587),
+        ("starttls",),
+        ("login", "avisos@acme.com", "clave"),
+    ]
+    assert smtp[3][:3] == ("mensaje", "Asunto", ["a@acme.com", "b@acme.com"])
+
+
+def test_comando_probar_correo(smtp, capsys, monkeypatch):
+    assert cli.main(["probar-correo", "--para", "dba@acme.com"]) == 0
+    assert "dba@acme.com" in capsys.readouterr().out
+
+    def fallar(*_):
+        raise OSError("conexión rechazada")
+
+    monkeypatch.setattr(correo, "enviar", fallar)
+    assert cli.main(["probar-correo", "--para", "dba@acme.com"]) == 1
+    monkeypatch.delenv("SMTP_HOST")
+    from app.core.config import obtener_configuracion
+
+    obtener_configuracion.cache_clear()
+    assert cli.main(["probar-correo", "--para", "dba@acme.com"]) == 1
+
+
+async def test_notificar_por_push_y_correo(alertas, smtp, monkeypatch):
+    conexion = await _conexion()
+    monkeypatch.setattr(
+        notificaciones.usuarios, "emails_por_roles", lambda base, t, roles: ["dba@acme.com"]
+    )
+    m = motor.Motor()
+    await m.evaluar(TENANT, conexion, None)
+    alertas["reloj"].ahora += 5
+    await m.evaluar(TENANT, conexion, None)
+
+    [alerta] = alertas["alertas"].alertas.values()
+    assert alertas["enviados"][-1][0] == ("DBA",)
+    _, asunto, para, texto = smtp[-1]
+    assert asunto == "[CRITICAL] ERP-PROD-01 · Instancia sin conexión" and para == ["dba@acme.com"]
+    assert f"https://acme.localhost/alertas?id={alerta.id}" in texto and "Crítica" in texto
+
+
+async def test_notificar_tolera_falla_del_correo(alertas, smtp, monkeypatch):
+    def fallar(*_):
+        raise RuntimeError("smtp caído")
+
+    monkeypatch.setattr(notificaciones.usuarios, "emails_por_roles", fallar)
+    conexion = await _conexion()
+    m = motor.Motor()
+    await m.evaluar(TENANT, conexion, None)
+    alertas["reloj"].ahora += 5
+    await m.evaluar(TENANT, conexion, None)
+    assert len(alertas["alertas"].alertas) == 1 and alertas["enviados"]

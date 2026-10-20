@@ -30,6 +30,7 @@ class Regla:
     push: bool
     activa: bool = True
     creada_por: str = ""
+    email: bool = False
 
     def cumple(self, valor: float | None) -> bool:
         if valor is None:
@@ -54,6 +55,7 @@ class Condicion:
     sostenida_segundos: int
     destinatarios: tuple[str, ...]
     push: bool
+    email: bool = False
     metrica: str | None = None
     valor: float | None = None
     umbral: float | None = None

@@ -41,6 +41,7 @@ def instancia_caida(servidor: str) -> Condicion:
         sostenida_segundos=CONFIRMACION_CAIDA_SEGUNDOS,
         destinatarios=DESTINATARIOS_SISTEMA,
         push=True,
+        email=True,
     )
 
 
@@ -70,8 +71,9 @@ def por_umbrales(lectura: Lectura, umbrales: dict[str, Umbral]) -> list[Condicio
                 ),
                 sostenida_segundos=SOSTENIDA_UMBRAL_SEGUNDOS,
                 destinatarios=DESTINATARIOS_SISTEMA,
-                # Por defecto, solo las críticas llegan al celular.
+                # Por defecto, solo las críticas se notifican (push y correo).
                 push=severidad == "critical",
+                email=severidad == "critical",
                 metrica=metrica,
                 valor=valor,
                 umbral=umbral,
@@ -92,6 +94,7 @@ def por_eventos(lectura: Lectura) -> list[Condicion]:
             sostenida_segundos=CONFIRMACION_CAIDA_SEGUNDOS,
             destinatarios=DESTINATARIOS_SISTEMA,
             push=True,
+            email=True,
         )
         for b in lectura.bases_no_disponibles
     ]
@@ -170,6 +173,7 @@ def por_reglas(lectura: Lectura, reglas: list[Regla], conexion_id: str) -> list[
                 sostenida_segundos=r.sostenida_segundos,
                 destinatarios=r.destinatarios,
                 push=r.push,
+                email=r.email,
                 metrica=r.metrica,
                 valor=valor,
                 umbral=r.valor,

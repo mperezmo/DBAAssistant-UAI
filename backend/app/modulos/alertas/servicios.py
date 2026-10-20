@@ -24,7 +24,7 @@ from app.modulos.monitor.entidades import METRICAS
 from app.tenants.entidades import Tenant
 
 ROLES_CONFIGURAN = frozenset({"ADMINISTRADOR", "DBA"})
-ROLES_ATIENDEN = frozenset({"DBA"})
+ROLES_ATIENDEN = frozenset({"ADMINISTRADOR", "DBA"})
 MAXIMO_SOSTENIDA_SEGUNDOS = 24 * 60 * 60
 LARGO_COMENTARIO = 1000
 LARGO_MOTIVO = 500
@@ -275,5 +275,6 @@ def _detalle(r: Regla) -> dict:
         "sostenida_segundos": r.sostenida_segundos,
         "destinatarios": list(r.destinatarios),
         "push": r.push,
+        "email": r.email,
         "activa": r.activa,
     }

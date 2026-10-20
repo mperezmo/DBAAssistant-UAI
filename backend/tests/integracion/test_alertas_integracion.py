@@ -43,7 +43,7 @@ def entorno(monkeypatch):
         enviados.append((roles, mensaje["cuerpo"]))
         return 1
 
-    monkeypatch.setattr(modulo_motor.push, "enviar", enviar)
+    monkeypatch.setattr(modulo_motor.notificaciones.push, "enviar", enviar)
     yield reloj, enviados
     cifrado.reiniciar()
 
@@ -99,9 +99,10 @@ async def test_motor_y_atencion_de_alertas(prefijo_aislado, entorno):
     assert activas["umbral:cpu"].normalizada is False
     assert enviados[-1] == (("DBA",), "Instancia sin conexión")
 
-    # Atender: solo DBA, con comentario; no se puede atender dos veces.
+    # Atender: Administrador y DBA, con comentario; no se puede atender dos veces.
+    consulta = Sesion("s", "u", str(tenant.id), "acme", "c@acme.com", "C", "CONSULTA", 0)
     with pytest.raises(ErrorDominio) as error:
-        await servicios.atender(tenant, admin, alerta.id, "manual", "x")
+        await servicios.atender(tenant, consulta, alerta.id, "manual", "x")
     assert error.value.codigo == "USR_PER_000"
     atendida = await servicios.atender(tenant, dba, alerta.id, "falsa_alarma", "Pico esperado")
     assert atendida.estado == "atendida" and atendida.atendida_por == "dba@acme.com"
@@ -149,6 +150,11 @@ async def test_suscripciones_push_por_rol(prefijo_aislado, monkeypatch):
 
     assert suscripciones.listar_por_roles(base, tenant_id, ("DBA",)) == [s_dba]
     assert suscripciones.contar_del_usuario(base, tenant_id, dba_id) == 1
+    assert usuarios.emails_por_roles(base, tenant_id, ("DBA", "ADMINISTRADOR")) == [
+        "admin@acme.com",
+        "dba@acme.com",
+    ]
+    assert usuarios.emails_por_roles(base, tenant_id, ()) == []
 
     monkeypatch.setattr(push, "configurado", lambda: True)
     respuestas = {"https://push.example/a": None, "https://push.example/b": 410}

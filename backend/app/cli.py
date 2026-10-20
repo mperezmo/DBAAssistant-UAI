@@ -6,6 +6,7 @@ Uso (dentro del contenedor del backend):
     python -m app.cli sincronizar-auth0 --slug acme
     python -m app.cli generar-clave
     python -m app.cli generar-vapid
+    python -m app.cli probar-correo --para dba@empresa.com
 """
 
 import argparse
@@ -57,6 +58,22 @@ def _generar_vapid(_: argparse.Namespace) -> None:
     print("VAPID_CONTACTO=mailto:<email de contacto del responsable>")
 
 
+def _probar_correo(args: argparse.Namespace) -> None:
+    from app.datos import correo
+
+    if not correo.configurado():
+        raise ErrorDominio("NTF_EML_000", "Falta configurar SMTP_HOST y SMTP_REMITENTE.")
+    try:
+        correo.enviar(
+            [args.para],
+            "DBA Assistant · correo de prueba",
+            "La configuración de correo de DBA Assistant funciona.",
+        )
+    except Exception as error:
+        raise ErrorDominio("NTF_EML_000", str(error)) from error
+    print(f"Correo de prueba enviado a {args.para}.")
+
+
 def main(argumentos: list[str] | None = None) -> int:
     configurar_registro(obtener_configuracion().log_nivel)
     parser = argparse.ArgumentParser(prog="python -m app.cli")
@@ -86,6 +103,10 @@ def main(argumentos: list[str] | None = None) -> int:
         "generar-vapid", help="Genera las claves VAPID para las notificaciones push."
     )
     vapid.set_defaults(funcion=_generar_vapid)
+
+    probar = comandos.add_parser("probar-correo", help="Envía un correo de prueba por SMTP.")
+    probar.add_argument("--para", required=True, help="Email de destino")
+    probar.set_defaults(funcion=_probar_correo)
 
     args = parser.parse_args(argumentos)
     try:
