@@ -71,6 +71,45 @@ jobs:
       - name: Tests de integración
         run: uv run pytest -m integracion --no-cov
 
+  sandbox:
+    name: Sandbox de punta a punta
+    runs-on: ubuntu-24.04
+    needs: calidad
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Integracion#2026
+        ports: ["14330:1433"]
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Integracion#2026 -Q 'SELECT 1'"
+          --health-interval 10s --health-retries 12 --health-start-period 30s
+    env:
+      SECRETO_SANDBOX_TOKEN: token-de-ci
+      SECRETO_SANDBOX_SA_PASSWORD: Sandbox#Ci2026
+    steps:
+      - uses: actions/checkout@v4
+      - name: Imagen del servicio Sandbox
+        run: docker build -t dba-assistant-sandbox -f backend/Dockerfile.sandbox ./backend
+      - name: Servicio Sandbox
+        # Sin red de Compose: los contenedores publican su puerto en 127.0.0.1.
+        run: |
+          docker run -d --name sandbox --network host \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -e SECRETO_SANDBOX_TOKEN -e SECRETO_SANDBOX_SA_PASSWORD \
+            dba-assistant-sandbox
+          for i in $(seq 1 30); do curl -s -o /dev/null 127.0.0.1:8100/docs && break; sleep 2; done
+      - name: Crear, sincronizar y ejecutar
+        run: |
+          docker run --rm --network host -e SECRETO_SANDBOX_TOKEN \
+            -e ORIGEN_PASSWORD=Integracion#2026 \
+            -v "$PWD/backend/tests/sandbox_e2e.py:/srv/sandbox_e2e.py:ro" \
+            dba-assistant-sandbox python /srv/sandbox_e2e.py
+      - name: Registro del servicio
+        if: always()
+        run: docker logs sandbox | tail -50
+
   imagenes:
     name: Build de imágenes Docker
     runs-on: ubuntu-24.04

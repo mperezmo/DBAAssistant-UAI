@@ -1,0 +1,55 @@
+# Servicio Sandbox: administra los contenedores SQL Server de validación.
+# Comparte el código del backend (app/sandbox_servicio) y suma .NET + sqlpackage para
+# copiar la estructura de las bases. No se expone a internet.
+ARG SQLPACKAGE_VERSION=170.5.96
+
+FROM python:3.14-slim-bookworm AS sqlpackage
+ARG SQLPACKAGE_VERSION
+# Paquete oficial de Microsoft publicado en NuGet (se ejecuta con el runtime de .NET 8).
+RUN apt-get update && apt-get install -y --no-install-recommends curl unzip ca-certificates \
+ && curl -fsSL -o /tmp/sqlpackage.nupkg \
+    "https://api.nuget.org/v3-flatcontainer/microsoft.sqlpackage/${SQLPACKAGE_VERSION}/microsoft.sqlpackage.${SQLPACKAGE_VERSION}.nupkg" \
+ && unzip -q /tmp/sqlpackage.nupkg 'tools/net8.0/any/*' -d /tmp/sqlpackage \
+ && mv /tmp/sqlpackage/tools/net8.0/any /opt/sqlpackage
+
+FROM mcr.microsoft.com/dotnet/runtime:8.0-bookworm-slim AS dotnet
+
+FROM python:3.14-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_COMPILE_BYTECODE=1 \
+    DOTNET_ROOT=/usr/share/dotnet \
+    PATH="/opt/venv/bin:/usr/share/dotnet:$PATH"
+
+# Driver ODBC de Microsoft y dependencias del runtime de .NET.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl gnupg ca-certificates \
+    libicu72 libssl3 zlib1g \
+ && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+    | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
+ && curl -fsSL https://packages.microsoft.com/config/debian/12/prod.list \
+    -o /etc/apt/sources.list.d/mssql-release.list \
+ && apt-get update \
+ && ACCEPT_EULA=Y apt-get install -y --no-install-recommends \
+    msodbcsql18 unixodbc libgssapi-krb5-2 \
+ && apt-get purge -y curl gnupg \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=dotnet /usr/share/dotnet /usr/share/dotnet
+COPY --from=sqlpackage /opt/sqlpackage /opt/sqlpackage
+RUN dotnet /opt/sqlpackage/sqlpackage.dll /Version
+
+RUN pip install --no-cache-dir uv==0.11.32
+
+WORKDIR /srv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+COPY app ./app
+
+# Corre como root: el acceso al socket de Docker ya equivale a control del host, y el
+# servicio solo es alcanzable desde la red interna de Compose.
+EXPOSE 8100
+CMD ["uvicorn", "app.sandbox_servicio.app:app", "--host", "0.0.0.0", "--port", "8100"]
