@@ -1,0 +1,172 @@
+{# Ejecución de un workaround (CU-000-005-E/F): diagnóstico, confirmación y progreso.
+   Se abre con el evento "ejecutar-workaround" desde la biblioteca o desde una alerta. #}
+<div x-data="ejecutorWorkaround()" @ejecutar-workaround.window="abrir($event.detail)">
+  <template x-if="abierto">
+  <div class="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
+       @click.self="cerrar()" @keydown.escape.window="cerrar()">
+    <div class="card mx-2 w-full max-w-2xl">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow" x-text="`${w?.codigo || ''} · ${TEXTOS_EJ.ejecutar}`"></div>
+          <h3 class="card-title" x-text="w?.nombre"></h3>
+        </div>
+        <span class="tag" :class="{critical: 'tag-red', warning: 'tag-yellow', info: 'tag-blue'}[w?.criticidad]" x-text="w?.criticidad"></span>
+      </div>
+
+      <div class="card-body space-y-3">
+        <p class="text-[13px] text-fg-muted" x-text="w?.descripcion"></p>
+
+        <!-- Destino -->
+        <div class="grid gap-3 sm:grid-cols-2" x-show="!ejecucion">
+          <div class="field">
+            <label for="ej-conexion">{{ t("workarounds.ejecutar.instancia") }}</label>
+            <select id="ej-conexion" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="conexionId" @change="cambioConexion()">
+              <option value="">—</option>
+              <template x-for="c in conexionesAplicables()" :key="c.id">
+                <option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option>
+              </template>
+            </select>
+          </div>
+          <div class="field" x-show="w?.requiere_base">
+            <label for="ej-base">{{ t("workarounds.ejecutar.base") }}</label>
+            <select id="ej-base" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="base" @change="diagnosticar()">
+              <option value="">—</option>
+              <template x-for="b in bases" :key="b"><option :value="b" x-text="b"></option></template>
+            </select>
+          </div>
+        </div>
+
+        <p class="text-sm text-fg-muted" x-show="cargando">{{ t("workarounds.ejecutar.analizando") }}</p>
+        <p class="text-sm text-danger" x-show="mensaje" x-text="mensaje"></p>
+
+        <!-- Diagnóstico -->
+        <template x-if="diag && !ejecucion">
+          <div class="space-y-3">
+            <div class="flex flex-wrap gap-2 text-[11.5px]">
+              <span class="tag tag-red" x-show="diag.prod">PROD · {{ t("workarounds.ejecutar.requiere_mfa") }}</span>
+              <span class="tag" :class="diag.dentro_de_ventana ? 'tag-green' : 'tag-yellow'" x-show="diag.requiere_ventana"
+                    x-text="diag.dentro_de_ventana ? TEXTOS_EJ.enVentana : (diag.ventana ? `${TEXTOS_EJ.fueraVentana} ${diag.ventana}` : TEXTOS_EJ.sinVentana)"></span>
+            </div>
+
+            <!-- Liberar sesiones bloqueantes: se eligen las sesiones a terminar -->
+            <template x-if="w.id === 'kill_bloqueos'">
+              <div class="overflow-x-auto">
+                <p class="mb-2 text-sm text-fg-muted" x-show="!diag.diagnostico.bloqueadores.length">{{ t("workarounds.ejecutar.sin_bloqueadores") }}</p>
+                <table class="data-table text-[12px]" x-show="diag.diagnostico.bloqueadores.length">
+                  <thead><tr><th></th><th>SID</th><th>{{ t("workarounds.ejecutar.login") }}</th><th>{{ t("workarounds.ejecutar.origen") }}</th><th>{{ t("workarounds.ejecutar.bloquea") }}</th><th>{{ t("workarounds.ejecutar.consulta") }}</th></tr></thead>
+                  <tbody>
+                    <template x-for="b in diag.diagnostico.bloqueadores" :key="b.sid">
+                      <tr>
+                        <td><input type="checkbox" class="size-4" :value="b.sid" x-model.number="sids"></td>
+                        <td class="metric-mono" x-text="b.sid + (b.raiz ? ' ★' : '')"></td>
+                        <td x-text="b.login"></td>
+                        <td x-text="`${b.host || ''} · ${b.programa || ''} · ${b.base || ''}`"></td>
+                        <td class="metric-mono" x-text="`${b.bloquea_a} · ${b.espera_s}s`"></td>
+                        <td class="metric-mono max-w-[220px] truncate" :title="b.consulta" x-text="b.consulta"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+                <p class="mt-1 text-[11px] text-fg-faint" x-show="diag.diagnostico.bloqueadores.length">{{ t("workarounds.ejecutar.raiz") }}</p>
+              </div>
+            </template>
+
+            <template x-if="w.id === 'shrink_log'">
+              <div class="rounded border border-line p-3 font-mono text-xs" style="background: var(--bg-sunk)">
+                <div x-text="`${diag.diagnostico.archivo}: ${diag.diagnostico.tamano_mb} MB · ${TEXTOS_EJ.enUso} ${diag.diagnostico.usado_mb} MB (${diag.diagnostico.uso}%)`"></div>
+                <div x-text="`${TEXTOS_EJ.recuperacion} ${diag.diagnostico.recuperacion} · log_reuse_wait: ${diag.diagnostico.espera_reutilizacion}`"></div>
+                <div class="mt-1 text-warn" x-show="diag.diagnostico.espera_reutilizacion === 'LOG_BACKUP'">{{ t("workarounds.ejecutar.aviso_backup_log") }}</div>
+              </div>
+            </template>
+
+            <template x-if="w.id === 'iniciar_servicio'">
+              <div class="space-y-1 text-sm">
+                <template x-for="s in diag.diagnostico.servicios" :key="s.nombre">
+                  <label class="flex items-center gap-2">
+                    <input type="radio" :value="s.nombre" x-model="servicio" :disabled="s.estado === 'Running'">
+                    <span class="metric-mono" x-text="`${s.nombre} · ${s.estado}`"></span>
+                  </label>
+                </template>
+              </div>
+            </template>
+
+            <template x-if="w.id === 'limpiar_plan_cache'">
+              <p class="text-sm" x-text="`${diag.diagnostico.planes} ${TEXTOS_EJ.planes} (${diag.diagnostico.tamano_mb} MB)`"></p>
+            </template>
+
+            <!-- Pasos -->
+            <div x-show="pasosVisibles().length">
+              <div class="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("workarounds.ejecutar.pasos") }}</div>
+              <ol class="max-h-56 list-inside list-decimal space-y-1 overflow-y-auto font-mono text-[11.5px]">
+                <template x-for="(p, i) in pasosVisibles()" :key="i"><li x-text="p"></li></template>
+              </ol>
+            </div>
+            <p class="text-sm text-fg-muted" x-show="!pasosVisibles().length && w.id !== 'kill_bloqueos' && w.id !== 'iniciar_servicio'">{{ t("workarounds.ejecutar.nada") }}</p>
+
+            <!-- Fuera de la ventana: pedido de autorización a otro usuario -->
+            <div class="rounded border border-line p-3" x-show="diag.requiere_ventana && !diag.dentro_de_ventana">
+              <p class="mb-2 text-xs text-fg-muted">{{ t("workarounds.ejecutar.ayuda_autorizacion") }}</p>
+              <div class="field">
+                <label for="ej-motivo">{{ t("workarounds.ejecutar.motivo") }}</label>
+                <input id="ej-motivo" maxlength="500" x-model="motivo">
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" @click="solicitarAutorizacion()" :disabled="!motivo.trim()">{{ t("workarounds.ejecutar.solicitar") }}</button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Progreso y resultado -->
+        <template x-if="ejecucion">
+          <div>
+            <div class="mb-2 flex items-center gap-2">
+              <span class="live-dot" x-show="ejecucion.estado === 'en_curso'"></span>
+              <span class="tag" :class="{exitosa: 'tag-green', fallida: 'tag-red', revertida: 'tag-red', en_curso: 'tag-blue'}[ejecucion.estado]"
+                    x-text="TEXTOS_EJ.estados[ejecucion.estado]"></span>
+              <span class="font-mono text-[11px] text-fg-faint" x-text="`#${ejecucion.id}`"></span>
+            </div>
+            <ol class="space-y-1.5">
+              <template x-for="(p, i) in ejecucion.pasos" :key="i">
+                <li class="rounded border border-line px-3 py-2 text-[12px]">
+                  <div class="flex items-center gap-2">
+                    <span class="tag px-1.5 py-px text-[9.5px]" :class="{ok: 'tag-green', error: 'tag-red', revertido: 'tag-yellow', en_curso: 'tag-blue'}[p.estado]" x-text="TEXTOS_EJ.pasos[p.estado] || p.estado"></span>
+                    <span class="metric-mono" x-text="p.descripcion"></span>
+                    <span class="flex-1"></span>
+                    <span class="metric-mono text-fg-faint" x-show="p.duracion_ms !== null" x-text="`${p.duracion_ms} ms`"></span>
+                  </div>
+                  <div class="mt-1 text-fg-muted" x-show="p.mensaje" x-text="p.mensaje"></div>
+                </li>
+              </template>
+            </ol>
+          </div>
+        </template>
+      </div>
+
+      <div class="card-foot justify-end gap-2">
+        <button type="button" class="btn btn-ghost btn-sm" @click="cerrar()" x-text="ejecucion && ejecucion.estado !== 'en_curso' ? TEXTOS_EJ.cerrar : TEXTOS_EJ.cancelar"></button>
+        <button type="button" class="btn btn-primary btn-sm" x-show="diag && !ejecucion" :disabled="!puedeEjecutar() || enviando" @click="ejecutar()">
+          {% with nombre="play", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+          {{ t("workarounds.ejecutar.confirmar") }}
+        </button>
+      </div>
+    </div>
+  </div>
+  </template>
+</div>
+<script>
+  window.TEXTOS_EJ = {
+    ejecutar: {{ t("workarounds.ejecutar.titulo") | tojson }},
+    enVentana: {{ t("workarounds.ejecutar.en_ventana") | tojson }},
+    fueraVentana: {{ t("workarounds.ejecutar.fuera_ventana") | tojson }},
+    sinVentana: {{ t("workarounds.ejecutar.sin_ventana") | tojson }},
+    enUso: {{ t("workarounds.ejecutar.en_uso") | tojson }},
+    recuperacion: {{ t("workarounds.ejecutar.recuperacion") | tojson }},
+    planes: {{ t("workarounds.ejecutar.planes") | tojson }},
+    cerrar: {{ t("workarounds.ejecutar.cerrar") | tojson }},
+    cancelar: {{ t("workarounds.ejecutar.cancelar") | tojson }},
+    confirmarMfa: {{ t("workarounds.ejecutar.confirmar_mfa") | tojson }},
+    autorizacionPedida: {{ t("workarounds.ejecutar.autorizacion_pedida") | tojson }},
+    estados: { {% for e in ["en_curso", "exitosa", "fallida", "revertida"] %}{{ e | tojson }}: {{ t("workarounds.estado." ~ e) | tojson }},{% endfor %} },
+    pasos: { {% for e in ["pendiente", "en_curso", "ok", "error", "omitido", "revertido"] %}{{ e | tojson }}: {{ t("workarounds.paso." ~ e) | tojson }},{% endfor %} },
+  };
+</script>
+<script src="/static/js/ejecutar_workaround.js?v={{ version_estaticos }}"></script>

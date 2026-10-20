@@ -38,6 +38,10 @@ def migrar_todo() -> None:
             migraciones.aplicar(tenant.base_sqlserver, "tenant")
 
 
+def tenants_activos() -> list[Tenant]:
+    return [t for t in repositorios.listar() if t.estado == "activo"]
+
+
 async def preparar_mongo_todo() -> None:
     """Aplica colecciones e índices vigentes (p. ej. la retención de métricas) a cada tenant."""
     for tenant in await run_in_threadpool(repositorios.listar):

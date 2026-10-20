@@ -124,6 +124,18 @@ document.addEventListener("alpine:init", () => {
       return null;
     },
 
+    // Abre la ejecución del workaround sugerido sobre la instancia de la alerta.
+    ejecutarSugerido() {
+      const a = this.seleccionada;
+      const sugerido = a.workaround_sugerido;
+      window.dispatchEvent(new CustomEvent("ejecutar-workaround", {
+        detail: {
+          workaround: sugerido.id, conexion_id: a.conexion_id, base: sugerido.parametros.base || "",
+          alerta_id: a.id,
+        },
+      }));
+    },
+
     async atender() {
       const a = this.atencion;
       a.enviando = true;

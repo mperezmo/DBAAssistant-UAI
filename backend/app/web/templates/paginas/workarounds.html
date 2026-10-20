@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% set categorias = ["performance", "espacio", "mantenimiento", "servicio"] %}
+
+{% block miga %}{{ t("menu.workarounds") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="workarounds()" x-init="iniciar()" @workaround-ejecutado.window="cargar()">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("workarounds.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("workarounds.titulo") }} <em>{{ t("workarounds.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle" x-text="subtitulo()"></p>
+  </div>
+
+  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+
+  <div class="mb-5 flex flex-wrap items-center gap-2.5">
+    <button class="btn btn-primary" x-show="permisos.crear" @click="nuevo()">
+      {% with nombre="plus", tam=14 %}{% include "parciales/icono.html" %}{% endwith %}
+      {{ t("workarounds.nuevo") }}
+    </button>
+    <button class="btn btn-sm" :class="categoria === '' ? 'btn-primary' : 'btn-ghost'" @click="categoria = ''" x-text="`${TEXTOS.todos} · ${lista.length}`"></button>
+    {% for c in categorias %}
+    <button class="btn btn-sm" :class="categoria === '{{ c }}' ? 'btn-primary' : 'btn-ghost'" @click="categoria = '{{ c }}'"
+            x-text="`${TEXTOS.categorias['{{ c }}']} · ${lista.filter((w) => w.categoria === '{{ c }}').length}`"></button>
+    {% endfor %}
+    <span class="flex-1"></span>
+    <button class="btn btn-ghost btn-sm" @click="abrirPanel('autorizaciones')" x-text="`${TEXTOS.autorizaciones} · ${autorizaciones.length}`"></button>
+    <button class="btn btn-ghost btn-sm" @click="abrirPanel('automatizaciones')">{{ t("workarounds.automatizaciones.boton") }}</button>
+    <button class="btn btn-ghost btn-sm" @click="abrirPanel('ejecuciones')">{{ t("workarounds.ejecuciones.boton") }}</button>
+    <input class="w-full rounded border px-3 py-2 text-sm sm:w-60" style="border-color: var(--line-strong); background: var(--bg-elev)"
+           placeholder="{{ t('workarounds.buscar') }}" x-model="busqueda">
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <template x-for="w in filtrados()" :key="w.id">
+      <div class="card relative cursor-pointer p-[18px]" @click="verDetalle(w)">
+        <div class="mb-2.5 flex items-start justify-between">
+          <span class="metric-mono text-[11px] tracking-[0.08em] text-fg-faint" x-text="w.codigo"></span>
+          <span class="tag" :class="claseCriticidad(w.criticidad)" x-text="w.criticidad"></span>
+        </div>
+        <h4 class="mb-1.5 font-serif text-[17px]" x-text="w.nombre"></h4>
+        <p class="mb-3.5 min-h-9 text-[12.5px] text-fg-muted" x-text="w.descripcion"></p>
+        <div class="mb-3.5 flex flex-wrap gap-2">
+          <span class="tag" x-text="TEXTOS.categorias[w.categoria]"></span>
+          <span class="tag" :class="w.estado === 'pendiente_sandbox' ? 'tag-yellow' : 'tag-green'" x-text="TEXTOS.estados[w.estado]"></span>
+          <span class="tag" x-show="w.requiere_ventana">{{ t("workarounds.ventana") }}</span>
+        </div>
+        <div class="divider my-3"></div>
+        <div class="flex items-center justify-between font-mono text-[11.5px] text-fg-faint">
+          <span x-text="w.ejecuciones ? `${w.ejecuciones} ${TEXTOS.ejecuciones} · ${fecha(w.ultima_ejecucion)}` : TEXTOS.nunca"></span>
+          <button class="btn btn-ghost btn-sm px-2.5 py-1" x-show="puedeEjecutar(w)" @click.stop="ejecutar(w)">
+            {% with nombre="play", tam=12 %}{% include "parciales/icono.html" %}{% endwith %}
+            {{ t("workarounds.ejecutar.boton") }}
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+  <p class="card card-body text-center text-sm text-fg-muted" x-show="cargado && filtrados().length === 0">{{ t("workarounds.vacio") }}</p>
+
+  <!-- Detalle (CU-000-005-D) -->
+  <template x-if="detalle">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
+       @click.self="detalle = null" @keydown.escape.window="detalle = null">
+    <div class="card mx-2 w-full max-w-3xl">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow" x-text="`${detalle.codigo} · ${TEXTOS.categorias[detalle.categoria]}`"></div>
+          <h3 class="card-title" x-text="detalle.nombre"></h3>
+        </div>
+        <span class="tag" :class="detalle.estado === 'pendiente_sandbox' ? 'tag-yellow' : 'tag-green'" x-text="TEXTOS.estados[detalle.estado]"></span>
+      </div>
+      <div class="card-body space-y-4 text-[13px]">
+        <p class="text-fg-muted" x-text="detalle.descripcion"></p>
+        <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-xs">
+          <span class="text-fg-faint">{{ t("workarounds.detalle.ambientes") }}</span><span x-text="detalle.ambientes.join(', ')"></span>
+          <span class="text-fg-faint">{{ t("workarounds.detalle.roles") }}</span><span x-text="detalle.roles.map((r) => TEXTOS.roles[r]).join(', ')"></span>
+          <span class="text-fg-faint">{{ t("workarounds.detalle.transaccional") }}</span><span x-text="detalle.transaccional ? TEXTOS.si : TEXTOS.no"></span>
+          <template x-if="detalle.condicion"><span class="text-fg-faint">{{ t("workarounds.detalle.condicion") }}</span></template>
+          <template x-if="detalle.condicion"><span x-text="detalle.condicion"></span></template>
+          <template x-if="!detalle.integrado"><span class="text-fg-faint">{{ t("workarounds.detalle.version") }}</span></template>
+          <template x-if="!detalle.integrado"><span x-text="`v${detalle.version_actual} · ${TEXTOS.aprobada}: ${detalle.version_aprobada ? 'v' + detalle.version_aprobada : '—'}`"></span></template>
+        </div>
+        <p class="text-xs text-warn" x-show="detalle.estado === 'pendiente_sandbox'">{{ t("workarounds.detalle.pendiente_sandbox") }}</p>
+
+        <template x-if="!detalle.integrado">
+          <div>
+            <div class="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("workarounds.detalle.versiones") }}</div>
+            <template x-for="v in detalle.versiones" :key="v.version">
+              <details class="mb-1.5 rounded border border-line px-3 py-2">
+                <summary class="cursor-pointer text-xs" x-text="`v${v.version} · ${v.creada_por} · ${fecha(v.creada_en)}${v.validada_en ? ' · ' + TEXTOS.validada : ''}`"></summary>
+                <template x-for="(p, i) in v.pasos" :key="i">
+                  <pre class="mt-2 overflow-x-auto whitespace-pre-wrap rounded p-2 font-mono text-[11.5px]" style="background: var(--bg-sunk)" x-text="p"></pre>
+                </template>
+              </details>
+            </template>
+          </div>
+        </template>
+
+        <div>
+          <div class="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("workarounds.detalle.ejecuciones") }}</div>
+          <p class="text-fg-muted" x-show="!detalle.ultimas_ejecuciones.length">{{ t("workarounds.ejecuciones.vacio") }}</p>
+          <template x-for="e in detalle.ultimas_ejecuciones" :key="e.id">
+            <div class="flex flex-wrap items-center gap-2 border-b border-line py-1.5 text-xs">
+              <span class="tag" :class="claseEstado(e.estado)" x-text="TEXTOS.estadosEjecucion[e.estado]"></span>
+              <span x-text="`${e.conexion_alias}${e.base ? ' · ' + e.base : ''} · ${e.ejecutada_por}`"></span>
+              <span class="tag" x-show="e.origen !== 'web'" x-text="e.origen"></span>
+              <span class="flex-1"></span>
+              <span class="font-mono text-fg-faint" x-text="fecha(e.iniciada_en)"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+      <div class="card-foot justify-between gap-2">
+        <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" x-show="!detalle.integrado && permisos.crear" @click="editar(detalle)">{{ t("workarounds.editar") }}</button>
+          <button class="btn btn-ghost btn-sm" x-show="!detalle.integrado && permisos.crear" @click="eliminar(detalle)">{{ t("workarounds.eliminar") }}</button>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" @click="detalle = null">{{ t("workarounds.cerrar") }}</button>
+          <button class="btn btn-primary btn-sm" x-show="puedeEjecutar(detalle)" @click="ejecutar(detalle)">{{ t("workarounds.ejecutar.boton") }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  </template>
+
+  <!-- Alta y modificación de propios (CU-000-005-A y B) -->
+  <template x-if="formulario">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
+       @click.self="formulario = null" @keydown.escape.window="formulario = null">
+    <form class="card mx-2 w-full max-w-3xl" @submit.prevent="guardar()">
+      <div class="card-head">
+        <h3 class="card-title" x-text="formulario.id ? TEXTOS.editarTitulo : TEXTOS.nuevoTitulo"></h3>
+      </div>
+      <div class="card-body grid gap-3 sm:grid-cols-2">
+        <div class="field sm:col-span-2"><label for="w-nombre">{{ t("workarounds.form.nombre") }}</label><input id="w-nombre" required maxlength="100" x-model="formulario.nombre"></div>
+        <div class="field sm:col-span-2"><label for="w-desc">{{ t("workarounds.form.descripcion") }}</label><input id="w-desc" required maxlength="500" x-model="formulario.descripcion"></div>
+        <div class="field">
+          <label for="w-cat">{{ t("workarounds.form.categoria") }}</label>
+          <select id="w-cat" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="formulario.categoria">
+            {% for c in categorias %}<option value="{{ c }}">{{ t("workarounds.categoria." ~ c) }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="w-crit">{{ t("workarounds.form.criticidad") }}</label>
+          <select id="w-crit" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="formulario.criticidad">
+            {% for c in ["info", "warning", "critical"] %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("workarounds.form.ambientes") }}</div>
+          <div class="flex gap-4 text-sm">
+            {% for a in ambientes %}<label class="flex items-center gap-2"><input type="checkbox" class="size-4" value="{{ a }}" x-model="formulario.ambientes"> {{ a }}</label>{% endfor %}
+          </div>
+        </div>
+        <div>
+          <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("workarounds.form.roles") }}</div>
+          <div class="flex gap-4 text-sm">
+            {% for r in ["ADMINISTRADOR", "DBA"] %}<label class="flex items-center gap-2"><input type="checkbox" class="size-4" value="{{ r }}" x-model="formulario.roles"> {{ textos_roles[r] }}</label>{% endfor %}
+          </div>
+        </div>
+        <label class="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" class="size-4" x-model="formulario.transaccional"> {{ t("workarounds.form.transaccional") }}</label>
+        <div class="field sm:col-span-2"><label for="w-cond">{{ t("workarounds.form.condicion") }}</label><input id="w-cond" maxlength="300" x-model="formulario.condicion"></div>
+        <div class="sm:col-span-2">
+          <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("workarounds.form.pasos") }}</div>
+          <template x-for="(p, i) in formulario.pasos" :key="i">
+            <div class="mb-2 flex gap-2">
+              <textarea rows="3" class="flex-1 rounded border border-line px-3 py-2 font-mono text-xs" x-model="formulario.pasos[i]" :placeholder="`${TEXTOS.paso} ${i + 1}`"></textarea>
+              <button type="button" class="btn btn-ghost btn-sm self-start" @click="formulario.pasos.splice(i, 1)" x-show="formulario.pasos.length > 1">✕</button>
+            </div>
+          </template>
+          <button type="button" class="btn btn-ghost btn-sm" @click="formulario.pasos.push('')">{{ t("workarounds.form.agregar_paso") }}</button>
+        </div>
+        <div class="sm:col-span-2 rounded border border-line p-3">
+          <p class="mb-2 text-xs text-fg-muted">{{ t("workarounds.form.ayuda_validacion") }}</p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <select class="rounded border border-line px-3 py-2 text-sm" x-model="formulario.validar_conexion_id" @change="basesValidacion()" required>
+              <option value="">{{ t("workarounds.form.validar_contra") }}</option>
+              <template x-for="c in conexiones" :key="c.id"><option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option></template>
+            </select>
+            <select class="rounded border border-line px-3 py-2 text-sm" x-model="formulario.validar_base">
+              <option value="">{{ t("workarounds.form.base") }}</option>
+              <template x-for="b in formulario.bases" :key="b"><option :value="b" x-text="b"></option></template>
+            </select>
+          </div>
+        </div>
+        <p class="text-sm text-danger sm:col-span-2" x-show="formulario.mensaje" x-text="formulario.mensaje"></p>
+      </div>
+      <div class="card-foot justify-end gap-2">
+        <button type="button" class="btn btn-ghost btn-sm" @click="formulario = null">{{ t("workarounds.cancelar") }}</button>
+        <button type="submit" class="btn btn-primary btn-sm" :disabled="formulario.guardando">{{ t("workarounds.form.guardar") }}</button>
+      </div>
+    </form>
+  </div>
+  </template>
+
+  <!-- Paneles: autorizaciones, ejecución automática y ejecuciones -->
+  <template x-if="panel">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
+       @click.self="panel = null" @keydown.escape.window="panel = null">
+    <div class="card mx-2 w-full max-w-3xl">
+      <div class="card-head"><h3 class="card-title" x-text="TEXTOS.paneles[panel]"></h3></div>
+      <div class="card-body space-y-3 text-[13px]">
+        <p class="text-sm text-danger" x-show="mensajePanel" x-text="mensajePanel"></p>
+
+        <template x-if="panel === 'autorizaciones'">
+          <div>
+            <p class="mb-2 text-xs text-fg-muted">{{ t("workarounds.autorizaciones.ayuda") }}</p>
+            <p class="text-fg-muted" x-show="!autorizaciones.length">{{ t("workarounds.autorizaciones.vacio") }}</p>
+            <template x-for="a in autorizaciones" :key="a.id">
+              <div class="mb-2 rounded border border-line p-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="tag" :class="a.estado === 'autorizada' ? 'tag-green' : 'tag-yellow'" x-text="TEXTOS.estadosAutorizacion[a.estado]"></span>
+                  <span class="font-medium" x-text="`${a.workaround_nombre} · ${a.conexion_alias}`"></span>
+                  <span class="flex-1"></span>
+                  <span class="font-mono text-[11px] text-fg-faint" x-text="`${TEXTOS.vence} ${fecha(a.vence_en)}`"></span>
+                </div>
+                <p class="mt-1 text-fg-muted" x-text="`${a.solicitada_por}: ${a.motivo}`"></p>
+                <p class="mt-1 text-xs text-fg-faint" x-show="a.resuelta_por" x-text="`${TEXTOS.autorizadaPor} ${a.resuelta_por}`"></p>
+                <div class="mt-2 flex gap-2" x-show="a.estado === 'pendiente' && permisos.autorizar">
+                  <button class="btn btn-primary btn-sm" @click="resolver(a, true)">{{ t("workarounds.autorizaciones.autorizar") }}</button>
+                  <button class="btn btn-ghost btn-sm" @click="resolver(a, false)">{{ t("workarounds.autorizaciones.rechazar") }}</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <template x-if="panel === 'automatizaciones'">
+          <div>
+            <p class="mb-2 text-xs text-fg-muted">{{ t("workarounds.automatizaciones.ayuda") }}</p>
+            <template x-for="a in automatizaciones" :key="a.id">
+              <div class="mb-2 flex flex-wrap items-center gap-2 rounded border border-line p-3">
+                <span class="font-medium" x-text="`${TEXTOS.eventos[a.evento]} → ${nombreDe(a.workaround)}`"></span>
+                <span class="text-fg-muted" x-text="nombreConexion(a.conexion_id)"></span>
+                <span class="flex-1"></span>
+                <button class="btn btn-ghost btn-sm" x-show="permisos.automatizar" @click="eliminarAutomatizacion(a)">{{ t("workarounds.eliminar") }}</button>
+              </div>
+            </template>
+            <p class="text-fg-muted" x-show="!automatizaciones.length">{{ t("workarounds.automatizaciones.vacio") }}</p>
+            <form class="mt-3 grid gap-2 sm:grid-cols-4" x-show="permisos.automatizar" @submit.prevent="crearAutomatizacion()">
+              <select class="rounded border border-line px-2 py-2 text-sm" x-model="nuevaAutomatizacion.evento">
+                {% for e in ["log", "instancia"] %}<option value="{{ e }}">{{ t("workarounds.evento." ~ e) }}</option>{% endfor %}
+              </select>
+              <select class="rounded border border-line px-2 py-2 text-sm" x-model="nuevaAutomatizacion.workaround">
+                <template x-for="w in automatizables()" :key="w.id"><option :value="w.id" x-text="w.nombre"></option></template>
+              </select>
+              <select class="rounded border border-line px-2 py-2 text-sm" x-model="nuevaAutomatizacion.conexion_id">
+                <option value="">{{ t("workarounds.automatizaciones.todas") }}</option>
+                <template x-for="c in conexiones" :key="c.id"><option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option></template>
+              </select>
+              <button type="submit" class="btn btn-primary btn-sm">{{ t("workarounds.automatizaciones.agregar") }}</button>
+            </form>
+          </div>
+        </template>
+
+        <template x-if="panel === 'ejecuciones'">
+          <div class="overflow-x-auto">
+            <p class="text-fg-muted" x-show="!ejecuciones.length">{{ t("workarounds.ejecuciones.vacio") }}</p>
+            <table class="data-table text-[12px]" x-show="ejecuciones.length">
+              <thead><tr><th>#</th><th>{{ t("workarounds.ejecuciones.workaround") }}</th><th>{{ t("workarounds.ejecuciones.instancia") }}</th><th>{{ t("workarounds.ejecuciones.usuario") }}</th><th>{{ t("workarounds.ejecuciones.estado") }}</th><th>{{ t("workarounds.ejecuciones.fecha") }}</th></tr></thead>
+              <tbody>
+                <template x-for="e in ejecuciones" :key="e.id">
+                  <tr>
+                    <td class="metric-mono" x-text="e.id"></td>
+                    <td x-text="e.workaround_nombre + (e.alerta_id ? ` · A-${e.alerta_id}` : '')"></td>
+                    <td x-text="`${e.conexion_alias}${e.base ? ' · ' + e.base : ''}`"></td>
+                    <td x-text="e.ejecutada_por + (e.autorizada_por ? ` (${TEXTOS.autorizadaPor} ${e.autorizada_por})` : '')"></td>
+                    <td><span class="tag" :class="claseEstado(e.estado)" x-text="TEXTOS.estadosEjecucion[e.estado]"></span> <span class="tag" x-show="e.origen !== 'web'" x-text="e.origen"></span></td>
+                    <td class="metric-mono" x-text="fecha(e.iniciada_en)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+      <div class="card-foot justify-end"><button class="btn btn-ghost btn-sm" @click="panel = null">{{ t("workarounds.cerrar") }}</button></div>
+    </div>
+  </div>
+  </template>
+</div>
+
+{% include "parciales/ejecutar_workaround.html" %}
+
+<script>
+  window.TEXTOS_WORKAROUNDS = {
+    categorias: { {% for c in categorias %}{{ c | tojson }}: {{ t("workarounds.categoria." ~ c) | tojson }},{% endfor %} },
+    estados: { {% for e in ["integrado", "aprobado", "pendiente_sandbox"] %}{{ e | tojson }}: {{ t("workarounds.estado_w." ~ e) | tojson }},{% endfor %} },
+    estadosEjecucion: { {% for e in ["en_curso", "exitosa", "fallida", "revertida"] %}{{ e | tojson }}: {{ t("workarounds.estado." ~ e) | tojson }},{% endfor %} },
+    estadosAutorizacion: { {% for e in ["pendiente", "autorizada"] %}{{ e | tojson }}: {{ t("workarounds.autorizaciones.estado." ~ e) | tojson }},{% endfor %} },
+    eventos: { {% for e in ["log", "instancia"] %}{{ e | tojson }}: {{ t("workarounds.evento." ~ e) | tojson }},{% endfor %} },
+    paneles: { {% for p in ["autorizaciones", "automatizaciones", "ejecuciones"] %}{{ p | tojson }}: {{ t("workarounds." ~ p ~ ".titulo") | tojson }},{% endfor %} },
+    roles: {{ textos_roles | tojson }},
+    subtitulo: {{ t("workarounds.subtitulo") | tojson }},
+    todos: {{ t("workarounds.todos") | tojson }},
+    autorizaciones: {{ t("workarounds.autorizaciones.boton") | tojson }},
+    ejecuciones: {{ t("workarounds.ejecuciones.cantidad") | tojson }},
+    nunca: {{ t("workarounds.nunca") | tojson }},
+    si: {{ t("workarounds.si") | tojson }},
+    no: {{ t("workarounds.no") | tojson }},
+    aprobada: {{ t("workarounds.aprobada") | tojson }},
+    validada: {{ t("workarounds.validada") | tojson }},
+    paso: {{ t("workarounds.form.paso") | tojson }},
+    nuevoTitulo: {{ t("workarounds.form.nuevo") | tojson }},
+    editarTitulo: {{ t("workarounds.form.editar") | tojson }},
+    confirmarEliminar: {{ t("workarounds.confirmar_eliminar") | tojson }},
+    confirmarMfa: {{ t("workarounds.ejecutar.confirmar_mfa") | tojson }},
+    vence: {{ t("workarounds.autorizaciones.vence") | tojson }},
+    autorizadaPor: {{ t("workarounds.autorizaciones.autorizada_por") | tojson }},
+    todasConexiones: {{ t("workarounds.automatizaciones.todas") | tojson }},
+  };
+</script>
+<script src="/static/js/workarounds.js?v={{ version_estaticos }}"></script>
+{% endblock %}

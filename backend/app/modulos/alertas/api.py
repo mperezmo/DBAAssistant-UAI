@@ -15,6 +15,7 @@ from app.modulos.alertas.entidades import (
     Desestimada,
     Regla,
 )
+from app.modulos.workarounds import integrados
 
 router = APIRouter(prefix="/api/alertas", tags=["alertas"])
 contexto = Depends(requerir_modulo("alertas"))
@@ -53,10 +54,20 @@ def _fecha(valor) -> str | None:
     return valor.isoformat() + "Z" if valor else None
 
 
+def _sugerido(a: Alerta) -> dict | None:
+    sugerido = integrados.sugerido_para(a.clave)
+    if sugerido is None:
+        return None
+    workaround_id, parametros = sugerido
+    i = integrados.CATALOGO[workaround_id]
+    return {"id": i.id, "codigo": i.codigo, "nombre": i.nombre, "parametros": parametros}
+
+
 def _alerta(a: Alerta) -> dict:
     return {
         **{k: v for k, v in a.__dict__.items() if not k.endswith("_en")},
         **{k: _fecha(v) for k, v in a.__dict__.items() if k.endswith("_en")},
+        "workaround_sugerido": _sugerido(a),
     }
 
 

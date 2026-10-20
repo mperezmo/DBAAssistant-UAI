@@ -1,6 +1,9 @@
 """Entidades de conexiones a instancias SQL Server."""
 
 from dataclasses import dataclass
+from datetime import time
+
+ZONA_HORARIA_POR_DEFECTO = "America/Argentina/Buenos_Aires"
 
 
 @dataclass(frozen=True)
@@ -20,6 +23,10 @@ class Conexion:
     winrm_password_cifrada: str | None = None
     winrm_puerto: int | None = None
     winrm_https: bool = False
+    # Ventana de mantenimiento en la hora local de la instancia; puede cruzar la medianoche.
+    ventana_inicio: time | None = None
+    ventana_fin: time | None = None
+    zona_horaria: str = ZONA_HORARIA_POR_DEFECTO
 
     @property
     def tiene_winrm(self) -> bool:
@@ -41,6 +48,9 @@ class DatosConexion:
     winrm_password: str | None = None
     winrm_puerto: int | None = None
     winrm_https: bool = False
+    ventana_inicio: time | None = None
+    ventana_fin: time | None = None
+    zona_horaria: str = ZONA_HORARIA_POR_DEFECTO
 
 
 @dataclass(frozen=True)

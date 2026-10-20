@@ -140,6 +140,23 @@
           </button>
         </div>
 
+        <div class="card-eyebrow mt-2">{{ t("conexiones.form.ventana") }}</div>
+        <p class="-mt-2 text-xs text-fg-muted">{{ t("conexiones.form.ventana_ayuda") }}</p>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="field">
+            <label for="c-vinicio">{{ t("conexiones.form.ventana_inicio") }}</label>
+            <input id="c-vinicio" type="time" x-model="formulario.ventana_inicio">
+          </div>
+          <div class="field">
+            <label for="c-vfin">{{ t("conexiones.form.ventana_fin") }}</label>
+            <input id="c-vfin" type="time" x-model="formulario.ventana_fin">
+          </div>
+          <div class="field">
+            <label for="c-zona">{{ t("conexiones.form.zona_horaria") }}</label>
+            <input id="c-zona" maxlength="64" x-model="formulario.zona_horaria" placeholder="America/Argentina/Buenos_Aires">
+          </div>
+        </div>
+
         <p class="text-sm" x-show="formulario.mensaje" :class="formulario.mensajeError ? 'text-danger' : 'text-ok'"
            x-text="formulario.mensaje"></p>
       </div>

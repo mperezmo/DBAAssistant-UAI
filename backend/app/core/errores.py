@@ -49,6 +49,27 @@ CATALOGO: dict[str, DefinicionError] = {
     "ALR_VAL_002": DefinicionError("La alerta ya fue atendida.", 409),
     "NTF_EML_000": DefinicionError("Error enviando el correo.", 502),
     "NTF_PSH_000": DefinicionError("Error enviando notificación push.", 502),
+    "SQL_VAL_000": DefinicionError("Sintaxis T-SQL inválida.", 422),
+    "WKR_VAL_000": DefinicionError("Workaround no encontrado.", 404),
+    "WKR_VAL_001": DefinicionError("Ya existe un workaround con ese nombre.", 409),
+    "WKR_EJE_000": DefinicionError("Falla en alguno de los pasos del workaround.", 500),
+    "WKR_EJE_001": DefinicionError(
+        "La situación cambió desde el diagnóstico; revisalo y volvé a confirmar.", 409
+    ),
+    "WKR_EJE_002": DefinicionError("No hay nada para ejecutar.", 422),
+    "WKR_SBX_000": DefinicionError("Falla en la validación en Sandbox.", 422),
+    "WKR_SBX_001": DefinicionError(
+        "El workaround no está validado en Sandbox; no se puede ejecutar en PROD.", 403
+    ),
+    "WKR_AMB_000": DefinicionError("El workaround no aplica a ese ambiente.", 422),
+    "WKR_VEN_000": DefinicionError(
+        "Fuera de la ventana de mantenimiento: requiere la autorización de otro usuario.", 403
+    ),
+    "WKR_AUT_000": DefinicionError("Autorización o automatización no encontrada.", 404),
+    "WKR_AUT_001": DefinicionError("No se puede autorizar un pedido propio.", 403),
+    "WKR_AUT_002": DefinicionError(
+        "Solo los workarounds integrados aptos pueden ejecutarse automáticamente.", 422
+    ),
     "WRM_000": DefinicionError("No se logró conectar al servidor Windows (WinRM).", 422),
     "AKV_000": DefinicionError("Falla en el almacenamiento de credenciales.", 500),
     "AMB_VAL_000": DefinicionError(

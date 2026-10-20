@@ -5,7 +5,8 @@ from app.modulos.conexiones.entidades import Conexion
 
 COLUMNAS = (
     "id, tenant_id, alias, host, puerto, instancia, ambiente, usuario_sql,"
-    " password_sql_cifrada, winrm_usuario, winrm_password_cifrada, winrm_puerto, winrm_https"
+    " password_sql_cifrada, winrm_usuario, winrm_password_cifrada, winrm_puerto, winrm_https,"
+    " ventana_inicio, ventana_fin, zona_horaria"
 )
 
 
@@ -24,6 +25,9 @@ def _a_entidad(fila) -> Conexion:
         winrm_password_cifrada=fila.winrm_password_cifrada,
         winrm_puerto=fila.winrm_puerto,
         winrm_https=bool(fila.winrm_https),
+        ventana_inicio=fila.ventana_inicio,
+        ventana_fin=fila.ventana_fin,
+        zona_horaria=fila.zona_horaria,
     )
 
 
@@ -86,6 +90,9 @@ def guardar(base: str, c: Conexion, nueva: bool) -> str:
         c.winrm_password_cifrada,
         c.winrm_puerto,
         c.winrm_https,
+        c.ventana_inicio,
+        c.ventana_fin,
+        c.zona_horaria,
     )
     with sqlserver.conectar(base) as conexion:
         cursor = conexion.cursor()
@@ -93,9 +100,10 @@ def guardar(base: str, c: Conexion, nueva: bool) -> str:
             conexion_id = cursor.execute(
                 """INSERT INTO dbo.conexion (alias, host, puerto, instancia, ambiente,
                        usuario_sql, password_sql_cifrada, winrm_usuario,
-                       winrm_password_cifrada, winrm_puerto, winrm_https, tenant_id)
+                       winrm_password_cifrada, winrm_puerto, winrm_https, ventana_inicio,
+                       ventana_fin, zona_horaria, tenant_id)
                    OUTPUT inserted.id
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 *valores,
                 c.tenant_id,
             ).fetchone()[0]
@@ -106,6 +114,7 @@ def guardar(base: str, c: Conexion, nueva: bool) -> str:
                    SET alias = ?, host = ?, puerto = ?, instancia = ?, ambiente = ?,
                        usuario_sql = ?, password_sql_cifrada = ?, winrm_usuario = ?,
                        winrm_password_cifrada = ?, winrm_puerto = ?, winrm_https = ?,
+                       ventana_inicio = ?, ventana_fin = ?, zona_horaria = ?,
                        actualizado_en = SYSUTCDATETIME()
                    WHERE tenant_id = ? AND id = ?""",
                 *valores,

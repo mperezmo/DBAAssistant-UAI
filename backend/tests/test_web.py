@@ -46,6 +46,7 @@ async def test_inicio_reintenta_si_sql_server_no_responde(monkeypatch):
     obtener_configuracion.cache_clear()
     monkeypatch.setattr(main.tenants, "migrar_todo", migrar)
     monkeypatch.setattr(main.tenants, "preparar_mongo_todo", preparar_mongo)
+    monkeypatch.setattr(main.tenants, "tenants_activos", lambda: [])
     monkeypatch.setattr(main.asyncio, "sleep", sin_espera)
 
     async with main.ciclo_de_vida(main.app):
@@ -62,7 +63,7 @@ async def test_inicio_lanza_y_detiene_el_recolector(monkeypatch):
 
     class RecolectorFalso:
         def __init__(self, evaluador):
-            eventos.append(type(evaluador).__name__)
+            eventos.append(type(evaluador._automatizador).__name__)
 
         async def ejecutar(self):
             eventos.append("ejecutar")
@@ -75,9 +76,10 @@ async def test_inicio_lanza_y_detiene_el_recolector(monkeypatch):
 
     monkeypatch.setattr(main.tenants, "migrar_todo", lambda: None)
     monkeypatch.setattr(main.tenants, "preparar_mongo_todo", nada)
+    monkeypatch.setattr(main.tenants, "tenants_activos", lambda: [])
     monkeypatch.setattr(main, "Recolector", RecolectorFalso)
 
     async with main.ciclo_de_vida(main.app):
         await main.asyncio.sleep(0)
 
-    assert eventos == ["Motor", "ejecutar", "detener"]
+    assert eventos == ["Automatizador", "ejecutar", "detener"]

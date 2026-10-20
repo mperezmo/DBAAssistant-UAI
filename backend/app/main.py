@@ -23,6 +23,9 @@ from app.modulos.conexiones import api as conexiones
 from app.modulos.monitor import api as monitor
 from app.modulos.monitor.recolector import Recolector
 from app.modulos.web_push import api as web_push
+from app.modulos.workarounds import api as workarounds
+from app.modulos.workarounds import servicios as workarounds_servicios
+from app.modulos.workarounds.servicios import Automatizador
 from app.tenants import servicios as tenants
 from app.web import rutas as web
 from app.web.rutas import DIRECTORIO_ESTATICOS, plantillas
@@ -48,10 +51,13 @@ async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
             log.warning("SQL Server no disponible (intento %s): %s", intento, error)
             await asyncio.sleep(ESPERA_ENTRE_INTENTOS_SEGUNDOS)
     await tenants.preparar_mongo_todo()
+    await workarounds_servicios.cerrar_interrumpidas_todo(
+        await run_in_threadpool(tenants.tenants_activos)
+    )
 
     recolector, tarea = None, None
     if obtener_configuracion().monitor_recolector_activo:
-        recolector = Recolector(evaluador=Motor())
+        recolector = Recolector(evaluador=Motor(automatizador=Automatizador()))
         tarea = asyncio.create_task(recolector.ejecutar())
     yield
     if tarea:
@@ -88,6 +94,7 @@ def crear_app() -> FastAPI:
     app.include_router(monitor.router)
     app.include_router(alertas.router)
     app.include_router(web_push.router)
+    app.include_router(workarounds.router)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

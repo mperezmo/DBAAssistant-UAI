@@ -10,13 +10,15 @@
 - Las condiciones desestimadas por un DBA no generan alertas mientras estén vigentes.
 """
 
+import logging
 import time
+from typing import Protocol
 
 from starlette.concurrency import run_in_threadpool
 
 from app.datos import sqlserver
 from app.modulos.alertas import condiciones, notificaciones, repositorios
-from app.modulos.alertas.entidades import Condicion, rango_severidad
+from app.modulos.alertas.entidades import Alerta, Condicion, rango_severidad
 from app.modulos.conexiones.entidades import Conexion
 from app.modulos.monitor import repositorios as monitor
 from app.modulos.monitor.entidades import Lectura
@@ -26,8 +28,16 @@ VIGENCIA_CONFIGURACION_SEGUNDOS = 30
 REFRESCO_ALERTA_SEGUNDOS = 60
 
 
+class Automatizador(Protocol):
+    async def alerta_disparada(
+        self, tenant: Tenant, conexion: Conexion, alerta: Alerta
+    ) -> None: ...
+
+
 class Motor:
-    def __init__(self) -> None:
+    def __init__(self, automatizador: Automatizador | None = None) -> None:
+        # Ejecución automática de workarounds configurada por un DBA (opcional).
+        self._automatizador = automatizador
         # (conexion_id, clave) → momento en que la condición empezó a cumplirse.
         self._desde: dict[tuple[str, str], float] = {}
         # (conexion_id, clave) → (severidad, último refresco) de las alertas en curso.
@@ -108,6 +118,13 @@ class Motor:
         self._en_curso[clave] = (resultado.alerta.severidad, ahora)
         if (c.push or c.email) and (resultado.nueva or resultado.escalo):
             await notificaciones.notificar(tenant, resultado.alerta, c)
+        if resultado.nueva and self._automatizador:
+            try:
+                await self._automatizador.alerta_disparada(tenant, conexion, resultado.alerta)
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Falla en la ejecución automática ante la alerta %s", resultado.alerta.id
+                )
 
     async def _cargar_en_curso(self, tenant: Tenant) -> None:
         """Al arrancar se retoman las alertas activas para poder normalizarlas."""

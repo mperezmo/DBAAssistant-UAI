@@ -108,6 +108,21 @@ async def alertas(request: Request, tenant: Tenant | None = Depends(tenant_actua
     )
 
 
+@router.get("/workarounds", response_class=HTMLResponse)
+async def workarounds(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(
+        request,
+        tenant,
+        "workarounds",
+        "paginas/workarounds.html",
+        {
+            "roles": ROLES,
+            "ambientes": AMBIENTES,
+            "textos_roles": {r: traducir(f"rol.{r}") for r in ROLES},
+        },
+    )
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
     return await _pagina_de_modulo(

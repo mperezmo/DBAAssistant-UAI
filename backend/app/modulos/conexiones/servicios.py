@@ -5,6 +5,7 @@ import logging
 import re
 from dataclasses import replace
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from starlette.concurrency import run_in_threadpool
 
@@ -55,6 +56,16 @@ def _validar(datos: DatosConexion, nueva: bool) -> DatosConexion:
         if puerto is not None and not 1 <= puerto <= 65535:
             raise ErrorDominio("USR_VAL_002", "Puerto inválido.")
 
+    # La ventana se define completa o no se define.
+    if (datos.ventana_inicio is None) != (datos.ventana_fin is None) or (
+        datos.ventana_inicio is not None and datos.ventana_inicio == datos.ventana_fin
+    ):
+        raise ErrorDominio("USR_VAL_002", "Ventana de mantenimiento inválida.")
+    try:
+        ZoneInfo(datos.zona_horaria)
+    except ZoneInfoNotFoundError, ValueError:
+        raise ErrorDominio("USR_VAL_002", "Zona horaria inválida.") from None
+
     winrm_usuario = _texto(datos.winrm_usuario)
     winrm_puerto = datos.winrm_puerto
     if winrm_usuario and not winrm_puerto:
@@ -77,6 +88,10 @@ async def _auditar(tenant: Tenant, actor: Sesion, accion: str, detalle: dict) ->
             accion=accion, usuario=actor.email, tenant_id=str(tenant.id), detalle=detalle
         ),
     )
+
+
+def servidor_de(c: Conexion) -> str:
+    return sqlserver.servidor_externo(c.host, c.puerto, c.instancia)
 
 
 async def listar(tenant: Tenant) -> list[Conexion]:
@@ -220,6 +235,9 @@ async def _guardar(
         winrm_password_cifrada=winrm_password,
         winrm_puerto=datos.winrm_puerto,
         winrm_https=datos.winrm_https,
+        ventana_inicio=datos.ventana_inicio,
+        ventana_fin=datos.ventana_fin,
+        zona_horaria=datos.zona_horaria,
     )
     conexion_id = await run_in_threadpool(
         repositorios.guardar, tenant.base_sqlserver, conexion, actual is None

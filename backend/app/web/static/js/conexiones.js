@@ -9,6 +9,7 @@ document.addEventListener("alpine:init", () => {
     id: null, alias: "", host: "", puerto: null, instancia: "", ambiente: "DEV",
     usuario_sql: "", password_sql: "", winrm_usuario: "", winrm_password: "",
     winrm_puerto: null, winrm_https: false, tiene_winrm: false,
+    ventana_inicio: "", ventana_fin: "", zona_horaria: "America/Argentina/Buenos_Aires",
     mensaje: "", mensajeError: false, probando: false, probandoWinrm: false,
   });
 
@@ -81,6 +82,8 @@ document.addEventListener("alpine:init", () => {
         ambiente: f.ambiente, usuario_sql: f.usuario_sql, password_sql: texto(f.password_sql),
         winrm_usuario: texto(f.winrm_usuario), winrm_password: texto(f.winrm_password),
         winrm_puerto: f.winrm_puerto || null, winrm_https: f.winrm_https,
+        ventana_inicio: f.ventana_inicio || null, ventana_fin: f.ventana_fin || null,
+        zona_horaria: texto(f.zona_horaria) || "America/Argentina/Buenos_Aires",
       };
     },
 

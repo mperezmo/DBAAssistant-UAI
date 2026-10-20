@@ -148,6 +148,19 @@
               </div>
             </template>
 
+            {% if sesion.puede_ver("workarounds") %}
+            <template x-if="seleccionada.workaround_sugerido">
+              <div class="mb-4">
+                <div class="mb-2 font-mono text-xs uppercase tracking-[0.12em] text-fg-faint">{{ t("alertas.workaround_sugerido") }}</div>
+                <div class="flex items-center gap-2.5 rounded border px-3.5 py-2.5" style="border-color: var(--line-strong)">
+                  {% with nombre="play", tam=14 %}{% include "parciales/icono.html" %}{% endwith %}
+                  <div class="flex-1 text-[13px] font-medium" x-text="`${seleccionada.workaround_sugerido.codigo} · ${seleccionada.workaround_sugerido.nombre}`"></div>
+                  <button type="button" class="btn btn-primary btn-sm" x-show="seleccionada.estado === 'activa'" @click="ejecutarSugerido()">{{ t("workarounds.ejecutar.boton") }}</button>
+                </div>
+              </div>
+            </template>
+            {% endif %}
+
             <a class="btn btn-ghost btn-block" href="/monitor">{{ t("alertas.ver_monitoreo") }}</a>
 
             <template x-if="seleccionada.estado === 'activa' && permisos.atender">
@@ -346,4 +359,5 @@
   };
 </script>
 <script src="/static/js/alertas.js?v={{ version_estaticos }}"></script>
+{% if sesion.puede_ver("workarounds") %}{% include "parciales/ejecutar_workaround.html" %}{% endif %}
 {% endblock %}

@@ -35,6 +35,29 @@ def _texto_correo(tenant: Tenant, a: Alerta) -> str:
     )
 
 
+async def avisar(
+    tenant: Tenant, roles: tuple[str, ...], titulo: str, cuerpo: str, ruta: str
+) -> None:
+    """Aviso operativo (no una alerta) por push y correo a los usuarios con esos roles."""
+    try:
+        await push.enviar(tenant, roles, {"titulo": titulo, "cuerpo": cuerpo, "url": ruta})
+    except Exception:
+        log.exception("NTF_PSH_000 aviso %s", titulo)
+    if not correo.configurado():
+        return
+    try:
+        destinatarios = await run_in_threadpool(
+            usuarios.emails_por_roles, tenant.base_sqlserver, str(tenant.id), roles
+        )
+        if destinatarios:
+            url = f"https://{tenant.slug}.{obtener_configuracion().dominio_base}{ruta}"
+            await run_in_threadpool(
+                correo.enviar, destinatarios, titulo, f"{cuerpo}\n\n{url}\n\n— DBA Assistant"
+            )
+    except Exception:
+        log.exception("NTF_EML_000 aviso %s", titulo)
+
+
 async def notificar(tenant: Tenant, a: Alerta, c: Condicion) -> None:
     if c.push:
         try:

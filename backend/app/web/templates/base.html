@@ -16,8 +16,9 @@
   <script defer src="/static/js/app.js?v={{ version_estaticos }}"></script>
 </head>
 <body>
+<script>window.DBA_ROL = {{ sesion.rol | tojson }};</script>
 <div class="app-shell">
-  <aside class="sidebar">
+  <aside class="sidebar" id="menu-lateral">
     <div class="sidebar-brand">
       {% include "parciales/logo.html" %}
       <div>
@@ -51,6 +52,8 @@
 
   <div class="main">
     <header class="topbar">
+      <button type="button" class="btn btn-ghost btn-sm boton-menu" aria-controls="menu-lateral"
+              aria-label="{{ t('menu.abrir') }}" data-alternar-menu>☰</button>
       <div class="crumbs">
         <span>{{ t("app.nombre") }}</span>
         <span class="sep">/</span>
