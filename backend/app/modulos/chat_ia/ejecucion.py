@@ -31,6 +31,7 @@ from app.modulos.conexiones.entidades import Conexion
 MASCARA = "****"
 LOCK_TIMEOUT_MS = 5000
 TAMANO_LECTURA = 5000
+TIMEOUT_CONTEO_SEGUNDOS = 10
 
 CONSULTA_ORIGEN_COLUMNAS = """
     EXEC sp_describe_first_result_set @tsql = ?, @params = NULL, @browse_information_mode = 1
@@ -153,6 +154,27 @@ def leer(
         raise ErrorDominio("SQL_EXE_000", str(error)) from error
     finally:
         abierta.rollback()
+        abierta.close()
+
+
+def contar(conexion: Conexion, base: str, consulta: str) -> int | None:
+    """Filas que tocaría una modificación, para mostrarlo antes de confirmarla.
+
+    Es una estimación (puede cambiar hasta que se ejecute): con poco tiempo y sin esperar
+    bloqueos ajenos; si no se puede contar, no se informa.
+    """
+    try:
+        abierta = _abrir(conexion, base)
+    except ErrorDominio:
+        return None
+    abierta.timeout = TIMEOUT_CONTEO_SEGUNDOS
+    try:
+        cursor = abierta.cursor()
+        cursor.execute(f"SET LOCK_TIMEOUT {LOCK_TIMEOUT_MS}")
+        return int(cursor.execute(consulta).fetchone()[0])
+    except pyodbc.Error:
+        return None
+    finally:
         abierta.close()
 
 

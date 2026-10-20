@@ -116,6 +116,9 @@ document.addEventListener("alpine:init", () => {
           await this.cargarHilos();
         }
         this.mensajes.push(r.pedido, r.respuesta);
+        // Las lecturas llegan ya ejecutadas: se muestra el resultado (o por qué falló).
+        if (r.resultado) this.mostrar(r.respuesta.id, r.resultado);
+        if (r.respuesta.error_ejecucion) this.errores = { ...this.errores, [r.respuesta.id]: r.respuesta.error_ejecucion.mensaje };
         this.$nextTick(() => this.$refs.mensajes.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
       } catch (error) {
         this.error = error.message;
@@ -206,6 +209,26 @@ document.addEventListener("alpine:init", () => {
         this.errores = { ...this.errores, [m.id]: error.message };
       }
       this.ocupado = false;
+    },
+
+    // La consulta se abre sola cuando hay algo que revisar en ella.
+    consultaAbierta(m) {
+      return this.edicion?.id === m.id || this.revision(m)?.tipo === "SANDBOX"
+        || !!this.revision(m)?.error || !!this.errores[m.id];
+    },
+
+    // "Voy a actualizar 3 registros de dbo.Usuario.", armado desde el propio T-SQL.
+    fraseModificacion(mod) {
+      if (mod.operacion === "INSERT" && mod.desde_consulta) return TEXTOS.mod.INSERT_CONSULTA.replace("{tabla}", mod.tabla);
+      const n = mod.operacion === "INSERT" ? mod.filas : mod.filas_estimadas;
+      const registros = n == null ? TEXTOS.mod.sin_cantidad
+        : (n === 1 ? TEXTOS.mod.registro : TEXTOS.mod.registros).replace("{n}", n.toLocaleString());
+      return TEXTOS.mod[mod.operacion].replace("{registros}", registros).replace("{tabla}", mod.tabla);
+    },
+    tituloCambios(mod) {
+      if (mod.operacion === "UPDATE") return TEXTOS.mod.valores;
+      if (mod.desde_consulta) return TEXTOS.mod.columnas;
+      return mod.filas > 1 ? TEXTOS.mod.primer_registro : TEXTOS.mod.datos;
     },
 
     resumenEjecucion(m) {

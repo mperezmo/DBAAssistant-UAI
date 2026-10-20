@@ -128,3 +128,94 @@ def analizar(sql: str, base: str) -> Analisis:
     tipo = tipos[0]
     motivo = None if tipo != SANDBOX else "tipo_de_sentencia"
     return Analisis(tipo, frozenset(acciones), unicas, falta_where, destructiva, motivo)
+
+
+# --- Descripción de las modificaciones (para confirmarlas antes de ejecutar) ----------
+
+# Argumentos con los que el conteo previo ya no representa lo que se modifica (UPDATE con
+# FROM o JOIN, DELETE TOP, CTE, OUTPUT…): en esos casos no se estima.
+ARGUMENTOS_SIMPLES = {"this", "expressions", "where", "using", "cluster"}
+
+
+def _texto(expresion: exp.Expression | None) -> str | None:
+    return expresion.sql(dialect="tsql") if expresion is not None else None
+
+
+def _unica(sql: str) -> exp.Expression | None:
+    try:
+        sentencias = [s for s in sqlglot.parse((sql or "").strip(), read="tsql") if s is not None]
+    except SqlglotError:
+        return None
+    return sentencias[0] if len(sentencias) == 1 else None
+
+
+def _tabla_destino(sentencia: exp.Expression, base: str) -> str | None:
+    destino = sentencia.this
+    if isinstance(destino, exp.Schema):
+        destino = destino.this
+    # En "UPDATE u SET … FROM dbo.tabla u" el destino es un alias: se busca la tabla real.
+    if isinstance(destino, exp.Table) and (destino.db or not sentencia.args.get("from_")):
+        return f"{destino.db or 'dbo'}.{destino.name}"
+    alias = destino.name.lower() if isinstance(destino, exp.Table) else ""
+    for tabla in sentencia.find_all(exp.Table):
+        if tabla.alias and tabla.alias.lower() == alias:
+            return f"{tabla.db or 'dbo'}.{tabla.name}"
+    tablas = _tablas(sentencia, base)
+    return tablas[0].nombre_completo if tablas else _texto(destino)
+
+
+def describir(sql: str, base: str) -> dict | None:
+    """Qué modifica un INSERT, UPDATE o DELETE: tabla, valores y condición.
+
+    Se arma desde el propio T-SQL (no desde la explicación de la IA), para que lo que el
+    usuario confirma sea exactamente lo que se ejecuta.
+    """
+    sentencia = _unica(sql)
+    if not isinstance(sentencia, exp.Insert | exp.Update | exp.Delete):
+        return None
+    descripcion = {
+        "operacion": type(sentencia).__name__.upper(),
+        "tabla": _tabla_destino(sentencia, base),
+        "cambios": [],
+        "condicion": None,
+        "filas": None,
+        "desde_consulta": False,
+    }
+    if isinstance(sentencia, exp.Update):
+        descripcion["cambios"] = [
+            {"columna": _texto(e.this), "valor": _texto(e.expression)}
+            for e in sentencia.expressions
+        ]
+    if isinstance(sentencia, exp.Update | exp.Delete):
+        where = sentencia.args.get("where")
+        descripcion["condicion"] = _texto(where.this) if where else None
+        return descripcion
+
+    destino, origen = sentencia.this, sentencia.expression
+    columnas = [_texto(c) for c in destino.expressions] if isinstance(destino, exp.Schema) else []
+    if isinstance(origen, exp.Values):
+        filas = origen.expressions
+        descripcion["filas"] = len(filas)
+        valores = [_texto(v) for v in filas[0].expressions] if filas else []
+        descripcion["cambios"] = [
+            {"columna": columnas[i] if i < len(columnas) else None, "valor": v}
+            for i, v in enumerate(valores)
+        ]
+    elif isinstance(origen, exp.Query):
+        descripcion["desde_consulta"] = True
+        descripcion["cambios"] = [{"columna": c, "valor": None} for c in columnas]
+        where = origen.args.get("where")
+        descripcion["condicion"] = _texto(where.this) if where else None
+    return descripcion
+
+
+def consulta_de_conteo(sql: str) -> str | None:
+    """SELECT que cuenta las filas que tocaría un UPDATE o DELETE simple."""
+    sentencia = _unica(sql)
+    if not isinstance(sentencia, exp.Update | exp.Delete):
+        return None
+    usados = {k for k, v in sentencia.args.items() if v not in (None, False, [])}
+    where = sentencia.args.get("where")
+    if not where or usados - ARGUMENTOS_SIMPLES:
+        return None
+    return f"SELECT COUNT_BIG(*) FROM {_texto(sentencia.this)} WHERE {_texto(where.this)}"

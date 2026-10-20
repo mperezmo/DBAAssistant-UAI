@@ -12,7 +12,7 @@ import pytest
 
 from app.core.errores import ErrorDominio
 from app.identidad.entidades import Usuario
-from app.modulos.chat_ia import ejecucion, motor_ia, repositorios, servicios
+from app.modulos.chat_ia import analizador, ejecucion, motor_ia, repositorios, servicios
 from app.modulos.chat_ia.analizador import Tabla
 from app.modulos.chat_ia.motor_ia import Traduccion
 from app.modulos.conexiones import servicios as conexiones
@@ -131,7 +131,15 @@ def chat(entorno, monkeypatch):  # noqa: F811
     monkeypatch.setattr(ejecucion, "escribir", escribir)
     monkeypatch.setattr(ejecucion, "bloqueos", lambda c, b, tablas: list(ocupadas))
     monkeypatch.setattr(ejecucion, "iterar", iterar)
+    conteos = []
+
+    def contar(conexion, base, consulta):
+        conteos.append((base, consulta))
+        return 3
+
+    monkeypatch.setattr(ejecucion, "contar", contar)
     return {
+        "conteos": conteos,
         **entorno,
         "hilos": hilos,
         "respuestas": respuestas,
@@ -167,6 +175,9 @@ async def test_enviar_y_seguimiento(chat):
         and respuesta["revision"]["segundo_factor"] is False
     )
     assert "## Base Ventas" in chat["pedidos"][0][0] and chat["pedidos"][0][2] == "clientes"
+    # La lectura se ejecuta sola y el resultado viene con la respuesta.
+    assert r["resultado"]["filas"] == [[1, "****"]] and respuesta["ejecucion"]["total"] == 5000
+    assert chat["lecturas"][-1][1] == "SELECT id FROM dbo.clientes"
 
     # Seguimiento: el motor IA recibe los turnos anteriores.
     chat["respuestas"].append(
@@ -222,6 +233,26 @@ async def test_revision_segun_rol_y_sentencia(chat):
         TENANT, _actor(), conexion, "Ventas", "DELETE FROM dbo.clientes WHERE id = 1"
     )
     assert revision["segundo_factor"] is True and revision["destructiva"] is True
+    # Lo que se va a modificar, armado desde el T-SQL, con las filas que cumplen hoy la condición.
+    assert revision["modificacion"] == {
+        "operacion": "DELETE",
+        "tabla": "dbo.clientes",
+        "cambios": [],
+        "condicion": "id = 1",
+        "filas": None,
+        "desde_consulta": False,
+        "filas_estimadas": 3,
+    }
+    assert chat["conteos"][-1] == ("Ventas", "SELECT COUNT_BIG(*) FROM dbo.clientes WHERE id = 1")
+    # Sin WHERE no se puede ejecutar: no se cuenta.
+    conteos = len(chat["conteos"])
+    sin_where = await servicios.revisar(
+        TENANT, _actor(), conexion, "Ventas", "UPDATE dbo.clientes SET estado = 1"
+    )
+    assert "filas_estimadas" not in sin_where["modificacion"] and len(chat["conteos"]) == conteos
+    assert (await servicios.revisar(TENANT, _actor(), conexion, "Ventas", "SELECT 1"))[
+        "modificacion"
+    ] is None
     assert (await servicios.revisar(TENANT, _actor("CONSULTA"), conexion, "Ventas", "SELECT 1"))[
         "puede_sandbox"
     ] is False
@@ -257,6 +288,32 @@ async def test_revision_segun_rol_y_sentencia(chat):
     assert editada["tipo"] == "SANDBOX" and editada["destructiva"] is True
 
 
+async def test_lectura_automatica_falla_o_espera_confirmacion(chat, monkeypatch):
+    conexion = await conexiones.crear(TENANT, _actor(), _datos(ambiente="DEV"))
+
+    def fallar(*argumentos):
+        raise ErrorDominio("SQL_EXE_000", "Invalid column name 'x'")
+
+    monkeypatch.setattr(ejecucion, "leer", fallar)
+    chat["respuestas"].append(_traduccion("SELECT x FROM dbo.clientes"))
+    r = await servicios.enviar(TENANT, _actor(), None, conexion.id, "pedido")
+    assert r["resultado"] is None and r["respuesta"]["ejecucion"] is None
+    assert r["respuesta"]["error_ejecucion"]["codigo"] == "SQL_EXE_000"
+
+    # Una regla que advierte deja la lectura a confirmación del usuario.
+    await contexto.guardar_regla(
+        TENANT,
+        _actor(),
+        None,
+        Regla("Cuidado con pedidos", ("SELECT",), "advertir", tablas=("dbo.pedidos",)),
+    )
+    lecturas = len(chat["lecturas"])
+    chat["respuestas"].append(_traduccion("SELECT * FROM dbo.pedidos"))
+    r = await servicios.enviar(TENANT, _actor(), None, conexion.id, "pedido")
+    assert r["resultado"] is None and "error_ejecucion" not in r["respuesta"]
+    assert len(chat["lecturas"]) == lecturas
+
+
 # --- Ejecución ----------------------------------------------------------------------
 
 
@@ -271,12 +328,17 @@ async def test_ejecutar_select_y_exportar(chat):
         ),
     )
     hilo_id, m = await _hilo_con(chat, conexion, "SELECT id, cuit FROM dbo.clientes")
+    assert m["ejecucion"]["tipo"] == "SELECT"
 
+    # Solo se exportan lecturas ejecutadas.
+    chat["respuestas"].append(_traduccion("UPDATE dbo.clientes SET a = 1 WHERE id = 1"))
+    sin_ejecutar = (await servicios.enviar(TENANT, _actor(), hilo_id, None, "pedido"))["respuesta"]
+    assert sin_ejecutar["ejecucion"] is None
     with pytest.raises(ErrorDominio) as error:
-        await servicios.exportar(TENANT, _actor(), hilo_id, m["id"])
+        await servicios.exportar(TENANT, _actor(), hilo_id, sin_ejecutar["id"])
     assert error.value.codigo == "USR_VAL_002"
 
-    # En PROD un SELECT no pide segundo factor.
+    # Volver a ejecutar: en PROD un SELECT no pide segundo factor.
     r = await servicios.ejecutar(TENANT, _actor(), hilo_id, m["id"], m["sql"], "Ventas")
     assert r["total"] == 5000 and r["ejecucion"]["filas"] == 1 and r["ejecucion"]["total"] == 5000
     base, _, limite, enmascaradas = chat["lecturas"][-1]
@@ -506,6 +568,9 @@ class _Cursor:
     def fetchall(self):
         return self.filas
 
+    def fetchone(self):
+        return self.filas[0] if self.filas else None
+
     def fetchmany(self, cantidad):
         lote, self.filas = self.filas[:cantidad], self.filas[cantidad:]
         return lote
@@ -625,6 +690,27 @@ def test_escribir_y_bloqueos(monkeypatch):
     assert error.value.codigo == "CON_DB_000"
 
 
+def test_contar_filas_a_modificar(monkeypatch):
+    real = _ConexionSql({"COUNT_BIG": (None, [(7,)], -1)})
+    monkeypatch.setattr(ejecucion.sqlserver, "abrir_externo", lambda *a, **k: real)
+    monkeypatch.setattr(ejecucion.conexiones, "servidor_de", lambda c: "h")
+    monkeypatch.setattr(ejecucion.cifrado, "descifrar", lambda p: "x")
+    conexion = SimpleNamespace(usuario_sql="u", password_sql_cifrada="p")
+    consulta = "SELECT COUNT_BIG(*) FROM dbo.t WHERE a = 1"
+
+    assert ejecucion.contar(conexion, "Ventas", consulta) == 7
+    assert real.ejecutadas[0] == "SET LOCK_TIMEOUT 5000" and real.timeout == 10
+    # Si no se puede contar (bloqueo, timeout, sin red) simplemente no se informa.
+    real.respuestas["COUNT_BIG"] = pyodbc.OperationalError("HYT00", "Lock request time out")
+    assert ejecucion.contar(conexion, "Ventas", consulta) is None
+
+    def sin_red(*a, **k):
+        raise pyodbc.OperationalError("08001", "sin red")
+
+    monkeypatch.setattr(ejecucion.sqlserver, "abrir_externo", sin_red)
+    assert ejecucion.contar(conexion, "Ventas", consulta) is None
+
+
 def test_valor_json():
     assert ejecucion.valor_json(Decimal("1.50")) == "1.50"
     assert ejecucion.valor_json(datetime(2026, 1, 2, 3, 4)) == "2026-01-02T03:04:00"
@@ -690,3 +776,35 @@ async def test_api_chat(chat):
     )
     assert navegador.delete(f"/api/chat/hilos/{hilo_id}", headers=CABECERA).status_code == 204
     assert navegador.get(f"/api/chat/hilos/{hilo_id}").status_code == 404
+
+
+def test_describir_modificaciones():
+    sql = "UPDATE u SET estado = 0 FROM dbo.usuario u WHERE u.id = 5"
+    assert analizador.describir(sql, "V") == {
+        "operacion": "UPDATE",
+        "tabla": "dbo.usuario",
+        "cambios": [{"columna": "estado", "valor": "0"}],
+        "condicion": "u.id = 5",
+        "filas": None,
+        "desde_consulta": False,
+    }
+    insercion = analizador.describir("INSERT INTO dbo.t (a, b) VALUES ('x', 1), ('y', 2)", "V")
+    assert insercion["filas"] == 2 and insercion["cambios"] == [
+        {"columna": "a", "valor": "'x'"},
+        {"columna": "b", "valor": "1"},
+    ]
+    desde = analizador.describir("INSERT INTO dbo.h (a) SELECT a FROM dbo.t WHERE b = 2", "V")
+    assert desde["desde_consulta"] is True and desde["condicion"] == "b = 2"
+    assert analizador.describir("SELECT 1", "V") is None
+    assert analizador.describir("UPDATE a SET b = 1; UPDATE c SET d = 1", "V") is None
+    # El conteo previo solo para modificaciones simples.
+    assert analizador.consulta_de_conteo("UPDATE dbo.t SET a = 1 WHERE b = 2") == (
+        "SELECT COUNT_BIG(*) FROM dbo.t WHERE b = 2"
+    )
+    for sql in (
+        "UPDATE u SET a = 1 FROM dbo.t u JOIN dbo.r r ON r.id = u.id WHERE r.x = 1",
+        "DELETE TOP (10) FROM dbo.t WHERE a = 1",
+        "UPDATE dbo.t SET a = 1",
+        "INSERT INTO dbo.t (a) VALUES (1)",
+    ):
+        assert analizador.consulta_de_conteo(sql) is None

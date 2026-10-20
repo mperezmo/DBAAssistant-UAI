@@ -122,7 +122,8 @@ async def test_chat_de_punta_a_punta(prefijo_aislado, entorno):
     r = await servicios.enviar(tenant, adm, None, conexion.id, "clientes")
     hilo_id, mensaje = r["hilo_id"], r["respuesta"]
     assert mensaje["revision"]["directo"] is True
-    resultado = await servicios.ejecutar(tenant, adm, hilo_id, mensaje["id"], mensaje["sql"], base)
+    # La lectura se ejecuta sola al traducirla.
+    resultado = r["resultado"]
     assert resultado["total"] == 1500 and len(resultado["filas"]) == 1000
     assert resultado["filas"][0] == [1, "****"] and resultado["enmascaradas"] == [1]
     filas, auditar = await servicios.exportar(tenant, adm, hilo_id, mensaje["id"])
@@ -137,10 +138,7 @@ async def test_chat_de_punta_a_punta(prefijo_aislado, entorno):
         )
     )
     r = await servicios.enviar(tenant, dba, None, conexion.id, "cuit")
-    resultado = await servicios.ejecutar(
-        tenant, dba, r["hilo_id"], r["respuesta"]["id"], r["respuesta"]["sql"], base
-    )
-    assert resultado["filas"] == [["20123456789"]]
+    assert r["resultado"]["filas"] == [["20123456789"]]
 
     # UPDATE en tabla sensible con doble confirmación: pide el segundo factor.
     update = "UPDATE dbo.clientes SET estado = 1 WHERE id <= 10"
@@ -148,6 +146,10 @@ async def test_chat_de_punta_a_punta(prefijo_aislado, entorno):
     r = await servicios.enviar(tenant, dba, None, conexion.id, "activá los primeros 10")
     hilo_id, m = r["hilo_id"], r["respuesta"]
     assert m["revision"]["segundo_factor"] is True
+    # Antes de confirmar se informa qué se modifica, con las filas contadas en la base real.
+    modificacion = m["revision"]["modificacion"]
+    assert modificacion["tabla"] == "dbo.clientes" and modificacion["filas_estimadas"] == 10
+    assert modificacion["cambios"] == [{"columna": "estado", "valor": "1"}]
     with pytest.raises(ErrorDominio) as error:
         await servicios.ejecutar(tenant, dba, hilo_id, m["id"], update, base)
     assert error.value.codigo == "CTX_VAL_001"

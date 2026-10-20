@@ -1,0 +1,44 @@
+{# Resultado de una lectura del Chat IA (CU-000-001-B), dentro de su respuesta. #}
+<div class="overflow-hidden rounded border border-line" style="background: var(--bg-elev)">
+  <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+    <div class="flex-1">
+      <div class="card-eyebrow" x-text="`${TEXTOS.resultado} · ${resultado.datos.duracion_ms} ms`"></div>
+      <div class="text-sm font-medium" x-text="tituloResultado()"></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" :disabled="ocupado" @click="ejecutar(mensajePorId(resultado.mensajeId), true)">{{ t("chat.refrescar") }}</button>
+    <a class="btn btn-ghost btn-sm" :href="`/api/chat/hilos/${hiloId}/mensajes/${resultado.mensajeId}/csv`" x-show="resultado.datos.total">{{ t("chat.exportar") }}</a>
+  </div>
+  <p class="px-4 pt-3 text-xs text-fg-muted" x-show="resultado.datos.enmascaradas.length">{{ t("chat.columnas_enmascaradas") }}</p>
+  <p class="px-4 py-3 text-sm text-fg-muted" x-show="!resultado.datos.total">{{ t("chat.sin_registros") }}</p>
+  <div class="overflow-x-auto" x-show="resultado.datos.total">
+    <table class="data-table text-[12.5px]">
+      <thead>
+        <tr>
+          <template x-for="(c, i) in resultado.datos.columnas" :key="i">
+            <th class="cursor-pointer whitespace-nowrap" @click="ordenar(i)">
+              <span x-text="c"></span><span x-show="resultado.datos.enmascaradas.includes(i)"> 🔒</span>
+              <span x-show="orden.columna === i" x-text="orden.ascendente ? ' ▲' : ' ▼'"></span>
+            </th>
+          </template>
+        </tr>
+        <tr>
+          <template x-for="(c, i) in resultado.datos.columnas" :key="i">
+            <th class="py-1"><input class="w-full min-w-16 rounded border border-line px-1.5 py-1 text-xs font-normal normal-case tracking-normal" :placeholder="TEXTOS.filtrar" x-model.debounce.300ms="filtros[i]" @input="pagina = 0"></th>
+          </template>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="(f, k) in paginaActual()" :key="k">
+          <tr><template x-for="(v, j) in f" :key="j"><td class="metric-mono whitespace-nowrap" :class="v === null ? 'text-fg-faint' : ''" x-text="v ?? 'NULL'"></td></template></tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+  <div class="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-xs text-fg-muted" x-show="resultado.datos.total">
+    <span x-text="textoPaginacion()"></span>
+    <div class="flex gap-2">
+      <button class="btn btn-ghost btn-sm" :disabled="pagina === 0" @click="pagina--">←</button>
+      <button class="btn btn-ghost btn-sm" :disabled="(pagina + 1) * POR_PAGINA >= filtradas().length" @click="pagina++">→</button>
+    </div>
+  </div>
+</div>

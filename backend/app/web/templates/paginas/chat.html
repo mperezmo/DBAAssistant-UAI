@@ -49,26 +49,57 @@
                 <p class="mb-3" x-text="m.explicacion"></p>
                 <template x-if="m.sql">
                   <div>
-                    <div class="mb-3.5 flex flex-wrap gap-2">
+                    <div class="mb-3 flex flex-wrap items-center gap-2">
                       <span class="tag tag-blue" x-text="m.base"></span>
-                      <span class="tag" x-show="m.revision?.tipo" :class="m.revision?.tipo === 'SELECT' ? 'tag-green' : 'tag-yellow'" x-text="TEXTOS.tipos[m.revision?.tipo] || m.revision?.tipo"></span>
-                      <span class="self-center text-[11px] text-fg-faint">{{ t("chat.fuente_automatica") }}</span>
-                    </div>
-                    <div class="bloque-sql">
-                      <div class="flex items-center gap-2.5 border-b border-line px-3 py-[7px] font-mono text-[11px] uppercase tracking-[0.06em] text-fg-faint">
-                        <span x-text="`query.sql · ${lineas(m)} ${lineas(m) === 1 ? TEXTOS.linea : TEXTOS.lineas}`"></span>
-                        <span class="flex-1"></span>
-                        <span class="tag px-1.5 py-px text-[9.5px]" :class="m.confianza >= 80 ? 'tag-green' : m.confianza >= 50 ? 'tag-yellow' : 'tag-red'" x-text="`${m.confianza}% ${TEXTOS.confianza}`"></span>
-                      </div>
-                      <pre class="m-0 max-h-60 overflow-auto p-3.5 font-mono text-xs leading-relaxed" x-show="edicion?.id !== m.id" x-text="m.sql"></pre>
-                      <template x-if="edicion?.id === m.id">
-                        <textarea class="block min-h-[160px] w-full resize-y border-0 bg-transparent p-3.5 font-mono text-xs leading-relaxed outline-none" spellcheck="false"
-                                  x-model="edicion.sql" @input.debounce.600ms="revisarEdicion(m)"></textarea>
-                      </template>
+                      <span class="tag" x-show="revision(m)?.tipo" :class="revision(m)?.tipo === 'SELECT' ? 'tag-green' : 'tag-yellow'" x-text="TEXTOS.tipos[revision(m)?.tipo] || revision(m)?.tipo"></span>
+                      <span class="tag px-1.5 py-px text-[9.5px]" :class="m.confianza >= 80 ? 'tag-green' : m.confianza >= 50 ? 'tag-yellow' : 'tag-red'" x-text="`${m.confianza}% ${TEXTOS.confianza}`"></span>
+                      <span class="text-[11px] text-fg-faint">{{ t("chat.fuente_automatica") }}</span>
                     </div>
 
-                    <!-- Qué se puede hacer con la sentencia -->
-                    <div class="mt-2.5 space-y-1 text-xs" x-show="revision(m)">
+                    <!-- Lectura: lo principal es el resultado -->
+                    <template x-if="resultado?.mensajeId === m.id">
+                      {% include "parciales/chat_resultado.html" %}
+                    </template>
+                    <div class="burbuja-resumen flex flex-wrap items-center gap-2.5" x-show="m.ejecucion && resultado?.mensajeId !== m.id">
+                      <span class="text-ok">✓</span>
+                      <div class="flex-1" x-text="resumenEjecucion(m)"></div>
+                      <button class="btn btn-ghost btn-sm" x-show="m.ejecucion?.tipo === 'SELECT'" :disabled="ocupado" @click="ejecutar(m, true)">{{ t("chat.ver_resultado") }}</button>
+                      <span class="metric-mono text-[11px] text-fg-faint" x-text="hora(m.ejecucion?.ts)"></span>
+                    </div>
+
+                    <!-- Modificación: qué se va a hacer, en palabras, antes de confirmarla -->
+                    <template x-if="revision(m)?.modificacion && !m.ejecucion">
+                      <div class="rounded border px-4 py-3" style="border-color: var(--line-strong); background: var(--bg-sunk)">
+                        <p class="font-medium" x-text="fraseModificacion(revision(m).modificacion)"></p>
+                        <template x-if="revision(m).modificacion.cambios.length">
+                          <div class="mt-2">
+                            <p class="text-xs text-fg-muted" x-text="tituloCambios(revision(m).modificacion)"></p>
+                            <ul class="mt-1 space-y-0.5">
+                              <template x-for="(c, i) in revision(m).modificacion.cambios" :key="i">
+                                <li class="text-[12.5px]">
+                                  <code class="font-mono" x-text="c.columna ?? `${TEXTOS.mod.valor} ${i + 1}`"></code>
+                                  <span x-show="c.valor !== null"> → <code class="font-mono" x-text="c.valor"></code></span>
+                                </li>
+                              </template>
+                            </ul>
+                          </div>
+                        </template>
+                        <p class="mt-2 text-[12.5px]" x-show="revision(m).modificacion.condicion">
+                          <span class="text-fg-muted">{{ t("chat.mod.condicion") }}</span>
+                          <code class="font-mono" x-text="revision(m).modificacion.condicion"></code>
+                        </p>
+                        <p class="mt-1 text-[11px] text-fg-faint" x-show="revision(m).modificacion.filas_estimadas != null">{{ t("chat.mod.estimado") }}</p>
+                        <div class="mt-3 flex flex-wrap gap-2" x-show="revision(m).directo">
+                          <button class="btn btn-primary btn-sm" :disabled="ocupado" @click="ejecutar(m)">
+                            {% with nombre="play", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+                            <span x-text="`${TEXTOS.confirmarEn} ${conexionActual()?.ambiente || ''}`"></span>
+                          </button>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Por qué no se ejecuta directo y qué se exige -->
+                    <div class="mt-2.5 space-y-1 text-xs" x-show="revision(m) && !m.ejecucion">
                       <p class="text-danger" x-show="revision(m)?.error" x-text="revision(m)?.error"></p>
                       <p class="text-warn" x-show="revision(m)?.motivo" x-text="TEXTOS.motivos[revision(m)?.motivo]"></p>
                       <p class="text-fg-muted" x-show="revision(m)?.segundo_factor">{{ t("chat.requiere_mfa") }}</p>
@@ -77,26 +108,43 @@
                         <p :class="r.efecto === 'bloquear' ? 'text-danger' : 'text-warn'" x-text="`${TEXTOS.efectos[r.efecto]}: ${r.descripcion}`"></p>
                       </template>
                     </div>
-
-                    <div class="mt-3.5 flex flex-wrap gap-2">
-                      <button class="btn btn-primary btn-sm" x-show="revision(m)?.directo" :disabled="ocupado" @click="ejecutar(m)">
-                        {% with nombre="play", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
-                        <span x-text="`${TEXTOS.ejecutarEn} ${conexionActual()?.ambiente || ''}`"></span>
-                      </button>
-                      <button class="btn btn-ghost btn-sm" x-show="revision(m)?.puede_sandbox" :disabled="ocupado" @click="validarEnSandbox(m)">
+                    <div class="mt-3" x-show="revision(m)?.tipo === 'SANDBOX' && revision(m)?.puede_sandbox && !m.sandbox">
+                      <button class="btn btn-primary btn-sm" :disabled="ocupado" @click="validarEnSandbox(m)">
                         {% with nombre="sandbox", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
                         {{ t("chat.validar_sandbox") }}
                       </button>
-                      <button class="btn btn-ghost btn-sm" @click="alternarEdicion(m)" x-text="edicion?.id === m.id ? TEXTOS.descartarEdicion : TEXTOS.editar"></button>
                     </div>
+
+                    <!-- La consulta, plegada: el usuario la abre si la quiere ver -->
+                    <details class="mt-3 rounded border border-line" :open="consultaAbierta(m)">
+                      <summary class="cursor-pointer select-none px-3 py-2 font-mono text-[11px] uppercase tracking-[0.06em] text-fg-muted" x-text="`${TEXTOS.query} · ${lineas(m)} ${lineas(m) === 1 ? TEXTOS.linea : TEXTOS.lineas}`"></summary>
+                      <div class="border-t border-line p-3">
+                        <div class="bloque-sql">
+                          <pre class="m-0 max-h-60 overflow-auto p-3.5 font-mono text-xs leading-relaxed" x-show="edicion?.id !== m.id" x-text="m.sql"></pre>
+                          <template x-if="edicion?.id === m.id">
+                            <textarea class="block min-h-[160px] w-full resize-y border-0 bg-transparent p-3.5 font-mono text-xs leading-relaxed outline-none" spellcheck="false"
+                                      x-model="edicion.sql" @input.debounce.600ms="revisarEdicion(m)"></textarea>
+                          </template>
+                        </div>
+                        <div class="mt-2.5 flex flex-wrap gap-2">
+                          <button class="btn btn-ghost btn-sm" x-show="revision(m)?.directo && revision(m)?.tipo === 'SELECT'" :disabled="ocupado" @click="ejecutar(m)">
+                            {% with nombre="play", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+                            <span x-text="m.ejecucion && edicion?.id !== m.id ? TEXTOS.volverAEjecutar : TEXTOS.ejecutar"></span>
+                          </button>
+                          <button class="btn btn-ghost btn-sm" x-show="revision(m)?.puede_sandbox && revision(m)?.tipo !== 'SANDBOX'" :disabled="ocupado" @click="validarEnSandbox(m)">
+                            {% with nombre="sandbox", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+                            {{ t("chat.validar_sandbox") }}
+                          </button>
+                          <button class="btn btn-ghost btn-sm" @click="alternarEdicion(m)" x-text="edicion?.id === m.id ? TEXTOS.descartarEdicion : TEXTOS.editar"></button>
+                        </div>
+                      </div>
+                    </details>
                   </div>
                 </template>
 
-                <!-- Resultado de la ejecución o del Sandbox -->
-                <div class="burbuja-resumen mt-3 flex flex-wrap items-center gap-2.5" x-show="m.ejecucion">
+                <div class="burbuja-resumen mt-3 flex flex-wrap items-center gap-2.5" x-show="m.ejecucion && m.ejecucion.tipo !== 'SELECT'">
                   <span class="text-ok">✓</span>
                   <div class="flex-1" x-text="resumenEjecucion(m)"></div>
-                  <button class="btn btn-ghost btn-sm" x-show="m.ejecucion?.tipo === 'SELECT' && resultado?.mensajeId !== m.id" @click="ejecutar(m, true)">{{ t("chat.ver_resultado") }}</button>
                   <span class="metric-mono text-[11px] text-fg-faint" x-text="hora(m.ejecucion?.ts)"></span>
                 </div>
                 <div class="burbuja-resumen mt-3 flex flex-wrap items-center gap-2.5" x-show="m.sandbox">
@@ -135,56 +183,6 @@
     </div>
   </section>
 
-  <!-- Resultados (CU-000-001-B) -->
-  <section class="card" x-show="resultado" x-cloak>
-    <template x-if="resultado">
-      <div>
-        <div class="card-head flex-wrap gap-3">
-          <div>
-            <div class="card-eyebrow" x-text="`${TEXTOS.resultado} · ${resultado.datos.duracion_ms} ms`"></div>
-            <h3 class="card-title" x-text="tituloResultado()"></h3>
-          </div>
-          <div class="flex gap-2">
-            <button class="btn btn-ghost btn-sm" :disabled="ocupado" @click="ejecutar(mensajePorId(resultado.mensajeId), true)">{{ t("chat.refrescar") }}</button>
-            <a class="btn btn-ghost btn-sm" :href="`/api/chat/hilos/${hiloId}/mensajes/${resultado.mensajeId}/csv`" x-show="resultado.datos.total">{{ t("chat.exportar") }}</a>
-          </div>
-        </div>
-        <p class="px-5 pt-3 text-xs text-fg-muted" x-show="resultado.datos.enmascaradas.length">{{ t("chat.columnas_enmascaradas") }}</p>
-        <p class="card-body text-sm text-fg-muted" x-show="!resultado.datos.total">{{ t("chat.sin_registros") }}</p>
-        <div class="overflow-x-auto" x-show="resultado.datos.total">
-          <table class="data-table text-[12.5px]">
-            <thead>
-              <tr>
-                <template x-for="(c, i) in resultado.datos.columnas" :key="i">
-                  <th class="cursor-pointer whitespace-nowrap" @click="ordenar(i)">
-                    <span x-text="c"></span><span x-show="resultado.datos.enmascaradas.includes(i)"> 🔒</span>
-                    <span x-show="orden.columna === i" x-text="orden.ascendente ? ' ▲' : ' ▼'"></span>
-                  </th>
-                </template>
-              </tr>
-              <tr>
-                <template x-for="(c, i) in resultado.datos.columnas" :key="i">
-                  <th class="py-1"><input class="w-full min-w-16 rounded border border-line px-1.5 py-1 text-xs font-normal normal-case tracking-normal" :placeholder="TEXTOS.filtrar" x-model.debounce.300ms="filtros[i]" @input="pagina = 0"></th>
-                </template>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="(f, k) in paginaActual()" :key="k">
-                <tr><template x-for="(v, j) in f" :key="j"><td class="metric-mono whitespace-nowrap" :class="v === null ? 'text-fg-faint' : ''" x-text="v ?? 'NULL'"></td></template></tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-        <div class="card-foot flex-wrap justify-between gap-2 text-xs text-fg-muted" x-show="resultado.datos.total">
-          <span x-text="textoPaginacion()"></span>
-          <div class="flex gap-2">
-            <button class="btn btn-ghost btn-sm" :disabled="pagina === 0" @click="pagina--">←</button>
-            <button class="btn btn-ghost btn-sm" :disabled="(pagina + 1) * POR_PAGINA >= filtradas().length" @click="pagina++">→</button>
-          </div>
-        </div>
-      </div>
-    </template>
-  </section>
 </div>
 
 <script>
@@ -211,6 +209,11 @@
     confirmarMfa: {{ t("chat.confirmar_mfa") | tojson }},
     confirmarAdvertencias: {{ t("chat.confirmar_advertencias") | tojson }},
     sesionesBloqueando: {{ t("chat.sesiones_bloqueando") | tojson }},
+    query: {{ t("chat.query") | tojson }},
+    ejecutar: {{ t("chat.ejecutar") | tojson }},
+    volverAEjecutar: {{ t("chat.volver_a_ejecutar") | tojson }},
+    confirmarEn: {{ t("chat.confirmar_en") | tojson }},
+    mod: { {% for k in ["UPDATE", "DELETE", "INSERT", "INSERT_CONSULTA", "registro", "registros", "sin_cantidad", "valores", "datos", "primer_registro", "columnas", "valor"] %}{{ k | tojson }}: {{ t("chat.mod." ~ k) | tojson }},{% endfor %} },
     tipos: { {% for tipo in ["SELECT", "INSERT", "UPDATE", "DELETE", "SANDBOX"] %}{{ tipo | tojson }}: {{ t("chat.tipo." ~ tipo) | tojson }},{% endfor %} },
     motivos: { {% for m in ["sandbox", "solo_lectura", "falta_where", "tabla_restringida", "regla"] %}{{ m | tojson }}: {{ t("chat.motivo." ~ m) | tojson }},{% endfor %} },
     efectos: { bloquear: {{ t("contexto.efecto.bloquear") | tojson }}, advertir: {{ t("contexto.efecto.advertir") | tojson }} },

@@ -1,9 +1,10 @@
 """Casos de uso del Chat IA (CU-000-001 A, B y C).
 
 Política de ejecución (definida con el usuario):
-- SELECT: directo, sin segundo factor; se muestran hasta ``chat_filas_pantalla`` filas y
-  el total; el CSV exporta todas.
-- INSERT, UPDATE y DELETE: directo, con WHERE obligatorio (en INSERT…SELECT, en su
+- SELECT: se ejecuta solo al traducirlo, sin segundo factor; se muestran hasta
+  ``chat_filas_pantalla`` filas y el total; el CSV exporta todas.
+- INSERT, UPDATE y DELETE: con la confirmación del usuario, que antes ve qué se modifica
+  (tabla, valores, condición y filas estimadas); WHERE obligatorio (en INSERT…SELECT, en su
   SELECT), sin bloqueos ni transacciones abiertas sobre las tablas y en una transacción.
   Piden segundo factor en PROD, en DELETE y en tablas sensibles con doble confirmación.
 - Todo lo demás (DDL, MERGE, EXEC, varias sentencias): obligatoriamente por el Sandbox.
@@ -25,7 +26,12 @@ from app.identidad.entidades import Sesion
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.chat_ia import ejecucion, motor_ia, repositorios
-from app.modulos.chat_ia.analizador import Analisis, analizar
+from app.modulos.chat_ia.analizador import (
+    Analisis,
+    analizar,
+    consulta_de_conteo,
+    describir,
+)
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
 from app.modulos.contexto_negocio import esquema
@@ -139,9 +145,15 @@ async def revisar(tenant: Tenant, sesion: Sesion, conexion: Conexion, base: str,
         motivo = "tabla_restringida"
     elif bloqueos:
         motivo = "regla"
+    modificacion = describir(sql, base) if analisis.es_escritura else None
+    if modificacion and motivo is None and (consulta := consulta_de_conteo(sql)):
+        modificacion["filas_estimadas"] = await run_in_threadpool(
+            ejecucion.contar, conexion, base, consulta
+        )
     return {
         "tipo": analisis.tipo,
         "directo": motivo is None,
+        "modificacion": modificacion,
         "motivo": motivo,
         "segundo_factor": analisis.es_escritura
         and _pide_segundo_factor(conexion, analisis, sensibles),
@@ -223,7 +235,28 @@ async def enviar(
         "ts": datetime.now(UTC).isoformat(),
     }
     await repositorios.agregar_mensajes(tenant.base_mongodb, hilo_id, [pedido, respuesta])
-    return {"hilo_id": hilo_id, "pedido": pedido, "respuesta": respuesta}
+
+    # Las lecturas se ejecutan solas: lo principal es el resultado, no la consulta. Las
+    # modificaciones, o una lectura alcanzada por una regla que advierte, esperan la
+    # confirmación del usuario.
+    resultado = None
+    revision = respuesta["revision"] or {}
+    if (
+        revision.get("tipo") == "SELECT"
+        and revision.get("directo")
+        and not revision.get("advertencias")
+    ):
+        try:
+            resultado = await ejecutar(
+                tenant, sesion, hilo_id, respuesta["id"], respuesta["sql"], respuesta["base"]
+            )
+            respuesta["ejecucion"] = resultado["ejecucion"]
+        except ErrorDominio as error:
+            respuesta["error_ejecucion"] = {
+                "codigo": error.codigo,
+                "mensaje": error.definicion.mensaje,
+            }
+    return {"hilo_id": hilo_id, "pedido": pedido, "respuesta": respuesta, "resultado": resultado}
 
 
 async def revisar_edicion(

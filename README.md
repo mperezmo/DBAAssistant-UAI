@@ -136,6 +136,9 @@ modelo y el esfuerzo se ajustan con `IA_MODELO` e `IA_ESFUERZO`. Conviene cargar
 **Contexto de Negocio** (glosario, reglas y tablas sensibles) de cada base: es lo que le
 indica a la IA dónde está cada dato.
 
+Las consultas de lectura se ejecutan solas y muestran el resultado; la T-SQL queda en el
+apartado **Query**. Las modificaciones muestran qué van a cambiar y esperan la confirmación.
+
 ### Desarrollo del backend sin Docker
 
 Requiere [uv](https://docs.astral.sh/uv/) y el driver *ODBC Driver 18 for SQL Server*.
