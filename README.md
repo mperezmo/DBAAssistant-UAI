@@ -116,4 +116,5 @@ Commits con [Conventional Commits](https://www.conventionalcommits.org/es/).
 
 - [`docs/arquitectura.md`](docs/arquitectura.md): diagrama, decisiones y correspondencia con el código.
 - [`docs/auth0.md`](docs/auth0.md): configuración de Auth0 paso a paso.
+- [`docs/winrm.md`](docs/winrm.md): preparación de servidores Windows para WinRM.
 - [`docs/pendientes.md`](docs/pendientes.md): decisiones abiertas y temas a investigar.
