@@ -9,7 +9,7 @@ document.addEventListener("alpine:init", () => {
     id: null, alias: "", host: "", puerto: null, instancia: "", ambiente: "DEV",
     usuario_sql: "", password_sql: "", winrm_usuario: "", winrm_password: "",
     winrm_puerto: null, winrm_https: false, tiene_winrm: false,
-    mensaje: "", mensajeError: false, probando: false,
+    mensaje: "", mensajeError: false, probando: false, probandoWinrm: false,
   });
 
   const textoResultado = (r) =>
@@ -110,7 +110,8 @@ document.addEventListener("alpine:init", () => {
 
     async probarWinrmFormulario() {
       const f = this.formulario;
-      f.probando = true;
+      f.probando = f.probandoWinrm = true;
+      f.mensaje = "";
       try {
         const r = await api("POST", "/api/conexiones/probar-winrm", { ...this.cuerpo(), id: f.id });
         f.mensaje = textoWinrm(r);
@@ -119,7 +120,7 @@ document.addEventListener("alpine:init", () => {
         f.mensaje = error.message;
         f.mensajeError = true;
       }
-      f.probando = false;
+      f.probando = f.probandoWinrm = false;
     },
 
     async probarWinrmGuardada(c) {

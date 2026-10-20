@@ -27,8 +27,9 @@ def ejecutar_powershell(
         # Igual que con SQL Server, los servidores de clientes suelen usar certificados
         # autofirmados; el tráfico NTLM va cifrado igualmente por el protocolo.
         server_cert_validation="ignore",
-        operation_timeout_sec=10,
-        read_timeout_sec=15,
+        # Sin respuesta (firewall que descarta paquetes) se corta a los 10 s.
+        operation_timeout_sec=8,
+        read_timeout_sec=10,
     )
     respuesta = sesion.run_ps(script)
     return ResultadoComando(

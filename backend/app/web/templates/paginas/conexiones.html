@@ -136,7 +136,7 @@
         </div>
         <div x-show="formulario.winrm_usuario">
           <button type="button" class="btn btn-ghost btn-sm" @click="probarWinrmFormulario()" :disabled="formulario.probando">
-            {{ t("conexiones.probar_winrm") }}
+            <span x-text="formulario.probandoWinrm ? '{{ t('conexiones.probando') }}' : '{{ t('conexiones.probar_winrm') }}'"></span>
           </button>
         </div>
 

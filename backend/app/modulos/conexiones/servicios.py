@@ -127,8 +127,8 @@ def _probar_winrm(
             host, puerto, https, usuario, password, SCRIPT_SERVICIOS_SQL
         )
     except Exception as error:
-        # Red, puerto cerrado, credenciales rechazadas (401) o certificado.
-        raise ErrorDominio("WRM_000", str(error)) from error
+        # El detalle queda en el log: red, puerto cerrado, credenciales rechazadas o certificado.
+        raise ErrorDominio("WRM_000", f"{host}:{puerto} {type(error).__name__}: {error}") from error
     if resultado.codigo != 0:
         raise ErrorDominio("WRM_000", resultado.error.strip()[:500])
     try:
