@@ -162,7 +162,19 @@ def sbx(entorno, monkeypatch):  # noqa: F811
     monkeypatch.setattr(servicios.notificaciones, "avisar", avisar)
     monkeypatch.setattr(servicios.auditoria, "registrar_transaccion", registrar_transaccion)
     contexto = contexto_falso.instalar(monkeypatch)
+    versiones = []
+
+    async def guardar_version(base, documento):
+        versiones.append(documento)
+        return len(versiones)
+
+    async def snapshot(conexion, base):
+        return None
+
+    monkeypatch.setattr(servicios.historico.repositorios, "guardar", guardar_version)
+    monkeypatch.setattr(servicios.historico, "_snapshot", snapshot)
     return {
+        "versiones": versiones,
         "contexto": contexto,
         **entorno,
         "filas": filas,
@@ -283,6 +295,20 @@ async def test_promover_destructiva_y_reglas(sbx, monkeypatch):
     with pytest.raises(ErrorDominio) as error:
         await servicios.promover(TENANT, dba, truncate["id"])
     assert error.value.codigo == "AMB_VAL_000"
+
+    # Un DDL promovido queda en el histórico de schema: quién lo escribió y quién lo autorizó.
+    tabla = await servicios.ejecutar(
+        TENANT, dba, conexion.id, "ERP", "CREATE TABLE x (a INT)", False
+    )
+    assert sbx["versiones"] == []
+    await servicios.promover(TENANT, dba, tabla["id"])
+    [version] = sbx["versiones"]
+    assert (version["origen"], version["referencia"], version["base"]) == (
+        "promocion",
+        tabla["id"],
+        "ERP",
+    )
+    assert version["usuario"] == version["autorizado_por"] == dba.email
 
     # Una regla de bloqueo sobre DDL impide promover; las de advertencia se muestran.
     sbx["contexto"]["r1"] = {

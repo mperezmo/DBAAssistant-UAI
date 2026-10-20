@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from app.core import contexto
+
 
 @dataclass(frozen=True)
 class EventoAuditoria:
@@ -13,7 +15,8 @@ class EventoAuditoria:
     usuario: str
     tenant_id: str
     detalle: dict[str, Any] = field(default_factory=dict)
-    ip: str | None = None
+    # Por defecto, la IP de la petición en curso (None en procesos en segundo plano).
+    ip: str | None = field(default_factory=contexto.ip.get)
     ts: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def a_documento(self) -> dict[str, Any]:

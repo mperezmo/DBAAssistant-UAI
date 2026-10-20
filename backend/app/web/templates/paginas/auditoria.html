@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% set niveles = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] %}
+
+{% block miga %}{{ t("menu.auditoria") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="auditoria()" x-init="iniciar()">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("auditoria.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("auditoria.titulo") }} <em>{{ t("auditoria.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle">{{ t("auditoria.subtitulo") }}</p>
+  </div>
+
+  <div class="mb-5 flex flex-wrap items-center gap-2">
+    <template x-for="b in bitacoras" :key="b">
+      <button class="btn btn-sm" :class="b === actual ? 'btn-primary' : 'btn-ghost'" @click="elegir(b)"
+              x-text="`${TEXTOS.bitacoras[b]} · ${(totales[b] ?? 0).toLocaleString()}`"></button>
+    </template>
+    <span class="flex-1"></span>
+    <button class="btn btn-ghost btn-sm" :disabled="exportando" @click="exportar('pdf')">
+      {% with nombre="download", tam=13 %}{% include "parciales/icono.html" %}{% endwith %} {{ t("auditoria.exportar_pdf") }}
+    </button>
+    <button class="btn btn-ghost btn-sm" :disabled="exportando" @click="exportar('csv')">
+      {% with nombre="download", tam=13 %}{% include "parciales/icono.html" %}{% endwith %} {{ t("auditoria.exportar_csv") }}
+    </button>
+  </div>
+
+  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+
+  <section class="card" x-show="actual" x-cloak>
+    <div class="card-head flex-wrap gap-3">
+      <div>
+        <div class="card-eyebrow" x-text="textoFiltros()"></div>
+        <h3 class="card-title" x-text="TEXTOS.titulos[actual]"></h3>
+      </div>
+      <div class="flex flex-wrap items-center gap-2" x-show="actual === 'excepciones'">
+        <span class="text-xs text-fg-muted">{{ t("auditoria.nivel_registrado") }}</span>
+        <select class="rounded border border-line px-2 py-1.5 text-sm" x-model="nivel" :disabled="!puedeConfigurarNivel" @change="cambiarNivel()">
+          {% for n in niveles %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="grid gap-2 border-b border-line px-5 py-3 sm:grid-cols-3 lg:grid-cols-6">
+      <input type="date" class="rounded border border-line px-2 py-1.5 text-sm" x-model="filtros.desde" @change="buscar()" aria-label="{{ t('auditoria.filtro.desde') }}" title="{{ t('auditoria.filtro.desde') }}">
+      <input type="date" class="rounded border border-line px-2 py-1.5 text-sm" x-model="filtros.hasta" @change="buscar()" aria-label="{{ t('auditoria.filtro.hasta') }}" title="{{ t('auditoria.filtro.hasta') }}">
+      <input class="rounded border border-line px-2 py-1.5 text-sm" placeholder="{{ t('auditoria.filtro.usuario') }}" x-model.debounce.500ms="filtros.usuario" @input="buscar()">
+      <select class="rounded border border-line px-2 py-1.5 text-sm" x-model="filtros.ambiente" @change="buscar()" x-show="actual === 'transacciones'">
+        <option value="">{{ t("auditoria.filtro.todos_ambientes") }}</option>
+        {% for a in ambientes %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+      </select>
+      <select class="rounded border border-line px-2 py-1.5 text-sm" x-model="filtros.tipo" @change="buscar()">
+        <option value="" x-text="TEXTOS.todosTipos[actual]"></option>
+        <template x-for="tipo in TEXTOS.tipos[actual] || []" :key="tipo[0]"><option :value="tipo[0]" x-text="tipo[1]"></option></template>
+      </select>
+      <input class="rounded border border-line px-2 py-1.5 text-sm" placeholder="{{ t('auditoria.filtro.texto') }}" x-model.debounce.500ms="filtros.texto" @input="buscar()">
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="data-table">
+        <thead>
+          <tr x-show="actual === 'transacciones'"><th>{{ t("auditoria.col.fecha") }}</th><th>{{ t("auditoria.col.usuario") }}</th><th>{{ t("auditoria.col.ip") }}</th><th>{{ t("auditoria.col.accion") }}</th><th>{{ t("auditoria.col.entidad") }}</th><th>{{ t("auditoria.col.filas") }}</th><th>{{ t("auditoria.col.resultado") }}</th></tr>
+          <tr x-show="actual === 'sistema'"><th>{{ t("auditoria.col.fecha") }}</th><th>{{ t("auditoria.col.usuario") }}</th><th>{{ t("auditoria.col.ip") }}</th><th>{{ t("auditoria.col.accion") }}</th><th>{{ t("auditoria.col.detalle") }}</th></tr>
+          <tr x-show="actual === 'excepciones'"><th>{{ t("auditoria.col.fecha") }}</th><th>{{ t("auditoria.col.nivel") }}</th><th>{{ t("auditoria.col.modulo") }}</th><th>{{ t("auditoria.col.codigo") }}</th><th>{{ t("auditoria.col.usuario") }}</th><th>{{ t("auditoria.col.mensaje") }}</th></tr>
+        </thead>
+        <tbody>
+          <template x-for="r in registros" :key="r.id">
+            <tr class="cursor-pointer" @click="ver(r)">
+              <td class="metric-mono whitespace-nowrap text-[11.5px] text-fg-faint" x-text="fecha(r.ts)"></td>
+              <template x-if="actual !== 'excepciones'">
+                <td><strong class="text-[13px]" x-text="r.usuario"></strong></td>
+              </template>
+              <template x-if="actual !== 'excepciones'">
+                <td class="metric-mono text-[11.5px] text-fg-muted" x-text="r.ip || '—'"></td>
+              </template>
+              <template x-if="actual !== 'excepciones'">
+                <td><span class="tag px-[7px] py-px text-[9.5px]" x-text="r.accion"></span></td>
+              </template>
+              <template x-if="actual === 'transacciones'">
+                <td class="metric-mono max-w-[280px] truncate text-xs" x-text="r.entidad || '—'"></td>
+              </template>
+              <template x-if="actual === 'transacciones'">
+                <td class="metric-mono text-xs" x-text="r.filas != null ? Number(r.filas).toLocaleString() : '—'"></td>
+              </template>
+              <template x-if="actual === 'transacciones'">
+                <td><span class="metric-mono text-[11px] font-semibold uppercase" :style="`color: ${colorResultado(r.resultado)}`" x-text="r.resultado"></span></td>
+              </template>
+              <template x-if="actual === 'sistema'">
+                <td class="metric-mono max-w-[420px] truncate text-xs text-fg-muted" x-text="r.resumen"></td>
+              </template>
+              <template x-if="actual === 'excepciones'">
+                <td><span class="metric-mono text-[11px] font-semibold" :style="`color: ${colorNivel(r.nivel)}`" x-text="r.nivel"></span></td>
+              </template>
+              <template x-if="actual === 'excepciones'">
+                <td class="metric-mono text-xs" x-text="r.modulo"></td>
+              </template>
+              <template x-if="actual === 'excepciones'">
+                <td class="metric-mono text-xs" x-text="r.codigo || '—'"></td>
+              </template>
+              <template x-if="actual === 'excepciones'">
+                <td class="text-xs" x-text="r.usuario || '—'"></td>
+              </template>
+              <template x-if="actual === 'excepciones'">
+                <td class="max-w-[420px] truncate text-xs text-fg-muted" x-text="r.mensaje"></td>
+              </template>
+            </tr>
+          </template>
+          <tr x-show="cargado && !registros.length"><td colspan="7" class="text-center text-fg-muted">{{ t("auditoria.vacio") }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-foot flex-wrap justify-between gap-2">
+      <span x-text="textoPaginacion()"></span>
+      <div class="flex items-center gap-1.5">
+        <button class="btn btn-ghost btn-sm" :disabled="pagina <= 1" @click="irA(pagina - 1)">‹</button>
+        <span class="metric-mono text-[11px]" x-text="`${pagina} / ${paginas}`"></span>
+        <button class="btn btn-ghost btn-sm" :disabled="pagina >= paginas" @click="irA(pagina + 1)">›</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Detalle de un registro -->
+  <template x-if="detalle">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
+       @click.self="detalle = null" @keydown.escape.window="detalle = null">
+    <div class="card mx-2 w-full max-w-3xl">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow" x-text="`${fecha(detalle.ts)} · ${detalle.usuario || '—'}${detalle.ip ? ' · ' + detalle.ip : ''}`"></div>
+          <h3 class="card-title" x-text="detalle.accion || detalle.mensaje"></h3>
+        </div>
+      </div>
+      <div class="card-body space-y-3 text-[13px]">
+        <template x-if="detalle.sql">
+          <div>
+            <div class="mb-1 text-xs font-medium text-fg-muted">T-SQL</div>
+            <pre class="bloque-sql max-h-64 overflow-auto p-3 font-mono text-xs" x-text="detalle.sql"></pre>
+          </div>
+        </template>
+        <template x-if="detalle.documento?.traza">
+          <div>
+            <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("auditoria.traza") }}</div>
+            <pre class="bloque-sql max-h-64 overflow-auto p-3 font-mono text-[11px]" x-text="detalle.documento.traza"></pre>
+          </div>
+        </template>
+        <div>
+          <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("auditoria.registro_completo") }}</div>
+          <pre class="bloque-sql max-h-80 overflow-auto p-3 font-mono text-[11px]" x-text="JSON.stringify(detalle.documento, null, 2)"></pre>
+        </div>
+      </div>
+      <div class="card-foot justify-end">
+        <button class="btn btn-ghost btn-sm" @click="detalle = null">{{ t("auditoria.cerrar") }}</button>
+      </div>
+    </div>
+  </div>
+  </template>
+</div>
+
+<script>
+  window.TEXTOS_AUDITORIA = {
+    bitacoras: { transacciones: {{ t("auditoria.bitacora.transacciones") | tojson }}, sistema: {{ t("auditoria.bitacora.sistema") | tojson }}, excepciones: {{ t("auditoria.bitacora.excepciones") | tojson }} },
+    titulos: { transacciones: {{ t("auditoria.titulo.transacciones") | tojson }}, sistema: {{ t("auditoria.titulo.sistema") | tojson }}, excepciones: {{ t("auditoria.titulo.excepciones") | tojson }} },
+    todosTipos: { transacciones: {{ t("auditoria.filtro.todas_acciones") | tojson }}, sistema: {{ t("auditoria.filtro.todas_acciones") | tojson }}, excepciones: {{ t("auditoria.filtro.todos_niveles") | tojson }} },
+    tipos: {
+      transacciones: [["chat", {{ t("auditoria.tipo.chat") | tojson }}], ["sandbox", {{ t("auditoria.tipo.sandbox") | tojson }}], ["workaround", {{ t("auditoria.tipo.workaround") | tojson }}]],
+      sistema: [{% for p in ["sesion", "usuario", "conexion", "alerta", "monitor", "workaround", "contexto", "auditoria", "tenant"] %}[{{ p | tojson }}, {{ t("auditoria.tipo." ~ p) | tojson }}],{% endfor %}],
+      excepciones: [{% for n in niveles %}[{{ n | tojson }}, {{ n | tojson }}],{% endfor %}],
+    },
+    filtrosAplicados: {{ t("auditoria.filtros_aplicados") | tojson }},
+    sinFiltros: {{ t("auditoria.sin_filtros") | tojson }},
+    paginacion: {{ t("auditoria.paginacion") | tojson }},
+    limite: {{ t("auditoria.limite") | tojson }},
+  };
+</script>
+<script src="/static/js/auditoria.js?v={{ version_estaticos }}"></script>
+{% endblock %}

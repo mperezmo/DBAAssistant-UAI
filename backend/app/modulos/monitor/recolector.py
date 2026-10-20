@@ -21,7 +21,7 @@ from typing import Protocol
 import pyodbc
 from starlette.concurrency import run_in_threadpool
 
-from app.core import cifrado
+from app.core import cifrado, contexto
 from app.core.config import obtener_configuracion
 from app.datos import cache, sqlserver
 from app.modulos.conexiones import repositorios as conexiones
@@ -124,6 +124,8 @@ class Recolector:
         return objetivos
 
     async def _recolectar(self, tenant: Tenant, conexion: Conexion) -> None:
+        # Cada lectura corre en su propia tarea: los logs quedan asociados al tenant.
+        contexto.tenant_slug.set(tenant.slug)
         try:
             ts = datetime.now(UTC)
             try:

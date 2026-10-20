@@ -150,6 +150,18 @@ async def contexto(request: Request, tenant: Tenant | None = Depends(tenant_actu
     )
 
 
+@router.get("/auditoria", response_class=HTMLResponse)
+async def auditoria(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(
+        request, tenant, "auditoria", "paginas/auditoria.html", {"ambientes": AMBIENTES}
+    )
+
+
+@router.get("/schema", response_class=HTMLResponse)
+async def schema(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(request, tenant, "schema", "paginas/schema.html", {})
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
     return await _pagina_de_modulo(

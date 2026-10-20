@@ -357,6 +357,7 @@ async def exportar(tenant: Tenant, sesion: Sesion, hilo_id: str, mensaje_id: str
             "chat.exportado",
             {
                 "conexion": conexion.alias,
+                "ambiente": conexion.ambiente,
                 "base": base,
                 "sql": mensaje["sql"],
                 "filas": cantidad,

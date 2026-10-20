@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from starlette.concurrency import run_in_threadpool
 
+from app.core import contexto
 from app.datos import cache
 from app.modulos.conexiones import repositorios as conexiones
 from app.modulos.conexiones.entidades import Conexion
@@ -61,6 +62,7 @@ class Programador:
         for tenant in await run_in_threadpool(tenants.listar):
             if tenant.estado != "activo":
                 continue
+            contexto.tenant_slug.set(tenant.slug)
             revisadas: set[str] = set()
             for conexion in await run_in_threadpool(
                 conexiones.listar, tenant.base_sqlserver, str(tenant.id)

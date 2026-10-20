@@ -21,6 +21,7 @@ from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
+from app.modulos.historico_schema import servicios as historico
 from app.modulos.sandbox import servicios as sandbox
 from app.modulos.workarounds import ejecutor, integrados, repositorios
 from app.modulos.workarounds.entidades import (
@@ -543,6 +544,10 @@ async def _correr(
             tenant.base_sqlserver, registro.id, estado_pasos, estado, error
         )
 
+    # Histórico de schema: solo los propios pueden cambiar estructura (los integrados
+    # hacen mantenimiento).
+    sql = "\nGO\n".join(p.sql for p in pasos if p.sql)
+    previa = await historico.preparar(conexion, registro.base, sql) if registro.version else None
     try:
         estado, error = await run_in_threadpool(
             ejecutor.ejecutar, conexion, registro.base, pasos, transaccional, progreso
@@ -550,6 +555,16 @@ async def _correr(
     except Exception as falla:
         log.exception("WKR_EJE_000 ejecución %s", registro.id)
         estado, error = "fallida", str(falla)
+    if estado == "exitosa":
+        await historico.registrar(
+            tenant,
+            previa,
+            sql,
+            registro.ejecutada_por,
+            "workaround",
+            str(registro.id),
+            autorizado_por=registro.autorizada_por,
+        )
     final = await run_in_threadpool(
         repositorios.obtener_ejecucion, tenant.base_sqlserver, str(tenant.id), registro.id
     )

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("menu.schema") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="historicoSchema()" x-init="iniciar()">
+  <div class="page-head">
+    <div class="page-eyebrow" x-text="`${TEXTOS.eyebrow}${base ? ' · ' + base : ''}`"></div>
+    <h1 class="page-title">{{ t("schema.titulo") }} <em>{{ t("schema.titulo_enfasis") }}</em> {{ t("schema.titulo_fin") }}</h1>
+    <p class="page-subtitle" x-text="TEXTOS.subtitulo.replace('{n}', versiones.length)"></p>
+  </div>
+
+  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+  <p class="mb-4 text-sm text-fg-muted" x-show="cargado && !conexiones.length" x-cloak>{{ t("schema.sin_conexiones") }}</p>
+
+  <div class="mb-5 flex flex-wrap items-center gap-2.5" x-show="conexiones.length" x-cloak>
+    <select class="rounded border border-line px-3 py-2 text-sm" x-model="conexionId" @change="cambioConexion()" aria-label="{{ t('schema.instancia') }}">
+      <template x-for="c in conexiones" :key="c.id"><option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option></template>
+    </select>
+    <select class="rounded border border-line px-3 py-2 text-sm" x-model="base" @change="cargarVersiones()" aria-label="{{ t('schema.base') }}">
+      <template x-for="b in bases" :key="b"><option :value="b" x-text="b"></option></template>
+    </select>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-[1fr_1.4fr]" x-show="base" x-cloak>
+    <!-- Versiones (CU-000-008-A) -->
+    <section class="card lg:self-start">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow">{{ t("schema.versiones.eyebrow") }}</div>
+          <h3 class="card-title">{{ t("schema.versiones.titulo") }}</h3>
+        </div>
+        <button class="btn btn-sm" :class="comparando ? 'btn-primary' : 'btn-ghost'" x-show="versiones.length" @click="alternarComparacion()"
+                x-text="comparando ? TEXTOS.cancelarComparacion : TEXTOS.comparar"></button>
+      </div>
+      <p class="px-5 pt-3 text-xs text-fg-muted" x-show="comparando" x-text="TEXTOS.ayudaComparar"></p>
+      <p class="card-body text-sm text-fg-muted" x-show="cargado && !versiones.length">{{ t("schema.vacio") }}</p>
+      <div class="divide-y divide-[var(--line)]">
+        <template x-for="(v, i) in versiones" :key="v.version">
+          <button class="flex w-full items-center gap-3.5 px-5 py-3.5 text-left" :style="estaElegida(v) ? 'background: var(--bg-sunk)' : ''" @click="elegir(v)">
+            <span class="flex size-9 shrink-0 items-center justify-center rounded-full border font-serif text-[13px] font-medium"
+                  :style="i === 0 ? 'background: var(--accent); color: #fff; border-color: var(--accent)' : 'background: var(--bg-sunk); color: var(--fg-muted); border-color: var(--line-strong)'"
+                  x-text="v.version"></span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-[13.5px] font-medium">v.<span x-text="v.version"></span>
+                <span class="tag tag-green ml-2 px-1.5 py-px text-[9.5px]" x-show="i === 0">{{ t("schema.actual") }}</span>
+              </span>
+              <span class="block truncate text-xs text-fg-muted" x-text="`${fecha(v.ts)} · ${v.usuario}`"></span>
+            </span>
+            <span class="metric-mono text-xs" :style="v.cambios ? 'color: var(--accent)' : 'color: var(--fg-faint)'"
+                  x-text="v.sin_diff ? TEXTOS.sinDiff : TEXTOS.cambios.replace('{n}', v.cambios)"></span>
+          </button>
+        </template>
+      </div>
+    </section>
+
+    <!-- Diff de la versión elegida o comparación (CU-000-008-B) -->
+    <section class="card" x-show="vista" x-cloak>
+      <template x-if="vista">
+        <div>
+          <div class="card-head flex-wrap gap-3">
+            <div>
+              <div class="card-eyebrow" x-text="vista.eyebrow"></div>
+              <h3 class="card-title" x-text="vista.titulo"></h3>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <span class="tag" x-text="TEXTOS.modificaciones.replace('{n}', vista.cambios.length)"></span>
+              <a class="btn btn-ghost btn-sm" x-show="vista.descarga" :href="vista.descarga">{{ t("schema.exportar") }}</a>
+            </div>
+          </div>
+          <p class="card-body text-sm text-fg-muted" x-show="vista.sinDiff">{{ t("schema.sin_diff_detalle") }}</p>
+          <p class="card-body text-sm text-fg-muted" x-show="!vista.sinDiff && !vista.cambios.length">{{ t("schema.sin_diferencias") }}</p>
+          <div class="divide-y divide-[var(--line)]">
+            <template x-for="(c, i) in vista.cambios" :key="i">
+              <div>
+                <button class="flex w-full items-center gap-3.5 px-5 py-3 text-left" @click="abierto = abierto === i ? null : i">
+                  <span class="metric-mono w-[18px] text-center text-base font-bold" :style="`color: ${COLORES[c.operacion]}`" x-text="SIGNOS[c.operacion]"></span>
+                  <span class="metric-mono flex-1 text-[12.5px]" x-text="`${TEXTOS.tipos[c.tipo] || c.tipo} ${c.nombre}`"></span>
+                  <span class="text-xs text-fg-faint" x-text="TEXTOS.operaciones[c.operacion]"></span>
+                  <span x-text="abierto === i ? '▾' : '›'"></span>
+                </button>
+                <div class="grid gap-2 px-5 pb-4 md:grid-cols-2" x-show="abierto === i">
+                  <div>
+                    <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("schema.antes") }}</div>
+                    <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="c.antes || '—'"></pre>
+                  </div>
+                  <div>
+                    <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("schema.despues") }}</div>
+                    <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="c.despues || '—'"></pre>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <template x-if="vista.version">
+            <div>
+              <div class="card-foot flex-wrap justify-between gap-2">
+                <span x-text="pieVersion()"></span>
+                <button class="btn btn-ghost btn-sm" @click="verDdl = !verDdl" x-text="verDdl ? TEXTOS.ocultarDdl : TEXTOS.verDdl"></button>
+              </div>
+              <pre class="bloque-sql m-5 mt-0 max-h-80 overflow-auto p-3 font-mono text-xs" x-show="verDdl" x-text="vista.version.ddl"></pre>
+            </div>
+          </template>
+        </div>
+      </template>
+    </section>
+  </div>
+</div>
+
+<script>
+  window.TEXTOS_SCHEMA = {
+    eyebrow: {{ t("schema.eyebrow") | tojson }},
+    subtitulo: {{ t("schema.subtitulo") | tojson }},
+    comparar: {{ t("schema.comparar") | tojson }},
+    cancelarComparacion: {{ t("schema.cancelar_comparacion") | tojson }},
+    ayudaComparar: {{ t("schema.ayuda_comparar") | tojson }},
+    sinDiff: {{ t("schema.sin_diff") | tojson }},
+    cambios: {{ t("schema.cambios") | tojson }},
+    modificaciones: {{ t("schema.modificaciones") | tojson }},
+    diffVersion: {{ t("schema.diff_version") | tojson }},
+    diffComparacion: {{ t("schema.diff_comparacion") | tojson }},
+    tituloVersion: {{ t("schema.titulo_version") | tojson }},
+    tituloComparacion: {{ t("schema.titulo_comparacion") | tojson }},
+    estadoActual: {{ t("schema.estado_actual") | tojson }},
+    pie: {{ t("schema.pie") | tojson }},
+    autorizo: {{ t("schema.autorizo") | tojson }},
+    verDdl: {{ t("schema.ver_ddl") | tojson }},
+    ocultarDdl: {{ t("schema.ocultar_ddl") | tojson }},
+    origenes: { promocion: {{ t("schema.origen.promocion") | tojson }}, workaround: {{ t("schema.origen.workaround") | tojson }} },
+    operaciones: { agregado: {{ t("schema.operacion.agregado") | tojson }}, eliminado: {{ t("schema.operacion.eliminado") | tojson }}, modificado: {{ t("schema.operacion.modificado") | tojson }} },
+    tipos: { {% for tipo in ["tabla", "indice", "vista", "procedimiento", "funcion", "trigger"] %}{{ tipo | tojson }}: {{ t("schema.tipo." ~ tipo) | tojson }},{% endfor %} },
+  };
+</script>
+<script src="/static/js/schema.js?v={{ version_estaticos }}"></script>
+{% endblock %}

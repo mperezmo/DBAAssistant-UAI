@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from app.api import salud
+from app.core import contexto, excepciones
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.core.registro import configurar_registro
@@ -19,9 +20,11 @@ from app.identidad import api as identidad
 from app.identidad import api_usuarios
 from app.modulos.alertas import api as alertas
 from app.modulos.alertas.motor import Motor
+from app.modulos.auditoria import api as auditoria
 from app.modulos.chat_ia import api as chat_ia
 from app.modulos.conexiones import api as conexiones
 from app.modulos.contexto_negocio import api as contexto_negocio
+from app.modulos.historico_schema import api as historico_schema
 from app.modulos.inicio import api as inicio
 from app.modulos.monitor import api as monitor
 from app.modulos.monitor.recolector import Recolector
@@ -31,6 +34,8 @@ from app.modulos.web_push import api as web_push
 from app.modulos.workarounds import api as workarounds
 from app.modulos.workarounds import servicios as workarounds_servicios
 from app.modulos.workarounds.servicios import Automatizador
+from app.tenants import repositorios as tenants_repositorios
+from app.tenants import resolucion
 from app.tenants import servicios as tenants
 from app.web import rutas as web
 from app.web.rutas import DIRECTORIO_ESTATICOS, plantillas
@@ -56,6 +61,11 @@ async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
             log.warning("SQL Server no disponible (intento %s): %s", intento, error)
             await asyncio.sleep(ESPERA_ENTRE_INTENTOS_SEGUNDOS)
     await tenants.preparar_mongo_todo()
+    excepciones.iniciar(
+        lambda: {
+            t.slug: t.base_mongodb for t in tenants_repositorios.listar() if t.estado == "activo"
+        }
+    )
     await workarounds_servicios.cerrar_interrumpidas_todo(
         await run_in_threadpool(tenants.tenants_activos)
     )
@@ -68,6 +78,7 @@ async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
     if obtener_configuracion().sandbox_programador_activo:
         programador = asyncio.create_task(Programador().ejecutar())
     yield
+    excepciones.detener()
     if programador:
         programador.cancel()
     if tarea:
@@ -92,12 +103,25 @@ async def manejar_error_dominio(request: Request, error: ErrorDominio):
     return plantillas.TemplateResponse(request, "paginas/error.html", contexto, status_code=estado)
 
 
+async def registrar_contexto(request: Request, siguiente):
+    """Deja a mano el tenant (por el subdominio), la IP y la ruta de la petición."""
+    contexto.ip.set(request.client.host if request.client else None)
+    contexto.ruta.set(request.url.path)
+    contexto.tenant_slug.set(
+        resolucion.slug_desde_host(
+            request.headers.get("host", ""), obtener_configuracion().dominio_base
+        )
+    )
+    return await siguiente(request)
+
+
 def crear_app() -> FastAPI:
     cfg = obtener_configuracion()
     configurar_registro(cfg.log_nivel)
 
     app = FastAPI(title=cfg.app_nombre, version="0.1.0", lifespan=ciclo_de_vida)
     app.add_exception_handler(ErrorDominio, manejar_error_dominio)
+    app.middleware("http")(registrar_contexto)
     app.include_router(salud.router)
     app.include_router(identidad.router)
     app.include_router(api_usuarios.router)
@@ -110,6 +134,8 @@ def crear_app() -> FastAPI:
     app.include_router(chat_ia.router)
     app.include_router(contexto_negocio.router)
     app.include_router(inicio.router)
+    app.include_router(auditoria.router)
+    app.include_router(historico_schema.router)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

@@ -5,6 +5,7 @@ from dataclasses import replace
 from fastapi import Request
 from starlette.concurrency import run_in_threadpool
 
+from app.core import contexto
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad import repositorios, sesiones
@@ -40,6 +41,7 @@ async def sesion_actual(request: Request, tenant: Tenant | None) -> Sesion | Non
     )
     if usuario is None or not usuario.puede_ingresar:
         return None
+    contexto.usuario.set(usuario.email)
     return replace(sesion, rol=usuario.rol, nombre=usuario.nombre or sesion.nombre)
 
 

@@ -292,6 +292,7 @@ async def test_ejecutar_select_y_exportar(chat):
         "chat.exportado",
         {
             "conexion": conexion.alias,
+            "ambiente": "PROD",
             "base": "Ventas",
             "sql": m["sql"],
             "filas": 2,

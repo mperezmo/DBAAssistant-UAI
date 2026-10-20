@@ -90,6 +90,10 @@ CATALOGO: dict[str, DefinicionError] = {
         "Hay transacciones abiertas o bloqueos sobre las tablas involucradas; reintentá más tarde.",
         409,
     ),
+    "EXP_LIM_000": DefinicionError(
+        "El volumen excede el límite de exportación: acotá los filtros.", 422
+    ),
+    "SCH_SNP_000": DefinicionError("Versión de schema no disponible.", 404),
     "IA_API_000": DefinicionError("Error de comunicación con el motor IA.", 502),
     "IA_TRA_000": DefinicionError("No se pudo traducir la consulta.", 422),
     "CHT_VAL_000": DefinicionError("Conversación no encontrada.", 404),

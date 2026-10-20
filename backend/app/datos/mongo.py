@@ -24,6 +24,7 @@ BITACORAS = (
 COLECCION_METRICAS = "metricas"
 COLECCION_CONTEXTO = "contexto_negocio"
 COLECCION_HILOS = "chat_hilos"
+COLECCION_SCHEMA = "schema_versiones"
 
 
 @lru_cache
@@ -63,6 +64,16 @@ async def preparar_base_tenant(nombre: str) -> None:
         unique=True,
         partialFilterExpression={"clave": {"$exists": True}},
         name="unico_por_base",
+    )
+    await db[COLECCION_SCHEMA].create_index(
+        [
+            ("tenant_id", ASCENDING),
+            ("conexion_id", ASCENDING),
+            ("base", ASCENDING),
+            ("version", ASCENDING),
+        ],
+        unique=True,
+        name="version_por_base",
     )
     await db[COLECCION_HILOS].create_index(
         [("usuario_id", ASCENDING), ("actualizado_en", ASCENDING)]

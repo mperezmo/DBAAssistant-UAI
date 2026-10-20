@@ -22,6 +22,7 @@ from app.modulos.chat_ia.analizador import analizar
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
 from app.modulos.contexto_negocio import servicios as contexto
+from app.modulos.historico_schema import servicios as historico
 from app.modulos.sandbox import cliente, repositorios
 from app.tenants.entidades import Tenant
 from app.web.i18n import traducir
@@ -391,9 +392,21 @@ async def promover(tenant: Tenant, actor: Sesion, registro_id: str) -> dict:
     if conexion.ambiente == "PROD" or analisis.destructiva:
         reautenticacion.exigir_segundo_factor_reciente(actor)
     lotes = lotes_de(registro["sql"])
+    # Histórico de schema: snapshot previo si la sentencia cambia estructura.
+    previa = await historico.preparar(conexion, registro["base"], registro["sql"])
     try:
         filas = await run_in_threadpool(_ejecutar_real, conexion, registro["base"], lotes)
         estado_promocion, error = "exitosa", None
+        # Quien escribió y validó la sentencia y quien la autorizó al promoverla.
+        await historico.registrar(
+            tenant,
+            previa,
+            registro["sql"],
+            registro["usuario"],
+            "promocion",
+            registro_id,
+            autorizado_por=actor.email,
+        )
     except ErrorDominio as falla:
         filas, estado_promocion, error = 0, "fallida", falla.detalle
     promocion = {
