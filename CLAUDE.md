@@ -53,7 +53,12 @@ Guía para retomar el proyecto en cada sesión.
   (`datos/winrm.py`, ver `docs/winrm.md`); reautenticación con segundo factor para
   acciones sobre PROD (`identidad/reautenticacion.py`). Las conexiones las gestionan
   Administrador y DBA; el rol Consulta no las ve por ahora.
-- **Próximo: Sprint 3 (Monitoreo).**
+- **Sprint 3 ✅ (`v0.3.0`):** monitoreo (CU-000-003-A/B/C): recolector en segundo plano
+  (`modulos/monitor/recolector.py`, cada 3 s, candado en Redis), métricas por DMVs
+  (`lectura.py`, requiere `VIEW SERVER STATE`), histórico en MongoDB time-series (30 días),
+  última lectura en Redis, umbrales warning/critical por conexión (Administrador y DBA)
+  y panel de instrumentos del diseño. Consulta ve el monitoreo en solo lectura.
+- **Próximo: Sprint 4 (Alertas + notificaciones push).**
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.
