@@ -48,9 +48,12 @@ Guía para retomar el proyecto en cada sesión.
   de auditoría, catálogo de errores, login con Auth0 + MFA por subdominio, sesiones en
   Redis (8 h fijas), menú por rol, Panel Admin con estado de servicios y gestión de
   usuarios (baja con 30 días de gracia; el rol se relee en cada petición).
-- **Sprint 2 (en curso):** conexiones a SQL Server (CU-000-000): CRUD, prueba de
-  conexión, credenciales cifradas (`core/cifrado.py`), datos WinRM; reautenticación con
-  segundo factor para acciones sobre PROD (`identidad/reautenticacion.py`).
+- **Sprint 2 ✅ (`v0.2.0`):** conexiones a SQL Server (CU-000-000): CRUD, prueba de
+  conexión, credenciales cifradas (`core/cifrado.py`), datos y prueba de WinRM
+  (`datos/winrm.py`, ver `docs/winrm.md`); reautenticación con segundo factor para
+  acciones sobre PROD (`identidad/reautenticacion.py`). Las conexiones las gestionan
+  Administrador y DBA; el rol Consulta no las ve por ahora.
+- **Próximo: Sprint 3 (Monitoreo).**
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.
