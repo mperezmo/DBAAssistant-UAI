@@ -23,6 +23,8 @@ from app.identidad.entidades import Sesion
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import DatosConexion
 from app.modulos.sandbox import servicios
+from app.modulos.workarounds import servicios as workarounds
+from app.modulos.workarounds.entidades import Propio
 from app.tenants import servicios as tenants
 
 pytestmark = pytest.mark.integracion
@@ -124,6 +126,44 @@ async def test_sandbox_de_punta_a_punta(prefijo_aislado, entorno):
             tenant, replace(dba, segundo_factor_en=time.time()), resultado["id"]
         )
     assert error.value.codigo == "SBX_PRM_000"
+
+    # Workaround propio: validarlo en el Sandbox lo aprueba para PROD; una versión que
+    # falla deja vigente la aprobada anterior.
+    def propio(paso: str) -> Propio:
+        return Propio(
+            "",
+            "",
+            "Cerrar facturas",
+            "x",
+            "mantenimiento",
+            "info",
+            ("PROD",),
+            ("DBA",),
+            True,
+            None,
+            0,
+            None,
+            (paso,),
+        )
+
+    creado = await workarounds.guardar_propio(
+        tenant, dba, None, propio("UPDATE dbo.factura SET estado = 3"), (conexion.id, base)
+    )
+    assert creado["estado"] == "pendiente_sandbox"
+    validado = await workarounds.validar_en_sandbox(tenant, dba, creado["id"], conexion.id, base)
+    assert validado["estado"] == "aprobado" and validado["version_aprobada"] == 1
+    await workarounds.guardar_propio(
+        tenant,
+        dba,
+        creado["id"],
+        propio("UPDATE dbo.factura SET estado = 1 / 0"),
+        (conexion.id, base),
+    )
+    with pytest.raises(ErrorDominio) as error:
+        await workarounds.validar_en_sandbox(tenant, dba, creado["id"], conexion.id, base)
+    assert error.value.codigo == "WKR_SBX_000"
+    detalle = await workarounds.detalle(tenant, creado["id"])
+    assert detalle["version_actual"] == 2 and detalle["version_aprobada"] == 1
 
     cliente = MongoClient(proveedor_secretos().obtener("mongodb_uri"))
     assert (

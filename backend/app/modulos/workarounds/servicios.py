@@ -21,6 +21,7 @@ from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
+from app.modulos.sandbox import servicios as sandbox
 from app.modulos.workarounds import ejecutor, integrados, repositorios
 from app.modulos.workarounds.entidades import (
     CATEGORIAS,
@@ -284,6 +285,47 @@ async def eliminar_propio(tenant: Tenant, actor: Sesion, workaround_id: str) -> 
         "workaround.eliminado",
         {"workaround_id": workaround_id, "nombre": propio.nombre},
     )
+
+
+async def validar_en_sandbox(
+    tenant: Tenant, actor: Sesion, workaround_id: str, conexion_id: str, base: str
+) -> dict:
+    """Ejecuta la versión vigente en el Sandbox y, si pasa, la aprueba para PROD.
+
+    Si falla, la versión aprobada anterior sigue siendo la que corre en PROD
+    (CU-000-005-B, flujo alternativo 6.0).
+    """
+    _exigir(actor, ROLES_CREAN, "workarounds.validar")
+    propio = await _propio(tenant, workaround_id)
+    sql = "\nGO\n".join(propio.pasos)
+    resultado = await sandbox.ejecutar(tenant, actor, conexion_id, base, sql, False)
+    validacion = {
+        "registro_sandbox": resultado.get("id"),
+        "conexion_id": conexion_id,
+        "base": base,
+        "estado": resultado["estado"],
+        "error": resultado.get("error"),
+        "duracion_ms": resultado.get("duracion_ms"),
+        "filas": resultado.get("filas"),
+        "avisos": resultado.get("avisos", []),
+    }
+    await _auditar(
+        tenant,
+        actor.email,
+        "workaround.validado" if resultado["estado"] == "ok" else "workaround.validacion_fallida",
+        {"workaround_id": workaround_id, "version": propio.version_actual, **validacion},
+    )
+    if resultado["estado"] != "ok":
+        raise ErrorDominio("WKR_SBX_000", resultado.get("error"))
+    await run_in_threadpool(
+        repositorios.aprobar_version,
+        tenant.base_sqlserver,
+        str(tenant.id),
+        workaround_id,
+        propio.version_actual,
+        validacion,
+    )
+    return {**await detalle(tenant, workaround_id), "validacion": validacion}
 
 
 # --- Diagnóstico y ejecución (CU-000-005-E y F) -------------------------------------

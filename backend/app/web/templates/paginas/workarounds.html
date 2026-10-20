@@ -84,6 +84,27 @@
         </div>
         <p class="text-xs text-warn" x-show="detalle.estado === 'pendiente_sandbox'">{{ t("workarounds.detalle.pendiente_sandbox") }}</p>
 
+        <!-- Validación en Sandbox (CU-000-005-A, pasos 5 a 8) -->
+        <template x-if="!detalle.integrado && permisos.crear">
+          <div class="rounded border border-line p-3">
+            <div class="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("workarounds.validar.titulo") }}</div>
+            <p class="mb-2 text-xs text-fg-muted">{{ t("workarounds.validar.ayuda") }}</p>
+            <div class="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+              <select class="rounded border border-line px-2 py-2 text-sm" x-model="validacion.conexion_id" @change="basesSandbox()">
+                <option value="">{{ t("workarounds.validar.instancia") }}</option>
+                <template x-for="c in conexiones" :key="c.id"><option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option></template>
+              </select>
+              <select class="rounded border border-line px-2 py-2 text-sm" x-model="validacion.base">
+                <option value="">{{ t("workarounds.validar.base") }}</option>
+                <template x-for="b in validacion.bases" :key="b"><option :value="b" x-text="b"></option></template>
+              </select>
+              <button class="btn btn-primary btn-sm" :disabled="!validacion.base || validacion.enviando" @click="validar()"
+                      x-text="validacion.enviando ? TEXTOS.validando : TEXTOS.validar"></button>
+            </div>
+            <p class="mt-2 text-sm" :class="validacion.ok ? 'text-ok' : 'text-danger'" x-show="validacion.mensaje" x-text="validacion.mensaje"></p>
+          </div>
+        </template>
+
         <template x-if="!detalle.integrado">
           <div>
             <div class="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("workarounds.detalle.versiones") }}</div>
@@ -309,6 +330,10 @@
     confirmarEliminar: {{ t("workarounds.confirmar_eliminar") | tojson }},
     confirmarMfa: {{ t("workarounds.ejecutar.confirmar_mfa") | tojson }},
     vence: {{ t("workarounds.autorizaciones.vence") | tojson }},
+    validar: {{ t("workarounds.validar.boton") | tojson }},
+    validando: {{ t("workarounds.validar.validando") | tojson }},
+    validado: {{ t("workarounds.validar.ok") | tojson }},
+    sinBasesSandbox: {{ t("workarounds.validar.sin_bases") | tojson }},
     autorizadaPor: {{ t("workarounds.autorizaciones.autorizada_por") | tojson }},
     todasConexiones: {{ t("workarounds.automatizaciones.todas") | tojson }},
   };

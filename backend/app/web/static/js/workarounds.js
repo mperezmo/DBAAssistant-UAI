@@ -16,6 +16,7 @@ document.addEventListener("alpine:init", () => {
     lista: [], permisos: {}, cargado: false, error: null,
     categoria: "", busqueda: "",
     detalle: null, formulario: null, conexiones: [],
+    validacion: { conexion_id: "", base: "", bases: [], mensaje: "", ok: false, enviando: false },
     panel: null, mensajePanel: "", autorizaciones: [], automatizaciones: [], ejecuciones: [],
     nuevaAutomatizacion: { evento: "log", workaround: "shrink_log", conexion_id: "" },
 
@@ -84,11 +85,46 @@ document.addEventListener("alpine:init", () => {
     fecha,
 
     async verDetalle(w) {
+      this.validacion = { conexion_id: "", base: "", bases: [], mensaje: "", ok: false, enviando: false };
       try {
         this.detalle = await api("GET", `/api/workarounds/${w.id}`);
       } catch (error) {
         this.error = error.message;
       }
+    },
+
+    // Bases ya sincronizadas en el Sandbox del servidor elegido.
+    async basesSandbox() {
+      const v = this.validacion;
+      v.base = "";
+      v.bases = [];
+      v.mensaje = "";
+      if (!v.conexion_id) return;
+      try {
+        const estado = await api("GET", `/api/sandbox/conexiones/${v.conexion_id}`);
+        v.bases = estado.bases.filter((b) => b.estado === "ok").map((b) => b.base);
+        if (!v.bases.length) v.mensaje = TEXTOS.sinBasesSandbox;
+      } catch (error) {
+        v.mensaje = error.message;
+      }
+    },
+
+    async validar() {
+      const v = this.validacion;
+      v.enviando = true;
+      v.mensaje = "";
+      try {
+        this.detalle = await api("POST", `/api/workarounds/${this.detalle.id}/validar`, {
+          conexion_id: v.conexion_id, base: v.base,
+        });
+        v.ok = true;
+        v.mensaje = TEXTOS.validado;
+        await this.cargar();
+      } catch (error) {
+        v.ok = false;
+        v.mensaje = error.message;
+      }
+      v.enviando = false;
     },
 
     ejecutar(w) {

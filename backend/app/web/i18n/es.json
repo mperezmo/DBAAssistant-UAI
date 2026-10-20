@@ -499,5 +499,13 @@
   "sandbox.cerrar": "Cerrar",
   "sandbox.aviso.titulo": "Promoción a la instancia · {conexion}",
   "sandbox.aviso.exitosa": "{usuario} promovió un script validado en Sandbox sobre {base}: {filas} filas afectadas.",
-  "sandbox.aviso.fallida": "Falló la promoción de {usuario} sobre {base} y se revirtió: {error}"
+  "sandbox.aviso.fallida": "Falló la promoción de {usuario} sobre {base} y se revirtió: {error}",
+  "workarounds.validar.titulo": "Validar en Sandbox",
+  "workarounds.validar.ayuda": "Ejecuta los pasos de la versión vigente en el Sandbox (sobre la estructura de la instancia, sin datos y revirtiendo al final). Si pasa, esa versión queda aprobada para PROD; si falla, sigue vigente la aprobada anterior.",
+  "workarounds.validar.instancia": "Sandbox de…",
+  "workarounds.validar.base": "Base",
+  "workarounds.validar.boton": "Validar",
+  "workarounds.validar.validando": "Validando…",
+  "workarounds.validar.ok": "Validado en Sandbox: la versión vigente quedó aprobada para PROD.",
+  "workarounds.validar.sin_bases": "El Sandbox de esta instancia todavía no tiene bases sincronizadas: sincronizalo desde Sandbox."
 }

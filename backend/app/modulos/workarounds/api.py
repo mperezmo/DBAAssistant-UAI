@@ -53,6 +53,11 @@ class EjecucionEntrada(BaseModel):
     origen: Literal["web", "mobile"] = "web"
 
 
+class ValidacionEntrada(BaseModel):
+    conexion_id: str
+    base: str = Field(max_length=128)
+
+
 class AutorizacionEntrada(BaseModel):
     conexion_id: str
     motivo: str = Field(max_length=500)
@@ -159,6 +164,14 @@ async def modificar(workaround_id: str, datos: PropioEntrada, ctx=contexto) -> d
 async def eliminar(workaround_id: str, ctx=contexto) -> None:
     tenant, sesion = ctx
     await servicios.eliminar_propio(tenant, sesion, workaround_id)
+
+
+@router.post("/{workaround_id}/validar")
+async def validar(workaround_id: str, datos: ValidacionEntrada, ctx=contexto) -> dict:
+    tenant, sesion = ctx
+    return await servicios.validar_en_sandbox(
+        tenant, sesion, workaround_id, datos.conexion_id, datos.base
+    )
 
 
 @router.post("/{workaround_id}/diagnostico")

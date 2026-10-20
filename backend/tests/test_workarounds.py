@@ -817,3 +817,51 @@ async def test_api_workarounds(wk, monkeypatch):
 
 async def _lista(valor):
     return valor
+
+
+async def test_validar_en_sandbox_aprueba_o_conserva_la_anterior(wk, monkeypatch):
+    conexion = await _crear_conexion()
+    dba = _dba(wk)
+    creado = await servicios.guardar_propio(
+        TENANT, dba, None, _propio(pasos=("UPDATE a", "UPDATE b")), (conexion.id, None)
+    )
+    aprobadas = []
+    resultados = iter(
+        [
+            {"id": "r1", "estado": "ok", "duracion_ms": 3, "filas": 0, "avisos": []},
+            {"id": "r2", "estado": "error", "error": "Invalid object name", "avisos": []},
+        ]
+    )
+    enviados = []
+
+    async def ejecutar(tenant, actor, conexion_id, base, sql, solo_sintaxis):
+        enviados.append(sql)
+        return next(resultados)
+
+    def aprobar(base, tenant_id, workaround_id, version, validacion):
+        aprobadas.append(version)
+        repo = wk["repo"]
+        repo.propios[workaround_id] = replace(repo.propios[workaround_id], version_aprobada=version)
+
+    monkeypatch.setattr(servicios.sandbox, "ejecutar", ejecutar)
+    monkeypatch.setattr(servicios.repositorios, "aprobar_version", aprobar)
+
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.validar_en_sandbox(
+            TENANT, _actor("ADMINISTRADOR"), creado["id"], conexion.id, "ERP"
+        )
+    assert error.value.codigo == "USR_PER_000"
+
+    validado = await servicios.validar_en_sandbox(TENANT, dba, creado["id"], conexion.id, "ERP")
+    assert enviados[0] == "UPDATE a\nGO\nUPDATE b"
+    assert validado["estado"] == "aprobado" and validado["validacion"]["registro_sandbox"] == "r1"
+    assert wk["eventos"][-1][0] == "workaround.validado"
+
+    await servicios.guardar_propio(
+        TENANT, dba, creado["id"], _propio(pasos=("UPDATE c",)), (conexion.id, None)
+    )
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.validar_en_sandbox(TENANT, dba, creado["id"], conexion.id, "ERP")
+    assert error.value.codigo == "WKR_SBX_000"
+    assert aprobadas == [1] and wk["repo"].propios[creado["id"]].version_aprobada == 1
+    assert wk["eventos"][-1][0] == "workaround.validacion_fallida"
