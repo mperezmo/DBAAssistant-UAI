@@ -4,6 +4,7 @@ from app.datos import sqlserver
 from app.modulos.alertas.entidades import (
     Alerta,
     Condicion,
+    Desestimada,
     Regla,
     ResultadoDisparo,
     rango_severidad,
@@ -270,14 +271,17 @@ def disparar(
 
 
 def normalizar(base: str, tenant_id: str, conexion_id: str, clave: str) -> None:
-    """La condición dejó de cumplirse: la alerta sigue activa hasta que la atiendan."""
+    """La condición dejó de cumplirse: la alerta sigue activa hasta que la atiendan.
+
+    También se marcan las ya atendidas: así, tras un reinicio, el motor distingue una
+    condición que persiste desde que la atendieron (no se vuelve a alertar) de una nueva.
+    """
     with sqlserver.conectar(base) as conexion:
         conexion.cursor().execute(
             """UPDATE dbo.alerta
                SET normalizada = 1, normalizada_en = SYSUTCDATETIME(),
                    actualizada_en = SYSUTCDATETIME()
-               WHERE tenant_id = ? AND conexion_id = ? AND clave = ? AND estado = 'activa'
-                 AND normalizada = 0""",
+               WHERE tenant_id = ? AND conexion_id = ? AND clave = ? AND normalizada = 0""",
             tenant_id,
             conexion_id,
             clave,
@@ -286,13 +290,17 @@ def normalizar(base: str, tenant_id: str, conexion_id: str, clave: str) -> None:
 
 
 def claves_activas(base: str, tenant_id: str) -> list[tuple[str, str, str]]:
-    """(conexion_id, clave, severidad) de las alertas activas no normalizadas."""
+    """(conexion_id, clave, severidad) de las condiciones en curso.
+
+    Incluye las alertas atendidas cuya condición no se normalizó todavía, para no
+    volver a crearlas al reiniciar el backend.
+    """
     with sqlserver.conectar(base) as conexion:
         filas = (
             conexion.cursor()
             .execute(
-                """SELECT conexion_id, clave, severidad FROM dbo.alerta
-                   WHERE tenant_id = ? AND estado = 'activa' AND normalizada = 0""",
+                """SELECT DISTINCT conexion_id, clave, severidad FROM dbo.alerta
+                   WHERE tenant_id = ? AND normalizada = 0""",
                 tenant_id,
             )
             .fetchall()
@@ -367,3 +375,104 @@ def contar_activas(base: str, tenant_id: str) -> dict[str, int]:
             .fetchall()
         )
     return {severidad: cantidad for severidad, cantidad in filas}
+
+
+# --- Desestimadas -------------------------------------------------------------------
+
+VIGENTE = "reactivada_en IS NULL AND (hasta IS NULL OR hasta > SYSUTCDATETIME())"
+
+
+def _desestimada(f) -> Desestimada:
+    return Desestimada(
+        id=str(f.id),
+        conexion_id=str(f.conexion_id),
+        clave=f.clave,
+        titulo=f.titulo,
+        conexion_alias=f.conexion_alias,
+        motivo=f.motivo,
+        hasta=f.hasta,
+        creada_por=f.creada_por,
+        creada_en=f.creada_en,
+    )
+
+
+def desestimar(base: str, tenant_id: str, alerta: Alerta, usuario: str, motivo: str, hasta) -> bool:
+    """Registra la desestimación y cierra la alerta en una transacción.
+
+    Devuelve False si la alerta ya no estaba activa.
+    """
+    with sqlserver.conectar(base) as conexion:
+        cursor = conexion.cursor()
+        cerrada = cursor.execute(
+            """UPDATE dbo.alerta
+               SET estado = 'atendida', accion = 'desestimada', comentario = ?,
+                   atendida_por = ?, atendida_en = SYSUTCDATETIME(),
+                   actualizada_en = SYSUTCDATETIME()
+               WHERE tenant_id = ? AND id = ? AND estado = 'activa'""",
+            motivo,
+            usuario,
+            tenant_id,
+            alerta.id,
+        ).rowcount
+        if cerrada != 1:
+            conexion.rollback()
+            return False
+        # Una desestimación anterior de la misma condición (vencida) se da por terminada.
+        cursor.execute(
+            """UPDATE dbo.alerta_desestimada
+               SET reactivada_en = SYSUTCDATETIME(), reactivada_por = ?
+               WHERE tenant_id = ? AND conexion_id = ? AND clave = ? AND reactivada_en IS NULL""",
+            usuario,
+            tenant_id,
+            alerta.conexion_id,
+            alerta.clave,
+        )
+        cursor.execute(
+            """INSERT INTO dbo.alerta_desestimada (tenant_id, conexion_id, clave, titulo,
+                   conexion_alias, motivo, hasta, creada_por)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            tenant_id,
+            alerta.conexion_id,
+            alerta.clave,
+            alerta.titulo,
+            alerta.conexion_alias,
+            motivo,
+            hasta,
+            usuario,
+        )
+        conexion.commit()
+    return True
+
+
+def listar_desestimadas(base: str, tenant_id: str) -> list[Desestimada]:
+    with sqlserver.conectar(base) as conexion:
+        filas = (
+            conexion.cursor()
+            .execute(
+                f"""SELECT id, conexion_id, clave, titulo, conexion_alias, motivo, hasta,
+                           creada_por, creada_en
+                    FROM dbo.alerta_desestimada
+                    WHERE tenant_id = ? AND {VIGENTE} ORDER BY creada_en DESC""",
+                tenant_id,
+            )
+            .fetchall()
+        )
+    return [_desestimada(f) for f in filas]
+
+
+def reactivar(base: str, tenant_id: str, desestimada_id: str, usuario: str) -> bool:
+    with sqlserver.conectar(base) as conexion:
+        filas = (
+            conexion.cursor()
+            .execute(
+                f"""UPDATE dbo.alerta_desestimada
+                    SET reactivada_en = SYSUTCDATETIME(), reactivada_por = ?
+                    WHERE tenant_id = ? AND id = ? AND {VIGENTE}""",
+                usuario,
+                tenant_id,
+                desestimada_id,
+            )
+            .rowcount
+        )
+        conexion.commit()
+    return filas == 1

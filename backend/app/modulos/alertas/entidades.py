@@ -92,6 +92,21 @@ class Alerta:
 
 
 @dataclass(frozen=True)
+class Desestimada:
+    """Condición marcada como esperada en una instancia: no genera alertas."""
+
+    id: str
+    conexion_id: str
+    clave: str
+    titulo: str
+    conexion_alias: str
+    motivo: str
+    hasta: datetime | None
+    creada_por: str
+    creada_en: datetime
+
+
+@dataclass(frozen=True)
 class ResultadoDisparo:
     alerta: Alerta
     nueva: bool

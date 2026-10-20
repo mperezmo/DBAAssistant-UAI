@@ -1,6 +1,6 @@
 import itertools
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -8,7 +8,13 @@ import pytest
 from app import cli
 from app.core.errores import ErrorDominio
 from app.modulos.alertas import condiciones, motor, repositorios, servicios
-from app.modulos.alertas.entidades import Alerta, Condicion, Regla, ResultadoDisparo
+from app.modulos.alertas.entidades import (
+    Alerta,
+    Condicion,
+    Desestimada,
+    Regla,
+    ResultadoDisparo,
+)
 from app.modulos.monitor import repositorios as monitor_repo
 from app.modulos.monitor.entidades import Lectura, Umbral
 from app.modulos.web_push import repositorios as push_repo
@@ -111,6 +117,7 @@ class RepositorioAlertasFalso:
         self.alertas: dict[int, Alerta] = {}
         self.ids = itertools.count(1)
         self.escrituras = 0
+        self.desestimadas: dict[str, Desestimada] = {}
 
     def instalar(self, monkeypatch):
         for nombre in (
@@ -126,6 +133,9 @@ class RepositorioAlertasFalso:
             "obtener",
             "atender",
             "contar_activas",
+            "desestimar",
+            "listar_desestimadas",
+            "reactivar",
         ):
             monkeypatch.setattr(repositorios, nombre, getattr(self, nombre))
         monkeypatch.setattr(monitor_repo, "listar_umbrales_del_tenant", lambda base, t: {})
@@ -234,6 +244,29 @@ class RepositorioAlertasFalso:
             alerta, estado="atendida", atendida_por=usuario, accion=accion, comentario=comentario
         )
         return True
+
+    def desestimar(self, base, tenant_id, alerta, usuario, motivo, hasta):
+        if not self.atender(base, tenant_id, alerta.id, usuario, "desestimada", motivo):
+            return False
+        desestimada_id = f"00000000-0000-0000-0000-{next(self.ids):012d}"
+        self.desestimadas[desestimada_id] = Desestimada(
+            desestimada_id,
+            alerta.conexion_id,
+            alerta.clave,
+            alerta.titulo,
+            alerta.conexion_alias,
+            motivo,
+            hasta,
+            usuario,
+            datetime(2026, 10, 20),
+        )
+        return True
+
+    def listar_desestimadas(self, base, tenant_id):
+        return list(self.desestimadas.values())
+
+    def reactivar(self, base, tenant_id, desestimada_id, usuario):
+        return self.desestimadas.pop(desestimada_id, None) is not None
 
     def contar_activas(self, base, tenant_id):
         resultado = {}
@@ -571,3 +604,81 @@ async def test_api_push(alertas, push_configurado, monkeypatch):
     assert guardadas[0][0].endpoint == "https://push.example/x" and bajas == [
         "https://push.example/x"
     ]
+
+
+# --- Desestimar ---------------------------------------------------------------------
+
+
+async def test_desestimar_silencia_la_condicion_hasta_reactivarla(alertas):
+    conexion = await _conexion()
+    repo, reloj = alertas["alertas"], alertas["reloj"]
+    m = motor.Motor()
+    caida = Lectura({}, bases_no_disponibles=[{"base": "HIST", "estado": "OFFLINE"}])
+
+    await m.evaluar(TENANT, conexion, caida)
+    reloj.ahora += 5
+    await m.evaluar(TENANT, conexion, caida)
+    [alerta] = repo.alertas.values()
+    assert alerta.clave == "evento:base:HIST"
+
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.desestimar(TENANT, _actor("ADMINISTRADOR"), alerta.id, "x", None)
+    assert error.value.codigo == "USR_PER_000"
+    for motivo, hasta in ((" ", None), ("ok", datetime(2020, 1, 1, tzinfo=UTC))):
+        with pytest.raises(ErrorDominio) as error:
+            await servicios.desestimar(TENANT, _actor(), alerta.id, motivo, hasta)
+        assert error.value.codigo == "USR_VAL_002"
+
+    cerrada = await servicios.desestimar(TENANT, _actor(), alerta.id, "Base archivada", None)
+    assert cerrada.accion == "desestimada" and cerrada.comentario == "Base archivada"
+    assert alertas["eventos"][-1][0] == "alerta.desestimada"
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.desestimar(TENANT, _actor(), alerta.id, "otra vez", None)
+    assert error.value.codigo == "ALR_VAL_002"
+
+    # Un motor nuevo (reinicio) no la vuelve a crear mientras esté desestimada.
+    nuevo = motor.Motor()
+    for _ in range(3):
+        reloj.ahora += 10
+        await nuevo.evaluar(TENANT, conexion, caida)
+    assert len(repo.alertas) == 1
+
+    [desestimada] = await servicios.listar_desestimadas(TENANT)
+    await servicios.reactivar(TENANT, _actor(), desestimada.id)
+    assert alertas["eventos"][-1][0] == "alerta.reactivada"
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.reactivar(TENANT, _actor(), desestimada.id)
+    assert error.value.codigo == "ALR_VAL_000"
+    with pytest.raises(ErrorDominio):
+        await servicios.reactivar(TENANT, _actor(), "no-es-uuid")
+
+    # Reactivada y con la condición vigente: vuelve a alertar.
+    nuevo.invalidar_configuracion()
+    await nuevo.evaluar(TENANT, conexion, caida)
+    reloj.ahora += 5
+    await nuevo.evaluar(TENANT, conexion, caida)
+    assert len(repo.alertas) == 2
+
+
+async def test_api_desestimadas(alertas):
+    conexion = await _conexion()
+    repo = alertas["alertas"]
+    alerta = repo.disparar(
+        "b", str(TENANT.id), conexion.id, ("A", "S", "PROD"), condiciones.instancia_caida("S")
+    ).alerta
+    dba = await _navegador(alertas, "DBA")
+
+    respuesta = dba.post(
+        f"/api/alertas/{alerta.id}/desestimar",
+        json={"motivo": "Mantenimiento", "hasta": "2099-01-01T00:00:00Z"},
+        headers=CABECERA,
+    )
+    assert respuesta.json()["accion"] == "desestimada"
+    [desestimada] = dba.get("/api/alertas/desestimadas").json()["desestimadas"]
+    assert (
+        desestimada["hasta"] == "2099-01-01T00:00:00Z" and desestimada["motivo"] == "Mantenimiento"
+    )
+    reactivar = dba.post(
+        f"/api/alertas/desestimadas/{desestimada['id']}/reactivar", headers=CABECERA
+    )
+    assert reactivar.status_code == 204

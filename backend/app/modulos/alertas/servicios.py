@@ -1,6 +1,7 @@
 """Casos de uso de alertas: reglas (CU-000-004-A y D), activas (B) y atención (C)."""
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from uuid import UUID
 
 from starlette.concurrency import run_in_threadpool
@@ -13,6 +14,7 @@ from app.modulos.alertas.entidades import (
     OPERADORES,
     SEVERIDADES,
     Alerta,
+    Desestimada,
     Regla,
 )
 from app.modulos.auditoria import repositorios as auditoria
@@ -25,6 +27,7 @@ ROLES_CONFIGURAN = frozenset({"ADMINISTRADOR", "DBA"})
 ROLES_ATIENDEN = frozenset({"DBA"})
 MAXIMO_SOSTENIDA_SEGUNDOS = 24 * 60 * 60
 LARGO_COMENTARIO = 1000
+LARGO_MOTIVO = 500
 
 
 def permisos(sesion: Sesion) -> dict:
@@ -110,6 +113,67 @@ async def atender(
         },
     )
     return await obtener(tenant, alerta_id)
+
+
+# --- Desestimadas -------------------------------------------------------------------
+
+
+async def desestimar(
+    tenant: Tenant, actor: Sesion, alerta_id: int, motivo: str, hasta: datetime | None
+) -> Alerta:
+    """Marca la condición de la alerta como esperada en su instancia y la cierra."""
+    _exigir(actor, ROLES_ATIENDEN, "alertas.desestimar")
+    motivo = (motivo or "").strip()
+    if not motivo or len(motivo) > LARGO_MOTIVO:
+        raise ErrorDominio("USR_VAL_002", "El motivo es obligatorio.")
+    if hasta is not None:
+        hasta = hasta.astimezone(UTC).replace(tzinfo=None) if hasta.tzinfo else hasta
+        if hasta <= datetime.now(UTC).replace(tzinfo=None):
+            raise ErrorDominio("USR_VAL_002", "La fecha de vencimiento debe ser futura.")
+    alerta = await obtener(tenant, alerta_id)
+    if not await run_in_threadpool(
+        repositorios.desestimar,
+        tenant.base_sqlserver,
+        str(tenant.id),
+        alerta,
+        actor.email,
+        motivo,
+        hasta,
+    ):
+        raise ErrorDominio("ALR_VAL_002", str(alerta_id))
+    await _auditar(
+        tenant,
+        actor,
+        "alerta.desestimada",
+        {
+            "alerta_id": alerta_id,
+            "titulo": alerta.titulo,
+            "conexion": alerta.conexion_alias,
+            "clave": alerta.clave,
+            "motivo": motivo,
+            "hasta": hasta.isoformat() if hasta else None,
+        },
+    )
+    return await obtener(tenant, alerta_id)
+
+
+async def listar_desestimadas(tenant: Tenant) -> list[Desestimada]:
+    return await run_in_threadpool(
+        repositorios.listar_desestimadas, tenant.base_sqlserver, str(tenant.id)
+    )
+
+
+async def reactivar(tenant: Tenant, actor: Sesion, desestimada_id: str) -> None:
+    _exigir(actor, ROLES_ATIENDEN, "alertas.desestimar")
+    try:
+        UUID(desestimada_id)
+    except ValueError:
+        raise ErrorDominio("ALR_VAL_000", desestimada_id) from None
+    if not await run_in_threadpool(
+        repositorios.reactivar, tenant.base_sqlserver, str(tenant.id), desestimada_id, actor.email
+    ):
+        raise ErrorDominio("ALR_VAL_000", desestimada_id)
+    await _auditar(tenant, actor, "alerta.reactivada", {"desestimada_id": desestimada_id})
 
 
 # --- Reglas -------------------------------------------------------------------------

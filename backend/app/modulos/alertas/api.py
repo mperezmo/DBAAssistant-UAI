@@ -1,6 +1,7 @@
 """API REST de alertas. Todos los roles con el módulo ven; atiende el DBA; configuran
 Administrador y DBA."""
 
+from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends
@@ -8,7 +9,12 @@ from pydantic import BaseModel, Field
 
 from app.identidad.dependencias import requerir_modulo
 from app.modulos.alertas import servicios
-from app.modulos.alertas.entidades import SOSTENIDA_POR_DEFECTO_SEGUNDOS, Alerta, Regla
+from app.modulos.alertas.entidades import (
+    SOSTENIDA_POR_DEFECTO_SEGUNDOS,
+    Alerta,
+    Desestimada,
+    Regla,
+)
 
 router = APIRouter(prefix="/api/alertas", tags=["alertas"])
 contexto = Depends(requerir_modulo("alertas"))
@@ -29,6 +35,12 @@ class ReglaEntrada(BaseModel):
     def a_regla(self) -> Regla:
         datos = self.model_dump()
         return Regla(id="", tenant_id="", **{**datos, "destinatarios": tuple(self.destinatarios)})
+
+
+class DesestimacionEntrada(BaseModel):
+    motivo: str = Field(max_length=500)
+    # Sin fecha: la desestimación no vence.
+    hasta: datetime | None = None
 
 
 class AtencionEntrada(BaseModel):
@@ -64,6 +76,22 @@ async def resumen(ctx=contexto) -> dict:
     return await servicios.resumen(tenant)
 
 
+def _desestimada(d: Desestimada) -> dict:
+    return {**d.__dict__, "hasta": _fecha(d.hasta), "creada_en": _fecha(d.creada_en)}
+
+
+@router.get("/desestimadas")
+async def listar_desestimadas(ctx=contexto) -> dict:
+    tenant, _ = ctx
+    return {"desestimadas": [_desestimada(d) for d in await servicios.listar_desestimadas(tenant)]}
+
+
+@router.post("/desestimadas/{desestimada_id}/reactivar", status_code=204)
+async def reactivar(desestimada_id: str, ctx=contexto) -> None:
+    tenant, sesion = ctx
+    await servicios.reactivar(tenant, sesion, desestimada_id)
+
+
 @router.get("/reglas")
 async def listar_reglas(ctx=contexto) -> dict:
     tenant, _ = ctx
@@ -92,6 +120,12 @@ async def eliminar_regla(regla_id: str, ctx=contexto) -> dict:
 async def obtener(alerta_id: int, ctx=contexto) -> dict:
     tenant, _ = ctx
     return _alerta(await servicios.obtener(tenant, alerta_id))
+
+
+@router.post("/{alerta_id}/desestimar")
+async def desestimar(alerta_id: int, datos: DesestimacionEntrada, ctx=contexto) -> dict:
+    tenant, sesion = ctx
+    return _alerta(await servicios.desestimar(tenant, sesion, alerta_id, datos.motivo, datos.hasta))
 
 
 @router.post("/{alerta_id}/atender")

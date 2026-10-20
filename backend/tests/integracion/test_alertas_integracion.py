@@ -160,3 +160,64 @@ async def test_suscripciones_push_por_rol(prefijo_aislado, monkeypatch):
     cliente = MongoClient(proveedor_secretos().obtener("mongodb_uri"))
     cliente.drop_database(tenant.base_mongodb)
     cliente.close()
+
+
+async def test_desestimar_y_reinicio_del_motor(prefijo_aislado, entorno):
+    reloj, enviados = entorno
+    tenant = await tenants.aprovisionar("acme", "ACME", "admin@acme.com")
+    dba = Sesion("s", "u", str(tenant.id), "acme", "dba@acme.com", "Dba", "DBA", 0)
+    conexion = await conexiones.crear(
+        tenant,
+        dba,
+        DatosConexion(
+            "LOCAL", os.environ.get("SQLSERVER_HOST", "localhost"), 14330, None, "DEV", "sa", "x"
+        ),
+    )
+    offline = _lectura(10, bases_no_disponibles=[{"base": "HIST", "estado": "OFFLINE"}])
+    bloqueada = _lectura(
+        10, bloqueos=[{"sid": 1, "bloqueador": 2, "base": "B", "recurso": "R", "espera_s": 40.0}]
+    )
+
+    motor = modulo_motor.Motor()
+    for lectura in (offline, bloqueada):
+        await motor.evaluar(tenant, conexion, lectura)
+        reloj.ahora += 6
+        await motor.evaluar(tenant, conexion, lectura)
+    activas = {a.clave: a for a in await servicios.listar(tenant, "activa")}
+    base_offline, bloqueo = activas["evento:base:HIST"], activas["evento:bloqueo"]
+
+    # Desestimar la base offline; atender el bloqueo con la condición todavía vigente.
+    await servicios.desestimar(tenant, dba, base_offline.id, "Base archivada", None)
+    await servicios.atender(tenant, dba, bloqueo.id, "manual", "Se avisó al equipo")
+
+    # Tras un reinicio, ninguna de las dos vuelve a crearse mientras persistan.
+    reiniciado = modulo_motor.Motor()
+    ambas = _lectura(
+        10,
+        bases_no_disponibles=[{"base": "HIST", "estado": "OFFLINE"}],
+        bloqueos=bloqueada.bloqueos,
+    )
+    for _ in range(3):
+        reloj.ahora += 61
+        await reiniciado.evaluar(tenant, conexion, ambas)
+    assert await servicios.listar(tenant, "activa") == []
+
+    # El bloqueo se resuelve y vuelve: es una alerta nueva.
+    await reiniciado.evaluar(tenant, conexion, offline)
+    await reiniciado.evaluar(tenant, conexion, ambas)
+    assert [a.clave for a in await servicios.listar(tenant, "activa")] == ["evento:bloqueo"]
+
+    # Reactivar la desestimación: la base offline vuelve a alertar.
+    [desestimada] = await servicios.listar_desestimadas(tenant)
+    assert desestimada.motivo == "Base archivada" and desestimada.hasta is None
+    await servicios.reactivar(tenant, dba, desestimada.id)
+    reiniciado.invalidar_configuracion()
+    await reiniciado.evaluar(tenant, conexion, ambas)
+    reloj.ahora += 6
+    await reiniciado.evaluar(tenant, conexion, ambas)
+    claves = {a.clave for a in await servicios.listar(tenant, "activa")}
+    assert claves == {"evento:bloqueo", "evento:base:HIST"}
+
+    cliente = MongoClient(proveedor_secretos().obtener("mongodb_uri"))
+    cliente.drop_database(tenant.base_mongodb)
+    cliente.close()

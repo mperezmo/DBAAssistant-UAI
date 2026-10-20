@@ -17,11 +17,11 @@ document.addEventListener("alpine:init", () => {
 
   Alpine.data("alertas", () => ({
     TEXTOS,
-    alertas: [], cargado: false, error: null,
+    alertas: [], desestimadas: [], cargado: false, error: null,
     estado: "activa", severidades: ["critical", "warning", "info"], ambiente: "", origen: "",
     permisos: { configurar: false, atender: false },
     seleccionada: null,
-    atencion: { accion: "manual", comentario: "", mensaje: "", enviando: false },
+    atencion: { accion: "manual", comentario: "", duracion: "24h", hasta: "", mensaje: "", enviando: false },
     conexiones: [],
     reglas: { abierto: false, lista: [], formulario: null, mensaje: "" },
     push: { disponible: false, suscripto: false, procesando: false, mensaje: "", error: false, clave: "" },
@@ -42,6 +42,12 @@ document.addEventListener("alpine:init", () => {
 
     async cargar() {
       try {
+        if (this.estado === "desestimada") {
+          this.desestimadas = (await api("GET", "/api/alertas/desestimadas")).desestimadas;
+          this.error = null;
+          this.cargado = true;
+          return;
+        }
         const r = await api("GET", `/api/alertas?estado=${this.estado}`);
         this.alertas = r.alertas;
         this.permisos = r.permisos;
@@ -89,7 +95,7 @@ document.addEventListener("alpine:init", () => {
 
     seleccionar(alerta) {
       this.seleccionada = alerta;
-      this.atencion = { accion: "manual", comentario: "", mensaje: "", enviando: false };
+      this.atencion = { accion: "manual", comentario: "", duracion: "24h", hasta: "", mensaje: "", enviando: false };
     },
 
     claseSeveridad(s) {
@@ -109,19 +115,41 @@ document.addEventListener("alpine:init", () => {
     fecha,
     hora,
 
+    // Vencimiento elegido para una desestimación; null = sin vencimiento.
+    vencimiento() {
+      const a = this.atencion;
+      const horas = { "24h": 24, "7d": 168, "30d": 720 }[a.duracion];
+      if (horas) return new Date(Date.now() + horas * 3600000).toISOString();
+      if (a.duracion === "fecha" && a.hasta) return new Date(a.hasta).toISOString();
+      return null;
+    },
+
     async atender() {
       const a = this.atencion;
       a.enviando = true;
       try {
-        await api("POST", `/api/alertas/${this.seleccionada.id}/atender`, {
-          accion: a.accion, comentario: a.comentario,
-        });
+        const id = this.seleccionada.id;
+        if (a.accion === "desestimar") {
+          await api("POST", `/api/alertas/${id}/desestimar`, { motivo: a.comentario, hasta: this.vencimiento() });
+        } else {
+          await api("POST", `/api/alertas/${id}/atender`, { accion: a.accion, comentario: a.comentario });
+        }
         this.seleccionada = null;
         await this.cargar();
         if (this.filtradas().length) this.seleccionar(this.filtradas()[0]);
       } catch (error) {
         a.mensaje = error.message;
         a.enviando = false;
+      }
+    },
+
+    async reactivar(d) {
+      if (!window.confirm(TEXTOS.confirmarReactivar.replace("{titulo}", d.titulo))) return;
+      try {
+        await api("POST", `/api/alertas/desestimadas/${d.id}/reactivar`);
+        await this.cargar();
+      } catch (error) {
+        this.error = error.message;
       }
     },
 

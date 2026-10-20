@@ -33,23 +33,44 @@
         <div class="flex flex-wrap items-center gap-1.5">
           <button class="btn btn-sm" :class="estado === 'activa' ? 'btn-primary' : 'btn-ghost'" @click="cambiarEstado('activa')">{{ t("alertas.activas") }}</button>
           <button class="btn btn-sm" :class="estado === 'atendida' ? 'btn-primary' : 'btn-ghost'" @click="cambiarEstado('atendida')">{{ t("alertas.atendidas") }}</button>
-          <span class="mx-1 h-4 border-l border-line"></span>
+          <button class="btn btn-sm" :class="estado === 'desestimada' ? 'btn-primary' : 'btn-ghost'" @click="cambiarEstado('desestimada')">{{ t("alertas.desestimadas") }}</button>
+          <span class="mx-1 h-4 border-l border-line" x-show="estado !== 'desestimada'"></span>
           {% for s in ["critical", "warning", "info"] %}
-          <button class="btn btn-sm" :class="severidades.includes('{{ s }}') ? 'btn-ghost' : 'btn-ghost opacity-40'"
+          <button class="btn btn-sm" x-show="estado !== 'desestimada'" :class="severidades.includes('{{ s }}') ? 'btn-ghost' : 'btn-ghost opacity-40'"
                   @click="alternarSeveridad('{{ s }}')">{{ t("alertas.severidad." ~ s) }}</button>
           {% endfor %}
-          <select class="btn btn-ghost btn-sm" x-model="ambiente" aria-label="{{ t('alertas.filtro.ambiente') }}">
+          <select class="btn btn-ghost btn-sm" x-show="estado !== 'desestimada'" x-model="ambiente" aria-label="{{ t('alertas.filtro.ambiente') }}">
             <option value="">{{ t("alertas.filtro.todos_ambientes") }}</option>
             {% for a in ambientes %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
           </select>
-          <select class="btn btn-ghost btn-sm" x-model="origen" aria-label="{{ t('alertas.filtro.tipo') }}">
+          <select class="btn btn-ghost btn-sm" x-show="estado !== 'desestimada'" x-model="origen" aria-label="{{ t('alertas.filtro.tipo') }}">
             <option value="">{{ t("alertas.filtro.todos_tipos") }}</option>
             {% for o in ["umbral", "evento", "regla"] %}<option value="{{ o }}">{{ t("alertas.origen." ~ o) }}</option>{% endfor %}
           </select>
         </div>
       </div>
 
-      <template x-for="a in filtradas()" :key="a.id">
+      <!-- Condiciones desestimadas -->
+      <template x-for="d in (estado === 'desestimada' ? desestimadas : [])" :key="d.id">
+        <div class="border-b border-line px-5 py-4">
+          <div class="mb-1.5 flex items-center gap-2.5">
+            <span class="tag">{{ t("alertas.desestimada") }}</span>
+            <span class="font-mono text-[11px] text-fg-faint" x-text="d.conexion_alias"></span>
+            <span class="flex-1"></span>
+            <span class="font-mono text-[11px] text-fg-faint" x-text="d.hasta ? `${TEXTOS.hasta} ${fecha(d.hasta)}` : TEXTOS.sinVencimiento"></span>
+          </div>
+          <div class="mb-1 text-sm font-medium" x-text="d.titulo"></div>
+          <div class="mb-2 text-[12.5px] text-fg-muted" x-text="d.motivo"></div>
+          <div class="flex items-center gap-3.5 text-[11.5px] text-fg-faint">
+            <span x-text="`${d.creada_por} · ${fecha(d.creada_en)}`"></span>
+            <span class="flex-1"></span>
+            <button class="btn btn-ghost btn-sm" x-show="permisos.atender" @click="reactivar(d)">{{ t("alertas.reactivar") }}</button>
+          </div>
+        </div>
+      </template>
+      <p class="card-body text-center text-sm text-fg-muted" x-show="cargado && estado === 'desestimada' && desestimadas.length === 0">{{ t("alertas.sin_desestimadas") }}</p>
+
+      <template x-for="a in (estado === 'desestimada' ? [] : filtradas())" :key="a.id">
         <div class="cursor-pointer border-b border-line px-5 py-4" @click="seleccionar(a)"
              :style="seleccionada?.id === a.id ? `border-left: 3px solid ${colorSeveridad(a.severidad)}; background: var(--bg-sunk)` : 'border-left: 3px solid transparent'">
           <div class="mb-1.5 flex items-center gap-2.5">
@@ -69,12 +90,12 @@
           </div>
         </div>
       </template>
-      <p class="card-body text-center text-sm text-fg-muted" x-show="cargado && filtradas().length === 0"
+      <p class="card-body text-center text-sm text-fg-muted" x-show="cargado && estado !== 'desestimada' && filtradas().length === 0"
          x-text="estado === 'activa' ? TEXTOS.sinActivas : TEXTOS.sinAtendidas"></p>
     </section>
 
     <!-- Detalle -->
-    <section class="card self-start lg:sticky lg:top-20" x-show="seleccionada" x-cloak>
+    <section class="card self-start lg:sticky lg:top-20" x-show="seleccionada && estado !== 'desestimada'" x-cloak>
       <template x-if="seleccionada">
         <div>
           <div class="p-1" :style="`background: ${colorSeveridad(seleccionada.severidad)}`">
@@ -133,9 +154,23 @@
               <form class="mt-4 border-t border-line pt-4" @submit.prevent="atender()">
                 <div class="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("alertas.atender.titulo") }}</div>
                 <label class="mb-1.5 flex items-center gap-2 text-sm"><input type="radio" value="manual" x-model="atencion.accion"> {{ t("alertas.accion.manual") }}</label>
-                <label class="mb-3 flex items-center gap-2 text-sm"><input type="radio" value="falsa_alarma" x-model="atencion.accion"> {{ t("alertas.accion.falsa_alarma") }}</label>
+                <label class="mb-1.5 flex items-center gap-2 text-sm"><input type="radio" value="falsa_alarma" x-model="atencion.accion"> {{ t("alertas.accion.falsa_alarma") }}</label>
+                <label class="mb-3 flex items-center gap-2 text-sm"><input type="radio" value="desestimar" x-model="atencion.accion"> {{ t("alertas.atender.desestimar") }}</label>
+                <div class="mb-3" x-show="atencion.accion === 'desestimar'">
+                  <p class="mb-2 text-xs text-fg-muted">{{ t("alertas.atender.desestimar_ayuda") }}</p>
+                  <div class="field">
+                    <label for="a-duracion">{{ t("alertas.atender.duracion") }}</label>
+                    <select id="a-duracion" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="atencion.duracion">
+                      {% for d in ["24h", "7d", "30d", "indefinida", "fecha"] %}<option value="{{ d }}">{{ t("alertas.duracion." ~ d) }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="field" x-show="atencion.duracion === 'fecha'">
+                    <label for="a-hasta">{{ t("alertas.atender.hasta") }}</label>
+                    <input id="a-hasta" type="datetime-local" x-model="atencion.hasta">
+                  </div>
+                </div>
                 <div class="field">
-                  <label for="a-comentario">{{ t("alertas.atender.comentario") }}</label>
+                  <label for="a-comentario" x-text="atencion.accion === 'desestimar' ? TEXTOS.motivo : TEXTOS.comentario"></label>
                   <textarea id="a-comentario" rows="3" maxlength="1000" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="atencion.comentario" required></textarea>
                 </div>
                 <p class="mb-2 text-sm text-danger" x-show="atencion.mensaje" x-text="atencion.mensaje"></p>
@@ -280,7 +315,7 @@
   window.TEXTOS_ALERTAS = {
     severidades: { {% for s in ["critical", "warning", "info"] %}{{ s | tojson }}: {{ t("alertas.severidad." ~ s) | tojson }},{% endfor %} },
     origenes: { {% for o in ["umbral", "evento", "regla"] %}{{ o | tojson }}: {{ t("alertas.origen." ~ o) | tojson }},{% endfor %} },
-    acciones: { {% for a in ["manual", "falsa_alarma", "regla_eliminada"] %}{{ a | tojson }}: {{ t("alertas.accion." ~ a) | tojson }},{% endfor %} },
+    acciones: { {% for a in ["manual", "falsa_alarma", "regla_eliminada", "desestimada"] %}{{ a | tojson }}: {{ t("alertas.accion." ~ a) | tojson }},{% endfor %} },
     metricas: { {% for m in metricas %}{{ m | tojson }}: {{ t("monitor.metrica." ~ m) | tojson }},{% endfor %} },
     roles: {{ textos_roles | tojson }},
     subtitulo: {{ t("alertas.subtitulo") | tojson }},
@@ -290,6 +325,11 @@
     ordenAtendidas: {{ t("alertas.orden.atendidas") | tojson }},
     sinActivas: {{ t("alertas.sin_activas") | tojson }},
     sinAtendidas: {{ t("alertas.sin_atendidas") | tojson }},
+    hasta: {{ t("alertas.hasta") | tojson }},
+    sinVencimiento: {{ t("alertas.sin_vencimiento") | tojson }},
+    motivo: {{ t("alertas.atender.motivo") | tojson }},
+    comentario: {{ t("alertas.atender.comentario") | tojson }},
+    confirmarReactivar: {{ t("alertas.confirmar_reactivar") | tojson }},
     estadoActiva: {{ t("alertas.estado.activa") | tojson }},
     estadoNormalizada: {{ t("alertas.estado.normalizada") | tojson }},
     estadoAtendida: {{ t("alertas.estado.atendida") | tojson }},

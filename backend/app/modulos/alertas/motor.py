@@ -7,6 +7,7 @@
   un DBA la atienda (CU-000-004-C).
 - Si alguien la atiende mientras la condición persiste, no se vuelve a disparar hasta
   que la condición se normalice y reaparezca.
+- Las condiciones desestimadas por un DBA no generan alertas mientras estén vigentes.
 """
 
 import logging
@@ -36,16 +37,22 @@ class Motor:
         # (conexion_id, clave) → (severidad, último refresco) de las alertas en curso.
         self._en_curso: dict[tuple[str, str], tuple[str, float]] = {}
         self._tenants_cargados: set[str] = set()
-        self._configuracion: dict[str, tuple[float, list, dict]] = {}
+        self._configuracion: dict[str, tuple[float, list, dict, set]] = {}
 
     async def evaluar(self, tenant: Tenant, conexion: Conexion, lectura: Lectura | None) -> None:
         ahora = time.monotonic()
         await self._cargar_en_curso(tenant)
-        reglas, umbrales = await self._configuracion_de(tenant, ahora)
+        reglas, umbrales, desestimadas = await self._configuracion_de(tenant, ahora)
         servidor = sqlserver.servidor_externo(conexion.host, conexion.puerto, conexion.instancia)
         cumplidas, completa = condiciones.evaluar(
             lectura, servidor, umbrales.get(conexion.id, {}), reglas, conexion.id
         )
+        # Lo desestimado se ignora y se olvida: al reactivarse, si la condición sigue,
+        # dispara como una alerta nueva.
+        for c in [c for c in cumplidas if (conexion.id, c.clave) in desestimadas]:
+            cumplidas.remove(c)
+            self._desde.pop((conexion.id, c.clave), None)
+            self._en_curso.pop((conexion.id, c.clave), None)
 
         vigentes = {c.clave for c in cumplidas}
         for c in cumplidas:
@@ -134,19 +141,25 @@ class Motor:
             self._en_curso[(conexion_id, clave)] = (severidad, 0.0)
         self._tenants_cargados.add(tenant_id)
 
-    async def _configuracion_de(self, tenant: Tenant, ahora: float) -> tuple[list, dict]:
+    async def _configuracion_de(self, tenant: Tenant, ahora: float) -> tuple[list, dict, set]:
         tenant_id = str(tenant.id)
         guardada = self._configuracion.get(tenant_id)
         if guardada and ahora - guardada[0] < VIGENCIA_CONFIGURACION_SEGUNDOS:
-            return guardada[1], guardada[2]
+            return guardada[1:]
         reglas = await run_in_threadpool(
             repositorios.listar_reglas, tenant.base_sqlserver, tenant_id
         )
         umbrales = await run_in_threadpool(
             monitor.listar_umbrales_del_tenant, tenant.base_sqlserver, tenant_id
         )
-        self._configuracion[tenant_id] = (ahora, reglas, umbrales)
-        return reglas, umbrales
+        desestimadas = {
+            (d.conexion_id, d.clave)
+            for d in await run_in_threadpool(
+                repositorios.listar_desestimadas, tenant.base_sqlserver, tenant_id
+            )
+        }
+        self._configuracion[tenant_id] = (ahora, reglas, umbrales, desestimadas)
+        return reglas, umbrales, desestimadas
 
     def invalidar_configuracion(self) -> None:
         self._configuracion.clear()
