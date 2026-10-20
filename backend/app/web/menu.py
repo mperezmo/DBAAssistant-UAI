@@ -50,6 +50,7 @@ MENU: tuple[SeccionMenu, ...] = (
 ICONOS = {
     "home": "M3 11 L10 4 L17 11 M5 9 V17 H15 V9",
     "plus": "M10 4 V16 M4 10 H16",
+    "arrow": "M4 10 H16 M11 5 L16 10 L11 15",
     "chat": "M3 4 H17 V13 H10 L6 17 V13 H3 Z",
     "monitor": "M2 10 L5 10 L7 4 L11 16 L13 8 L15 10 L18 10",
     "bell": "M5 14 V9 A5 5 0 0 1 15 9 V14 L17 16 H3 Z M8 18 H12",

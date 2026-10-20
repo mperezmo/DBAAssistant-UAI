@@ -1,19 +1,113 @@
 {% extends "base.html" %}
 
+{% set acciones = [
+  ("chat", "/chat", "chat"),
+  ("workarounds", "/workarounds", "play"),
+  ("monitor", "/monitor", "monitor"),
+  ("sandbox", "/sandbox", "sandbox"),
+] %}
+
 {% block miga %}{{ t("inicio.titulo") }}{% endblock %}
 
 {% block contenido %}
-<div class="page-head">
-  <div class="page-eyebrow">{{ t("menu.operaciones") }}</div>
-  <h1 class="page-title">{{ t("inicio.titulo") }}</h1>
-  <p class="page-subtitle">{{ t("inicio.subtitulo") }}</p>
+<div x-data="inicio()" x-init="iniciar()">
+  <div class="page-head flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <div class="page-eyebrow" x-text="encabezado()"></div>
+      <p class="page-subtitle mt-2" x-html="subtitulo()"></p>
+    </div>
+    <select class="rounded border border-line px-3 py-2 text-sm" x-model="ambiente" @change="cambiarAmbiente()" aria-label="{{ t('inicio.ambiente') }}">
+      <option value="TODOS">{{ t("inicio.todos_ambientes") }}</option>
+      {% for a in ambientes %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+    </select>
+  </div>
+
+  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+
+  <!-- Indicadores -->
+  <div class="mb-5 grid gap-4 sm:grid-cols-2" :class="datos?.workarounds ? 'lg:grid-cols-3' : ''">
+    <div class="card p-[18px]">
+      <div class="mb-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("inicio.instancias") }}</div>
+      <div class="metric-large" style="color: var(--accent)" x-text="datos ? datos.instancias.total : '—'"></div>
+      <div class="mt-1.5 text-xs text-fg-muted" x-text="datos ? TEXTOS.nuevasMes.replace('{n}', datos.instancias.nuevas_mes) : ''"></div>
+    </div>
+    <a class="card block p-[18px]" href="/alertas">
+      <div class="mb-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("inicio.alertas") }}</div>
+      <div class="metric-large" style="color: var(--terracotta)" x-text="datos ? datos.alertas.activas : '—'"></div>
+      <div class="mt-1.5 text-xs text-fg-muted" x-text="datos ? textoCriticas() : ''"></div>
+    </a>
+    <a class="card block p-[18px]" href="/workarounds" x-show="datos?.workarounds" x-cloak>
+      <div class="mb-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("inicio.workarounds") }}</div>
+      <div class="metric-large" style="color: var(--mustard)" x-text="datos?.workarounds?.disponibles ?? '—'"></div>
+      <div class="mt-1.5 text-xs text-fg-muted" x-text="datos?.workarounds ? TEXTOS.nuevosMes.replace('{n}', datos.workarounds.nuevos_mes) : ''"></div>
+    </a>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-[2fr_1fr]">
+    <!-- Acciones rápidas -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow">{{ t("inicio.acciones.eyebrow") }}</div>
+          <h3 class="card-title">{{ t("inicio.acciones.titulo") }}</h3>
+        </div>
+        <span class="tag">{{ t("inicio.acciones.segun_rol") }}</span>
+      </div>
+      <div class="divide-y divide-[var(--line)]">
+        {% for id, ruta, icono in acciones if sesion.puede_ver(id) %}
+        <a href="{{ ruta }}" class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-[var(--bg-sunk)]">
+          <span class="flex size-10 shrink-0 items-center justify-center rounded-sm" style="background: var(--blue-100); color: var(--accent-strong)">
+            {% with nombre=icono, tam=18 %}{% include "parciales/icono.html" %}{% endwith %}
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="mb-0.5 block text-sm font-medium">{{ t("inicio.accion." ~ id ~ ".titulo") }}</span>
+            <span class="block text-[12.5px] text-fg-muted">{{ t("inicio.accion." ~ id ~ ".descripcion") }}</span>
+          </span>
+          {% with nombre="arrow", tam=16 %}{% include "parciales/icono.html" %}{% endwith %}
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Salud general -->
+    <section class="card-deco lg:self-start">
+      <div class="card-deco-inner">
+        <div class="mb-2 font-mono text-[10px] uppercase tracking-[0.15em] text-fg-faint">{{ t("inicio.salud.titulo") }}</div>
+        <div class="metric-large" :style="`color: ${colorDisponibilidad()}`">
+          <span x-text="disponibilidad()"></span><span class="text-2xl text-fg-muted" x-show="datos?.salud.disponibilidad !== null">%</span>
+        </div>
+        <div class="mt-1 font-mono text-[11px] text-fg-muted">{{ t("inicio.salud.sla") }}</div>
+        <div class="ornament">∗ ∗ ∗</div>
+        <div class="grid grid-cols-[1fr_auto] gap-x-3.5 gap-y-2.5 text-[13px]">
+          <span class="text-fg-muted">{{ t("inicio.salud.online") }}</span>
+          <strong class="metric-mono" :class="datos && datos.salud.online < datos.salud.total ? 'text-danger' : ''" x-text="datos ? `${datos.salud.online} / ${datos.salud.total}` : '—'"></strong>
+          <span class="text-fg-muted">{{ t("inicio.salud.latencia") }}</span>
+          <strong class="metric-mono" x-text="datos?.salud.latencia_p95 != null ? `${datos.salud.latencia_p95.toLocaleString()} ms` : '—'"></strong>
+          <span class="text-fg-muted">{{ t("inicio.salud.sesiones") }}</span>
+          <strong class="metric-mono" x-text="datos ? datos.salud.sesiones.toLocaleString() : '—'"></strong>
+          <span class="text-fg-muted">{{ t("inicio.salud.bloqueos") }}</span>
+          <strong class="metric-mono" :style="datos?.salud.bloqueos_prolongados ? 'color: var(--mustard)' : ''" x-text="datos ? datos.salud.bloqueos_prolongados : '—'"></strong>
+        </div>
+      </div>
+    </section>
+  </div>
 </div>
 
-<section class="card">
-  <div class="card-body flex flex-col items-center gap-3 py-12 text-center">
-    <span class="text-fg-faint">{% with nombre="db", tam=32 %}{% include "parciales/icono.html" %}{% endwith %}</span>
-    <h2 class="card-title">{{ t("inicio.vacio.titulo") }}</h2>
-    <p class="max-w-md text-sm text-fg-muted">{{ t("inicio.vacio.texto") }}</p>
-  </div>
-</section>
+<script>
+  window.TEXTOS_INICIO = {
+    eyebrow: {{ t("inicio.eyebrow") | tojson }},
+    resumen: {{ t("inicio.resumen") | tojson }},
+    todos: {{ t("inicio.todos_ambientes_texto") | tojson }},
+    alertasPendientes: {{ t("inicio.alertas_pendientes") | tojson }},
+    sinAlertas: {{ t("inicio.sin_alertas") | tojson }},
+    promociones: {{ t("inicio.promociones") | tojson }},
+    sinInstancias: {{ t("inicio.vacio.texto") | tojson }},
+    nuevasMes: {{ t("inicio.nuevas_mes") | tojson }},
+    nuevosMes: {{ t("inicio.nuevos_mes") | tojson }},
+    criticas: {{ t("inicio.criticas") | tojson }},
+    criticaUna: {{ t("inicio.critica") | tojson }},
+    sinCriticas: {{ t("inicio.sin_criticas") | tojson }},
+  };
+</script>
+<script src="/static/js/inicio.js?v={{ version_estaticos }}"></script>
 {% endblock %}

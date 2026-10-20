@@ -49,7 +49,9 @@ async def inicio(request: Request, tenant: Tenant | None = Depends(tenant_actual
     if sesion is None:
         return RedirectResponse("/ingresar", status_code=303)
     return plantillas.TemplateResponse(
-        request, "paginas/inicio.html", {"activo": "inicio", "sesion": sesion, "tenant": tenant}
+        request,
+        "paginas/inicio.html",
+        {"activo": "inicio", "sesion": sesion, "tenant": tenant, "ambientes": AMBIENTES},
     )
 
 

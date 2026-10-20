@@ -22,6 +22,7 @@ from app.modulos.alertas.motor import Motor
 from app.modulos.chat_ia import api as chat_ia
 from app.modulos.conexiones import api as conexiones
 from app.modulos.contexto_negocio import api as contexto_negocio
+from app.modulos.inicio import api as inicio
 from app.modulos.monitor import api as monitor
 from app.modulos.monitor.recolector import Recolector
 from app.modulos.sandbox import api as sandbox
@@ -108,6 +109,7 @@ def crear_app() -> FastAPI:
     app.include_router(sandbox.router)
     app.include_router(chat_ia.router)
     app.include_router(contexto_negocio.router)
+    app.include_router(inicio.router)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")
