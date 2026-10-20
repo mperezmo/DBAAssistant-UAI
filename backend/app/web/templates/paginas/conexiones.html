@@ -50,9 +50,13 @@
             <span x-show="pruebas[c.id]?.estado === 'probando'" class="text-fg-faint">{{ t("conexiones.probando") }}</span>
             <span x-show="pruebas[c.id]?.estado === 'ok'" class="tag tag-green" :title="pruebas[c.id]?.texto">{{ t("conexiones.ok") }}</span>
             <span x-show="pruebas[c.id]?.estado === 'error'" class="tag tag-red" :title="pruebas[c.id]?.texto">CON_DB_000</span>
+            <span x-show="pruebasWinrm[c.id]?.estado === 'probando'" class="text-fg-faint">{{ t("conexiones.probando") }}</span>
+            <span x-show="pruebasWinrm[c.id]?.estado === 'ok'" class="tag tag-green" :title="pruebasWinrm[c.id]?.texto">WinRM</span>
+            <span x-show="pruebasWinrm[c.id]?.estado === 'error'" class="tag tag-red" :title="pruebasWinrm[c.id]?.texto">WRM_000</span>
           </td>
           <td class="text-right whitespace-nowrap">
             <button class="btn btn-ghost btn-sm" @click="probarGuardada(c)">{{ t("conexiones.probar") }}</button>
+            <button class="btn btn-ghost btn-sm" x-show="c.tiene_winrm" @click="probarWinrmGuardada(c)">{{ t("conexiones.probar_winrm") }}</button>
             <button class="btn btn-ghost btn-sm" @click="abrirEdicion(c)">{{ t("conexiones.editar") }}</button>
             <button class="btn btn-ghost btn-sm" @click="eliminar(c)">{{ t("conexiones.eliminar") }}</button>
           </td>
@@ -130,6 +134,11 @@
             <input type="checkbox" class="size-4" x-model="formulario.winrm_https"> {{ t("conexiones.form.winrm_https") }}
           </label>
         </div>
+        <div x-show="formulario.winrm_usuario">
+          <button type="button" class="btn btn-ghost btn-sm" @click="probarWinrmFormulario()" :disabled="formulario.probando">
+            {{ t("conexiones.probar_winrm") }}
+          </button>
+        </div>
 
         <p class="text-sm" x-show="formulario.mensaje" :class="formulario.mensajeError ? 'text-danger' : 'text-ok'"
            x-text="formulario.mensaje"></p>
@@ -153,6 +162,8 @@
     confirmarEliminar: {{ t("conexiones.confirmar_eliminar") | tojson }},
     confirmarMfa: {{ t("conexiones.confirmar_mfa") | tojson }},
     resultado: {{ t("conexiones.resultado") | tojson }},
+    winrmSinServicios: {{ t("conexiones.winrm_sin_servicios") | tojson }},
+    winrmResultado: {{ t("conexiones.winrm_resultado") | tojson }},
   };
 </script>
 <script src="/static/js/conexiones.js"></script>

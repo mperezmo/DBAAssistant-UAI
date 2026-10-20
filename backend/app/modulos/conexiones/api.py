@@ -84,3 +84,15 @@ async def probar(datos: PruebaEntrada, ctx=contexto) -> dict:
     tenant, _ = ctx
     resultado = await servicios.probar(tenant, datos.a_datos(), datos.id)
     return {"version": resultado.version, "edicion": resultado.edicion, "bases": resultado.bases}
+
+
+@router.post("/probar-winrm")
+async def probar_winrm(datos: PruebaEntrada, ctx=contexto) -> dict:
+    tenant, _ = ctx
+    servicios_sql = await servicios.probar_winrm(tenant, datos.a_datos(), datos.id)
+    return {
+        "servicios": [
+            {"nombre": s.nombre, "nombre_visible": s.nombre_visible, "estado": s.estado}
+            for s in servicios_sql
+        ]
+    }

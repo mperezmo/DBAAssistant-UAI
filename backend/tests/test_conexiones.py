@@ -1,5 +1,6 @@
 import time
 from dataclasses import replace
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -9,11 +10,12 @@ from fastapi.testclient import TestClient
 from app.core import cifrado
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
+from app.datos import winrm
 from app.identidad import sesiones
 from app.identidad.entidades import Sesion
 from app.main import app
 from app.modulos.conexiones import repositorios, servicios
-from app.modulos.conexiones.entidades import DatosConexion, ResultadoPrueba
+from app.modulos.conexiones.entidades import DatosConexion, ResultadoPrueba, ServicioWindows
 from app.tenants import resolucion
 from app.tenants.entidades import Tenant
 from tests.repositorio_falso import RepositorioUsuariosFalso
@@ -302,3 +304,106 @@ async def test_pagina_conexiones(entorno):
 
     assert "Bases de datos" in html and "conexiones.js" in html
     assert 'href="/conexiones"' in html and 'href="/admin"' not in html
+
+
+# --- Prueba de WinRM ----------------------------------------------------------------
+
+
+@pytest.fixture
+def winrm_falso(monkeypatch):
+    llamadas = []
+    respuesta = {"codigo": 0, "salida": "", "error": ""}
+
+    def ejecutar(host, puerto, https, usuario, password, script):
+        llamadas.append((host, puerto, https, usuario, password))
+        if password == "mala":
+            raise ConnectionError("401 Unauthorized")
+        return winrm.ResultadoComando(**respuesta)
+
+    monkeypatch.setattr(winrm, "ejecutar_powershell", ejecutar)
+    return {"llamadas": llamadas, "respuesta": respuesta}
+
+
+async def test_probar_winrm_lista_servicios_y_usa_la_contrasena_guardada(entorno, winrm_falso):
+    guardada = await servicios.crear(
+        TENANT, _actor(), _datos(winrm_usuario="PC\\dba", winrm_password="Win!")
+    )
+    winrm_falso["respuesta"]["salida"] = (
+        '{"Name":"MSSQLSERVER","DisplayName":"SQL Server (MSSQLSERVER)","Status":"Running"}'
+    )
+
+    resultado = await servicios.probar_winrm(
+        TENANT, _datos(winrm_usuario="PC\\dba", winrm_password=None), guardada.id
+    )
+
+    assert resultado == [ServicioWindows("MSSQLSERVER", "SQL Server (MSSQLSERVER)", "Running")]
+    assert winrm_falso["llamadas"] == [("sql01.acme.local", 5985, False, "PC\\dba", "Win!")]
+
+
+async def test_probar_winrm_varios_servicios_o_ninguno(entorno, winrm_falso):
+    datos = _datos(winrm_usuario="PC\\dba", winrm_password="Win!", winrm_https=True)
+    winrm_falso["respuesta"]["salida"] = (
+        '[{"Name":"MSSQL$A","DisplayName":"A","Status":"Running"},'
+        '{"Name":"MSSQL$B","DisplayName":"B","Status":"Stopped"}]'
+    )
+    assert [s.estado for s in await servicios.probar_winrm(TENANT, datos, None)] == [
+        "Running",
+        "Stopped",
+    ]
+    assert winrm_falso["llamadas"][0][1:3] == (5986, True)
+
+    winrm_falso["respuesta"]["salida"] = ""
+    assert await servicios.probar_winrm(TENANT, datos, None) == []
+
+
+@pytest.mark.parametrize(
+    ("cambios", "respuesta", "codigo"),
+    [
+        ({"winrm_usuario": None}, {}, "USR_VAL_002"),
+        ({"winrm_password": "mala"}, {}, "WRM_000"),
+        ({}, {"codigo": 1, "error": "Acceso denegado"}, "WRM_000"),
+        ({}, {"salida": "no es json"}, "WRM_000"),
+    ],
+)
+async def test_probar_winrm_fallas(entorno, winrm_falso, cambios, respuesta, codigo):
+    winrm_falso["respuesta"].update(respuesta)
+    datos = _datos(**{"winrm_usuario": "PC\\dba", "winrm_password": "Win!", **cambios})
+
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.probar_winrm(TENANT, datos, None)
+    assert error.value.codigo == codigo
+
+
+async def test_api_probar_winrm(entorno, winrm_falso):
+    navegador = await _navegador(entorno, "DBA")
+    winrm_falso["respuesta"]["salida"] = (
+        '{"Name":"MSSQLSERVER","DisplayName":"SQL Server","Status":"Stopped"}'
+    )
+
+    respuesta = navegador.post("/api/conexiones/probar-winrm", json=ENTRADA, headers=CABECERA)
+
+    assert respuesta.json() == {
+        "servicios": [
+            {"nombre": "MSSQLSERVER", "nombre_visible": "SQL Server", "estado": "Stopped"}
+        ]
+    }
+
+
+def test_ejecutar_powershell_arma_la_sesion(monkeypatch):
+    creadas = []
+
+    class SesionFalsa:
+        def __init__(self, url, **opciones):
+            creadas.append((url, opciones))
+
+        def run_ps(self, script):
+            return SimpleNamespace(status_code=0, std_out=b"[]", std_err=b"")
+
+    monkeypatch.setattr(winrm.winrm, "Session", SesionFalsa)
+
+    resultado = winrm.ejecutar_powershell("srv", 5986, True, "PC\\dba", "x", "Get-Service")
+
+    assert resultado == winrm.ResultadoComando(0, "[]", "")
+    url, opciones = creadas[0]
+    assert url == "https://srv:5986/wsman"
+    assert opciones["transport"] == "ntlm" and opciones["auth"] == ("PC\\dba", "x")

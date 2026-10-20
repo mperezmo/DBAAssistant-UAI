@@ -18,12 +18,22 @@ document.addEventListener("alpine:init", () => {
       .replace("{edicion}", r.edicion)
       .replace("{bases}", r.bases);
 
+  // Servicios de SQL Server informados por Windows, p. ej. "MSSQLSERVER: Running".
+  const textoWinrm = (r) =>
+    r.servicios.length
+      ? TEXTOS.winrmResultado.replace(
+          "{servicios}",
+          r.servicios.map((s) => `${s.nombre}: ${s.estado}`).join(", "),
+        )
+      : TEXTOS.winrmSinServicios;
+
   Alpine.data("gestionConexiones", () => ({
     conexiones: [],
     cargado: false,
     formulario: null,
     aviso: null,
     pruebas: {},
+    pruebasWinrm: {},
 
     async iniciar() {
       await this.cargar();
@@ -95,6 +105,30 @@ document.addEventListener("alpine:init", () => {
         this.pruebas[c.id] = { estado: "ok", texto: textoResultado(r) };
       } catch (error) {
         this.pruebas[c.id] = { estado: "error", texto: error.message };
+      }
+    },
+
+    async probarWinrmFormulario() {
+      const f = this.formulario;
+      f.probando = true;
+      try {
+        const r = await api("POST", "/api/conexiones/probar-winrm", { ...this.cuerpo(), id: f.id });
+        f.mensaje = textoWinrm(r);
+        f.mensajeError = false;
+      } catch (error) {
+        f.mensaje = error.message;
+        f.mensajeError = true;
+      }
+      f.probando = false;
+    },
+
+    async probarWinrmGuardada(c) {
+      this.pruebasWinrm[c.id] = { estado: "probando" };
+      try {
+        const r = await api("POST", "/api/conexiones/probar-winrm", { ...c, id: c.id });
+        this.pruebasWinrm[c.id] = { estado: "ok", texto: textoWinrm(r) };
+      } catch (error) {
+        this.pruebasWinrm[c.id] = { estado: "error", texto: error.message };
       }
     },
 

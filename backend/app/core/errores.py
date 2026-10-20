@@ -41,6 +41,7 @@ CATALOGO: dict[str, DefinicionError] = {
     "CON_DB_000": DefinicionError("No se logró conectar a la instancia.", 422),
     "CON_DB_001": DefinicionError("Ya existe una conexión con ese alias.", 409),
     "CON_DB_002": DefinicionError("Conexión no encontrada.", 404),
+    "WRM_000": DefinicionError("No se logró conectar al servidor Windows (WinRM).", 422),
     "AKV_000": DefinicionError("Falla en el almacenamiento de credenciales.", 500),
     "AMB_VAL_000": DefinicionError(
         "La operación sobre PROD requiere confirmar con el segundo factor.", 403

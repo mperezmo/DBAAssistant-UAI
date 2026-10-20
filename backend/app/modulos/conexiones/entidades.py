@@ -48,3 +48,10 @@ class ResultadoPrueba:
     version: str
     edicion: str
     bases: int
+
+
+@dataclass(frozen=True)
+class ServicioWindows:
+    nombre: str
+    nombre_visible: str
+    estado: str

@@ -1,5 +1,6 @@
 """Casos de uso de conexiones: configurar, modificar, eliminar y probar (CU-000-000)."""
 
+import json
 import logging
 import re
 from dataclasses import replace
@@ -8,13 +9,18 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core import cifrado
 from app.core.errores import ErrorDominio
-from app.datos import sqlserver
+from app.datos import sqlserver, winrm
 from app.identidad import reautenticacion
 from app.identidad.entidades import AMBIENTES, Sesion
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.conexiones import repositorios
-from app.modulos.conexiones.entidades import Conexion, DatosConexion, ResultadoPrueba
+from app.modulos.conexiones.entidades import (
+    Conexion,
+    DatosConexion,
+    ResultadoPrueba,
+    ServicioWindows,
+)
 from app.tenants.entidades import Tenant
 
 log = logging.getLogger(__name__)
@@ -103,6 +109,59 @@ async def probar(tenant: Tenant, datos: DatosConexion, conexion_id: str | None) 
     datos = _validar(replace(datos, password_sql=password), nueva=True)
     servidor = sqlserver.servidor_externo(datos.host, datos.puerto, datos.instancia)
     return await run_in_threadpool(_probar, servidor, datos.usuario_sql, password)
+
+
+# Lista los servicios del motor (MSSQLSERVER o MSSQL$INSTANCIA) con su estado.
+SCRIPT_SERVICIOS_SQL = (
+    "Get-Service -Name 'MSSQLSERVER','MSSQL$*' -ErrorAction SilentlyContinue | "
+    "Select-Object Name, DisplayName, @{n='Status';e={$_.Status.ToString()}} | "
+    "ConvertTo-Json -Compress"
+)
+
+
+def _probar_winrm(
+    host: str, puerto: int, https: bool, usuario: str, password: str
+) -> list[ServicioWindows]:
+    try:
+        resultado = winrm.ejecutar_powershell(
+            host, puerto, https, usuario, password, SCRIPT_SERVICIOS_SQL
+        )
+    except Exception as error:
+        # Red, puerto cerrado, credenciales rechazadas (401) o certificado.
+        raise ErrorDominio("WRM_000", str(error)) from error
+    if resultado.codigo != 0:
+        raise ErrorDominio("WRM_000", resultado.error.strip()[:500])
+    try:
+        datos = json.loads(resultado.salida) if resultado.salida.strip() else []
+    except ValueError as error:
+        raise ErrorDominio("WRM_000", "Respuesta inesperada de PowerShell.") from error
+    if isinstance(datos, dict):  # PowerShell devuelve un objeto si hay un solo servicio
+        datos = [datos]
+    return [ServicioWindows(d["Name"], d["DisplayName"], d["Status"]) for d in datos]
+
+
+async def probar_winrm(
+    tenant: Tenant, datos: DatosConexion, conexion_id: str | None
+) -> list[ServicioWindows]:
+    """Prueba WinRM con los datos del formulario y lista los servicios de SQL Server.
+
+    Sin contraseña de Windows usa la guardada de la conexión.
+    """
+    password = datos.winrm_password
+    if not password and conexion_id:
+        cifrada = (await obtener(tenant, conexion_id)).winrm_password_cifrada
+        password = cifrado.descifrar(cifrada) if cifrada else None
+    datos = _validar(datos, nueva=False)
+    if not datos.winrm_usuario or not password:
+        raise ErrorDominio("USR_VAL_002", "Usuario y contraseña de Windows son obligatorios.")
+    return await run_in_threadpool(
+        _probar_winrm,
+        datos.host,
+        datos.winrm_puerto,
+        datos.winrm_https,
+        datos.winrm_usuario,
+        password,
+    )
 
 
 async def crear(tenant: Tenant, actor: Sesion, datos: DatosConexion) -> Conexion:
