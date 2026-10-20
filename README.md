@@ -165,6 +165,7 @@ Commits con [Conventional Commits](https://www.conventionalcommits.org/es/).
 
 ## Documentación
 
+- [`docs/guia-desarrollo.md`](docs/guia-desarrollo.md): reglas, forma de trabajo y estado del proyecto.
 - [`docs/arquitectura.md`](docs/arquitectura.md): diagrama, decisiones y correspondencia con el código.
 - [`docs/auth0.md`](docs/auth0.md): configuración de Auth0 paso a paso.
 - [`docs/winrm.md`](docs/winrm.md): preparación de servidores Windows para WinRM.
