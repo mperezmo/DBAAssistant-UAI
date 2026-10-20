@@ -1,5 +1,6 @@
 """Rutas que devuelven páginas HTML."""
 
+import hashlib
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
@@ -16,8 +17,25 @@ from app.web.menu import ICONOS, MENU
 DIRECTORIO_WEB = Path(__file__).parent
 DIRECTORIO_ESTATICOS = DIRECTORIO_WEB / "static"
 
+
+def _version_estaticos() -> str:
+    """Huella de los estáticos y plantillas (de estas sale el CSS compilado).
+
+    NGINX los entrega con caché larga; agregarla a cada URL obliga al navegador a
+    pedir la versión nueva apenas cambia algún archivo.
+    """
+    huella = hashlib.sha256()
+    for archivo in sorted(DIRECTORIO_WEB.rglob("*")):
+        if archivo.is_file() and archivo.suffix != ".pyc":
+            huella.update(archivo.relative_to(DIRECTORIO_WEB).as_posix().encode())
+            huella.update(archivo.read_bytes())
+    return huella.hexdigest()[:12]
+
+
 plantillas = Jinja2Templates(directory=DIRECTORIO_WEB / "templates")
-plantillas.env.globals.update(t=traducir, menu=MENU, iconos=ICONOS)
+plantillas.env.globals.update(
+    t=traducir, menu=MENU, iconos=ICONOS, version_estaticos=_version_estaticos()
+)
 
 router = APIRouter(include_in_schema=False)
 

@@ -1,3 +1,4 @@
+import re
 import time
 from dataclasses import replace
 from types import SimpleNamespace
@@ -304,6 +305,8 @@ async def test_pagina_conexiones(entorno):
 
     assert "Bases de datos" in html and "conexiones.js" in html
     assert 'href="/conexiones"' in html and 'href="/admin"' not in html
+    # Los estáticos llevan la versión en la URL para no quedar en la caché del navegador.
+    assert re.search(r'src="/static/js/conexiones\.js\?v=[0-9a-f]{12}"', html)
 
 
 # --- Prueba de WinRM ----------------------------------------------------------------

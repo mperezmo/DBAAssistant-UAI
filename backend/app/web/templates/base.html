@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}{{ t("app.nombre") }}{% endblock %}</title>
   <meta name="theme-color" content="#1E4FBF">
-  <link rel="manifest" href="/static/manifest.webmanifest">
-  <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+  <link rel="manifest" href="/static/manifest.webmanifest?v={{ version_estaticos }}">
+  <link rel="icon" href="/static/img/logo.svg?v={{ version_estaticos }}" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/app.css">
-  <script src="/static/js/api.js"></script>
-  <script defer src="/static/js/vendor/alpine-3.17.4.min.js"></script>
-  <script defer src="/static/js/app.js"></script>
+  <link rel="stylesheet" href="/static/css/app.css?v={{ version_estaticos }}">
+  <script src="/static/js/api.js?v={{ version_estaticos }}"></script>
+  <script defer src="/static/js/vendor/alpine-3.17.4.min.js?v={{ version_estaticos }}"></script>
+  <script defer src="/static/js/app.js?v={{ version_estaticos }}"></script>
 </head>
 <body>
 <div class="app-shell">
