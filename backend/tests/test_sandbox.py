@@ -183,8 +183,18 @@ async def test_sincronizar_ejecutar_y_promover(sbx, monkeypatch):
     dba = _actor()
 
     assert (await servicios.estado(TENANT, conexion.id))["estado"] == "sin_crear"
+    # Mientras la primera sincronización sigue en curso, la segunda no se repite.
+    liberar = asyncio.Event()
+    sincronizar_real = cliente.sincronizar
+
+    async def sincronizar_lento(*args):
+        await liberar.wait()
+        return await sincronizar_real(*args)
+
+    monkeypatch.setattr(cliente, "sincronizar", sincronizar_lento)
     await servicios.sincronizar(TENANT, dba, conexion.id)
-    await servicios.sincronizar(TENANT, dba, conexion.id)  # ya en curso: no repite
+    await servicios.sincronizar(TENANT, dba, conexion.id)
+    liberar.set()
     await _terminar()
     estado = await servicios.estado(TENANT, conexion.id)
     assert estado["estado"] == "listo" and "ROTA: x" in estado["error"]
