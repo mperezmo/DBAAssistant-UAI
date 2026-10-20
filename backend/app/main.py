@@ -19,7 +19,9 @@ from app.identidad import api as identidad
 from app.identidad import api_usuarios
 from app.modulos.alertas import api as alertas
 from app.modulos.alertas.motor import Motor
+from app.modulos.chat_ia import api as chat_ia
 from app.modulos.conexiones import api as conexiones
+from app.modulos.contexto_negocio import api as contexto_negocio
 from app.modulos.monitor import api as monitor
 from app.modulos.monitor.recolector import Recolector
 from app.modulos.sandbox import api as sandbox
@@ -77,9 +79,10 @@ async def manejar_error_dominio(request: Request, error: ErrorDominio):
     log.info("Error de dominio %s en %s: %s", error.codigo, request.url.path, error.detalle)
     estado = error.definicion.estado_http
     if request.url.path.startswith("/api/"):
-        return JSONResponse(
-            {"codigo": error.codigo, "mensaje": error.definicion.mensaje}, status_code=estado
-        )
+        cuerpo = {"codigo": error.codigo, "mensaje": error.definicion.mensaje}
+        if error.datos:
+            cuerpo["datos"] = error.datos
+        return JSONResponse(cuerpo, status_code=estado)
     contexto = {
         "codigo": error.codigo,
         "mensaje": error.definicion.mensaje,
@@ -103,6 +106,8 @@ def crear_app() -> FastAPI:
     app.include_router(web_push.router)
     app.include_router(workarounds.router)
     app.include_router(sandbox.router)
+    app.include_router(chat_ia.router)
+    app.include_router(contexto_negocio.router)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

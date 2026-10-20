@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% set acciones = ["SELECT", "INSERT", "UPDATE", "DELETE", "DDL"] %}
+
+{% block miga %}{{ t("menu.contexto") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="contexto()" x-init="iniciar()">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("contexto.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("contexto.titulo") }} <em>{{ t("contexto.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle" x-text="subtitulo()"></p>
+  </div>
+
+  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+  <p class="mb-4 text-sm text-fg-muted" x-show="cargado && !conexiones.length" x-cloak>{{ t("contexto.sin_conexiones") }}</p>
+
+  <div class="mb-5 flex flex-wrap items-center gap-2.5" x-show="conexiones.length" x-cloak>
+    <select class="rounded border border-line px-3 py-2 text-sm" x-model="conexionId" @change="cambioConexion()" aria-label="{{ t('contexto.instancia') }}">
+      <template x-for="c in conexiones" :key="c.id"><option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option></template>
+    </select>
+    <select class="rounded border border-line px-3 py-2 text-sm" x-model="base" @change="cargar()" aria-label="{{ t('contexto.base') }}">
+      <template x-for="b in bases()" :key="b"><option :value="b" x-text="b"></option></template>
+    </select>
+    <button class="btn btn-ghost btn-sm" @click="cargarEsquema(true)" :disabled="leyendoEsquema" x-text="leyendoEsquema ? TEXTOS.leyendo : TEXTOS.actualizarEsquema"></button>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-[auto_minmax(0,1fr)]" x-show="conexiones.length" x-cloak>
+    <section class="card min-w-[220px] lg:self-start">
+      <div class="card-head"><h3 class="card-title">{{ t("contexto.categorias") }}</h3></div>
+      <div class="py-2">
+        <template x-for="c in ['sensibles', 'terminos', 'reglas']" :key="c">
+          <button class="flex w-full justify-between px-[18px] py-2.5 text-left text-[13.5px]"
+                  :style="categoria === c ? 'background: var(--blue-100); color: var(--accent-strong); font-weight: 500; border-left: 2px solid var(--accent)' : 'border-left: 2px solid transparent'"
+                  @click="categoria = c">
+            <span x-text="TEXTOS.categorias[c]"></span>
+            <span class="metric-mono text-[11px] text-fg-faint" x-text="datos[c].length"></span>
+          </button>
+        </template>
+      </div>
+    </section>
+
+    <!-- Tablas sensibles (CU-000-006-A) -->
+    <section class="card" x-show="categoria === 'sensibles'">
+      <div class="card-head flex-wrap gap-3">
+        <div>
+          <div class="card-eyebrow">{{ t("contexto.sensibles.eyebrow") }}</div>
+          <h3 class="card-title" x-text="`${TEXTOS.categorias.sensibles} · ${datos.sensibles.length}`"></h3>
+        </div>
+        <button class="btn btn-primary btn-sm" x-show="puedeEditar" @click="nuevo('sensibles')">
+          {% with nombre="plus", tam=13 %}{% include "parciales/icono.html" %}{% endwith %} {{ t("contexto.sensibles.nueva") }}
+        </button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead><tr><th>{{ t("contexto.col.base") }}</th><th>{{ t("contexto.col.tabla") }}</th><th>{{ t("contexto.col.columnas") }}</th><th>{{ t("contexto.col.restriccion") }}</th><th>{{ t("contexto.col.roles") }}</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="s in datos.sensibles" :key="s.id">
+              <tr :class="puedeEditar ? 'cursor-pointer' : ''" @click="editar('sensibles', s)">
+                <td><span class="tag tag-blue px-1.5 py-px text-[9.5px]" x-text="s.base"></span></td>
+                <td class="metric-mono" x-text="s.tabla"></td>
+                <td class="text-xs text-fg-muted" x-text="s.columnas.join(', ') || '—'"></td>
+                <td><div class="flex flex-wrap gap-1"><template x-for="r in restricciones(s)" :key="r"><span class="tag tag-yellow" x-text="r"></span></template></div></td>
+                <td class="metric-mono text-[11.5px]" x-text="s.roles_consulta.map((r) => TEXTOS.roles[r]).join(', ')"></td>
+                <td>›</td>
+              </tr>
+            </template>
+            <tr x-show="!datos.sensibles.length"><td colspan="6" class="text-center text-fg-muted">{{ t("contexto.vacio") }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Glosario (CU-000-006-B) -->
+    <section class="card" x-show="categoria === 'terminos'">
+      <div class="card-head flex-wrap gap-3">
+        <div>
+          <div class="card-eyebrow">{{ t("contexto.terminos.eyebrow") }}</div>
+          <h3 class="card-title" x-text="`${TEXTOS.terminosDefinidos} · ${datos.terminos.length}`"></h3>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <input class="rounded border border-line px-2 py-1.5 text-sm" placeholder="{{ t('contexto.buscar') }}" x-model="busqueda">
+          <button class="btn btn-primary btn-sm" x-show="puedeEditar" @click="nuevo('terminos')">
+            {% with nombre="plus", tam=13 %}{% include "parciales/icono.html" %}{% endwith %} {{ t("contexto.terminos.nuevo") }}
+          </button>
+        </div>
+      </div>
+      <div class="grid gap-3.5 p-5 md:grid-cols-2 xl:grid-cols-3">
+        <template x-for="g in terminosFiltrados()" :key="g.id">
+          <div class="rounded-sm border border-line p-3.5" :class="puedeEditar ? 'cursor-pointer' : ''" @click="editar('terminos', g)">
+            <div class="mb-1.5 font-serif text-[15px] font-medium" x-text="g.termino"></div>
+            <div class="metric-mono text-[11.5px] leading-normal text-fg-muted" x-text="`${g.base}.${g.entidad}${g.descripcion ? ' · ' + g.descripcion : ''}`"></div>
+            <div class="mt-1.5 text-[11px] text-fg-faint" x-show="g.sinonimos.length" x-text="`${TEXTOS.sinonimos}: ${g.sinonimos.join(', ')}`"></div>
+          </div>
+        </template>
+        <p class="text-sm text-fg-muted" x-show="!terminosFiltrados().length">{{ t("contexto.vacio") }}</p>
+      </div>
+    </section>
+
+    <!-- Reglas (CU-000-006-C) -->
+    <section class="card" x-show="categoria === 'reglas'">
+      <div class="card-head flex-wrap gap-3">
+        <div>
+          <div class="card-eyebrow">{{ t("contexto.reglas.eyebrow") }}</div>
+          <h3 class="card-title" x-text="`${TEXTOS.categorias.reglas} · ${datos.reglas.length}`"></h3>
+        </div>
+        <button class="btn btn-primary btn-sm" x-show="puedeEditar" @click="nuevo('reglas')">
+          {% with nombre="plus", tam=13 %}{% include "parciales/icono.html" %}{% endwith %} {{ t("contexto.reglas.nueva") }}
+        </button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead><tr><th>{{ t("contexto.col.regla") }}</th><th>{{ t("contexto.col.ambito") }}</th><th>{{ t("contexto.col.acciones") }}</th><th>{{ t("contexto.col.prioridad") }}</th><th>{{ t("contexto.col.efecto") }}</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="r in datos.reglas" :key="r.id">
+              <tr :class="[puedeEditar ? 'cursor-pointer' : '', r.activa ? '' : 'opacity-50']" @click="editar('reglas', r)">
+                <td class="text-[13px]" x-text="r.descripcion"></td>
+                <td class="text-xs text-fg-muted" x-text="ambito(r)"></td>
+                <td class="metric-mono text-[11px]" x-text="r.acciones.join(', ')"></td>
+                <td x-text="TEXTOS.prioridades[r.prioridad]"></td>
+                <td><span class="tag" :class="r.efecto === 'bloquear' ? 'tag-red' : 'tag-yellow'" x-text="TEXTOS.efectos[r.efecto]"></span></td>
+                <td>›</td>
+              </tr>
+            </template>
+            <tr x-show="!datos.reglas.length"><td colspan="6" class="text-center text-fg-muted">{{ t("contexto.vacio") }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Formularios -->
+  <template x-if="formulario">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
+       @click.self="formulario = null" @keydown.escape.window="formulario = null">
+    <form class="card mx-2 w-full max-w-2xl" @submit.prevent="guardar()">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow" x-text="`${conexionActual()?.alias || ''} · ${base}`"></div>
+          <h3 class="card-title" x-text="TEXTOS.titulosFormulario[formulario.tipo]"></h3>
+        </div>
+      </div>
+      <div class="card-body grid gap-3.5 text-sm sm:grid-cols-2">
+        <template x-if="formulario.tipo === 'sensibles'">
+          <div class="contents">
+            <div class="sm:col-span-2">
+              <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="s-tabla">{{ t("contexto.form.tabla") }}</label>
+              <select id="s-tabla" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="formulario.tabla" required @change="formulario.columnas = []">
+                <option value="">—</option>
+                <template x-for="tb in tablas()" :key="tb"><option :value="tb" x-text="tb"></option></template>
+              </select>
+            </div>
+            <div class="sm:col-span-2">
+              <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("contexto.form.columnas") }}</div>
+              <div class="flex max-h-40 flex-wrap gap-x-4 gap-y-1.5 overflow-y-auto">
+                <template x-for="c in columnasDe(formulario.tabla)" :key="c">
+                  <label class="flex items-center gap-2"><input type="checkbox" class="size-4" :value="c" x-model="formulario.columnas"> <span class="metric-mono text-xs" x-text="c"></span></label>
+                </template>
+              </div>
+            </div>
+            <div>
+              <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("contexto.form.roles_consulta") }}</div>
+              {% for r in roles %}<label class="flex items-center gap-2"><input type="checkbox" class="size-4" value="{{ r }}" x-model="formulario.roles_consulta"> {{ textos_roles[r] }}</label>{% endfor %}
+            </div>
+            <div>
+              <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("contexto.form.roles_ven") }}</div>
+              {% for r in roles %}<label class="flex items-center gap-2"><input type="checkbox" class="size-4" value="{{ r }}" x-model="formulario.roles_ven_columnas"> {{ textos_roles[r] }}</label>{% endfor %}
+            </div>
+            <label class="flex items-center gap-2 sm:col-span-2"><input type="checkbox" class="size-4" x-model="formulario.doble_confirmacion"> {{ t("contexto.form.doble_confirmacion") }}</label>
+            <div class="field sm:col-span-2"><label for="s-desc">{{ t("contexto.form.descripcion") }}</label><input id="s-desc" maxlength="500" x-model="formulario.descripcion"></div>
+          </div>
+        </template>
+
+        <template x-if="formulario.tipo === 'terminos'">
+          <div class="contents">
+            <div class="field"><label for="g-termino">{{ t("contexto.form.termino") }}</label><input id="g-termino" required maxlength="100" x-model="formulario.termino"></div>
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="g-entidad">{{ t("contexto.form.entidad") }}</label>
+              <select id="g-entidad" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="formulario.entidad" required>
+                <option value="">—</option>
+                <template x-for="tb in tablas()" :key="tb"><option :value="tb" x-text="tb"></option></template>
+              </select>
+            </div>
+            <div class="field sm:col-span-2"><label for="g-sin">{{ t("contexto.form.sinonimos") }}</label><input id="g-sin" maxlength="500" x-model="formulario.sinonimos"></div>
+            <div class="sm:col-span-2">
+              <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="g-desc">{{ t("contexto.form.definicion") }}</label>
+              <textarea id="g-desc" rows="3" maxlength="1000" class="w-full rounded border border-line px-3 py-2 font-mono text-xs" x-model="formulario.descripcion" placeholder="{{ t('contexto.form.definicion_ejemplo') }}"></textarea>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="formulario.tipo === 'reglas'">
+          <div class="contents">
+            <div class="field sm:col-span-2"><label for="r-desc">{{ t("contexto.form.descripcion_regla") }}</label><input id="r-desc" required maxlength="500" x-model="formulario.descripcion" placeholder="{{ t('contexto.form.regla_ejemplo') }}"></div>
+            <div class="sm:col-span-2">
+              <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("contexto.form.acciones") }}</div>
+              <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                {% for a in acciones %}<label class="flex items-center gap-2"><input type="checkbox" class="size-4" value="{{ a }}" x-model="formulario.acciones"> {{ a }}</label>{% endfor %}
+              </div>
+            </div>
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="r-efecto">{{ t("contexto.form.efecto") }}</label>
+              <select id="r-efecto" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="formulario.efecto">
+                <option value="advertir">{{ t("contexto.efecto.advertir") }}</option>
+                <option value="bloquear">{{ t("contexto.efecto.bloquear") }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="r-prioridad">{{ t("contexto.form.prioridad") }}</label>
+              <select id="r-prioridad" class="w-full rounded border border-line px-3 py-2 text-sm" x-model.number="formulario.prioridad">
+                {% for p in [1, 2, 3] %}<option value="{{ p }}">{{ t("contexto.prioridad." ~ p) }}</option>{% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="r-conexion">{{ t("contexto.form.alcance_instancia") }}</label>
+              <select id="r-conexion" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="formulario.solo_esta">
+                <option value="no">{{ t("contexto.form.todas_instancias") }}</option>
+                <option value="si" x-text="`${TEXTOS.soloEsta} (${conexionActual()?.alias || ''})`"></option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="r-base">{{ t("contexto.form.alcance_base") }}</label>
+              <select id="r-base" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="formulario.base">
+                <option value="">{{ t("contexto.form.todas_bases") }}</option>
+                <template x-for="b in bases()" :key="b"><option :value="b" x-text="b"></option></template>
+              </select>
+            </div>
+            <div>
+              <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("contexto.form.ambientes") }}</div>
+              <div class="flex gap-4">
+                {% for a in ambientes %}<label class="flex items-center gap-2"><input type="checkbox" class="size-4" value="{{ a }}" x-model="formulario.ambientes"> {{ a }}</label>{% endfor %}
+              </div>
+            </div>
+            <div class="field"><label for="r-tablas">{{ t("contexto.form.tablas") }}</label><input id="r-tablas" maxlength="2000" x-model="formulario.tablas" placeholder="dbo.facturas, dbo.clientes"></div>
+            <div class="field"><label for="r-desde">{{ t("contexto.form.desde") }}</label><input id="r-desde" type="time" x-model="formulario.desde"></div>
+            <div class="field"><label for="r-hasta">{{ t("contexto.form.hasta") }}</label><input id="r-hasta" type="time" x-model="formulario.hasta"></div>
+            <p class="text-xs text-fg-muted sm:col-span-2">{{ t("contexto.form.franja_ayuda") }}</p>
+            <label class="flex items-center gap-2 sm:col-span-2"><input type="checkbox" class="size-4" x-model="formulario.activa"> {{ t("contexto.form.activa") }}</label>
+          </div>
+        </template>
+        <p class="text-sm text-danger sm:col-span-2" x-show="formulario.mensaje" x-text="formulario.mensaje"></p>
+      </div>
+      <div class="card-foot justify-between gap-2">
+        <button type="button" class="btn btn-ghost btn-sm" x-show="formulario.id" @click="eliminar()">{{ t("contexto.eliminar") }}</button>
+        <span class="flex-1"></span>
+        <button type="button" class="btn btn-ghost btn-sm" @click="formulario = null">{{ t("contexto.cancelar") }}</button>
+        <button type="submit" class="btn btn-primary btn-sm" :disabled="formulario.guardando">{{ t("contexto.guardar") }}</button>
+      </div>
+    </form>
+  </div>
+  </template>
+</div>
+
+<script>
+  window.TEXTOS_CONTEXTO = {
+    subtitulo: {{ t("contexto.subtitulo") | tojson }},
+    leyendo: {{ t("contexto.leyendo_esquema") | tojson }},
+    actualizarEsquema: {{ t("contexto.actualizar_esquema") | tojson }},
+    terminosDefinidos: {{ t("contexto.terminos.titulo") | tojson }},
+    sinonimos: {{ t("contexto.form.sinonimos") | tojson }},
+    soloEsta: {{ t("contexto.form.solo_esta") | tojson }},
+    todas: {{ t("contexto.todas") | tojson }},
+    confirmarEliminar: {{ t("contexto.confirmar_eliminar") | tojson }},
+    categorias: { sensibles: {{ t("contexto.categoria.sensibles") | tojson }}, terminos: {{ t("contexto.categoria.terminos") | tojson }}, reglas: {{ t("contexto.categoria.reglas") | tojson }} },
+    titulosFormulario: { sensibles: {{ t("contexto.sensibles.form") | tojson }}, terminos: {{ t("contexto.terminos.form") | tojson }}, reglas: {{ t("contexto.reglas.form") | tojson }} },
+    restricciones: { doble: {{ t("contexto.restriccion.doble") | tojson }}, mascara: {{ t("contexto.restriccion.mascara") | tojson }}, rol: {{ t("contexto.restriccion.rol") | tojson }} },
+    efectos: { bloquear: {{ t("contexto.efecto.bloquear") | tojson }}, advertir: {{ t("contexto.efecto.advertir") | tojson }} },
+    prioridades: { {% for p in [1, 2, 3] %}{{ p }}: {{ t("contexto.prioridad." ~ p) | tojson }},{% endfor %} },
+    roles: {{ textos_roles | tojson }},
+  };
+</script>
+<script src="/static/js/contexto.js?v={{ version_estaticos }}"></script>
+{% endblock %}

@@ -74,8 +74,16 @@ class Configuracion(BaseSettings):
     auth0_tolerancia_reloj_segundos: int = 60
     sesion_duracion_segundos: int = 8 * 60 * 60
 
-    # IA generativa (Anthropic Claude API).
+    # IA generativa (Anthropic Claude API). La clave es un secreto
+    # (SECRETO_ANTHROPIC_API_KEY). El esfuerzo bajo prioriza la latencia: el TFI pide
+    # traducir en menos de 5 s (percentil 95).
     ia_modelo: str = "claude-haiku-5-5"
+    ia_esfuerzo: str = "low"
+
+    # Chat IA: filas que se muestran de un SELECT (el CSV exporta todas) y tiempo máximo
+    # de cada consulta sobre la instancia.
+    chat_filas_pantalla: int = 1000
+    chat_timeout_consulta_segundos: int = 60
 
     @property
     def auth0_configurado(self) -> bool:

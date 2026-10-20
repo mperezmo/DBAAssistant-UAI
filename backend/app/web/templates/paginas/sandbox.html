@@ -184,6 +184,14 @@
             </tbody>
           </table>
         </template>
+        <template x-if="promocion.datos">
+          <div class="space-y-1 text-xs">
+            <p class="text-warn" x-show="promocion.datos.segundo_factor">{{ t("sandbox.promocion.mfa") }}</p>
+            <template x-for="r in [...promocion.datos.reglas_bloqueo, ...promocion.datos.advertencias]" :key="r.id">
+              <p :class="r.efecto === 'bloquear' ? 'text-danger' : 'text-warn'" x-text="`{{ t('sandbox.promocion.reglas') }} · ${r.descripcion}`"></p>
+            </template>
+          </div>
+        </template>
         <p class="text-xs text-fg-muted">{{ t("sandbox.promocion.ayuda") }}</p>
         <p class="text-sm" :class="promocion.exito ? 'text-ok' : 'text-danger'" x-show="promocion.mensaje" x-text="promocion.mensaje"></p>
       </div>

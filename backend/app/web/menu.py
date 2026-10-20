@@ -22,7 +22,7 @@ MENU: tuple[SeccionMenu, ...] = (
         "menu.operaciones",
         (
             ItemMenu("inicio", "menu.inicio", "home", "/"),
-            ItemMenu("chat", "menu.chat", "chat"),
+            ItemMenu("chat", "menu.chat", "chat", "/chat"),
             ItemMenu("monitor", "menu.monitor", "monitor", "/monitor"),
             ItemMenu("alertas", "menu.alertas", "bell", "/alertas"),
             ItemMenu("workarounds", "menu.workarounds", "play", "/workarounds"),
@@ -32,7 +32,7 @@ MENU: tuple[SeccionMenu, ...] = (
     SeccionMenu(
         "menu.conocimiento",
         (
-            ItemMenu("contexto", "menu.contexto", "book"),
+            ItemMenu("contexto", "menu.contexto", "book", "/contexto"),
             ItemMenu("schema", "menu.schema", "history"),
             ItemMenu("auditoria", "menu.auditoria", "audit"),
         ),

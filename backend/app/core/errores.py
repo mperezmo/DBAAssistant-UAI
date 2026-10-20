@@ -82,6 +82,28 @@ CATALOGO: dict[str, DefinicionError] = {
         "Solo se puede promover una ejecución exitosa que no haya sido promovida.", 409
     ),
     "SQL_EXE_000": DefinicionError("Falla en la ejecución sobre la instancia.", 422),
+    "SQL_VAL_001": DefinicionError(
+        "Este tipo de sentencia no se ejecuta directo: validala en el Sandbox y promovela.", 422
+    ),
+    "SQL_VAL_002": DefinicionError("UPDATE, DELETE e INSERT…SELECT requieren un WHERE.", 422),
+    "SQL_LCK_000": DefinicionError(
+        "Hay transacciones abiertas o bloqueos sobre las tablas involucradas; reintentá más tarde.",
+        409,
+    ),
+    "IA_API_000": DefinicionError("Error de comunicación con el motor IA.", 502),
+    "IA_TRA_000": DefinicionError("No se pudo traducir la consulta.", 422),
+    "CHT_VAL_000": DefinicionError("Conversación no encontrada.", 404),
+    "CTX_VAL_000": DefinicionError("Elemento del contexto de negocio no encontrado.", 404),
+    "CTX_VAL_001": DefinicionError(
+        "La operación involucra una tabla sensible: requiere confirmar con el segundo factor.", 403
+    ),
+    "CTX_VAL_002": DefinicionError("Conflicto con una regla existente.", 409),
+    "CTX_VAL_003": DefinicionError("Entidad técnica no encontrada en el esquema.", 422),
+    "CTX_VAL_004": DefinicionError("Término ya definido.", 409),
+    "CTX_REG_000": DefinicionError("Una regla de negocio bloquea la operación.", 403),
+    "CTX_REG_001": DefinicionError(
+        "La operación incumple reglas de negocio de advertencia: confirmá para continuar.", 409
+    ),
     "WRM_000": DefinicionError("No se logró conectar al servidor Windows (WinRM).", 422),
     "AKV_000": DefinicionError("Falla en el almacenamiento de credenciales.", 500),
     "AMB_VAL_000": DefinicionError(
@@ -98,10 +120,12 @@ CATALOGO: dict[str, DefinicionError] = {
 class ErrorDominio(Exception):
     """Error de negocio identificado por un código del catálogo."""
 
-    def __init__(self, codigo: str, detalle: str | None = None):
+    def __init__(self, codigo: str, detalle: str | None = None, datos: dict | None = None):
         if codigo not in CATALOGO:
             raise ValueError(f"Código de error no catalogado: {codigo}")
         self.codigo = codigo
         self.definicion = CATALOGO[codigo]
         self.detalle = detalle
+        # Datos que sí se muestran al usuario (el detalle queda solo en el log).
+        self.datos = datos
         super().__init__(f"[{codigo}] {self.definicion.mensaje} {detalle or ''}".strip())

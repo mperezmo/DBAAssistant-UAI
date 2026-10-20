@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("menu.chat") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="chat()" x-init="iniciar()" class="max-w-[1280px]">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("chat.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("chat.titulo") }} <em>{{ t("chat.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle">{{ t("chat.subtitulo") }}</p>
+  </div>
+
+  <p class="mb-4 text-sm text-fg-muted" x-show="cargado && !conexiones.length" x-cloak>{{ t("chat.sin_conexiones") }}</p>
+
+  <!-- Instancia y conversaciones guardadas -->
+  <div class="mb-4 flex flex-wrap items-center gap-2.5" x-show="conexiones.length" x-cloak>
+    <select class="w-full rounded border border-line px-3 py-2 text-sm sm:w-auto" x-model="conexionId" :disabled="!!hiloId" aria-label="{{ t('chat.instancia') }}">
+      <template x-for="c in conexiones" :key="c.id"><option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option></template>
+    </select>
+    <select class="w-full rounded border border-line px-3 py-2 text-sm sm:w-auto sm:min-w-[260px] sm:max-w-[360px]" x-model="hiloId" @change="abrirHilo(hiloId)" aria-label="{{ t('chat.conversaciones') }}">
+      <option value="">{{ t("chat.nueva_conversacion") }}</option>
+      <template x-for="h in hilos" :key="h.id"><option :value="h.id" x-text="h.titulo"></option></template>
+    </select>
+    <button class="btn btn-ghost btn-sm" x-show="hiloId" @click="nuevo()">{{ t("chat.nueva") }}</button>
+    <button class="btn btn-ghost btn-sm" x-show="hiloId" @click="eliminarHilo()">{{ t("chat.eliminar") }}</button>
+  </div>
+
+  <!-- Conversación -->
+  <section class="card mb-[18px]">
+    <div class="card-head flex-wrap gap-3">
+      <div>
+        <div class="card-eyebrow" x-text="hiloId ? `${TEXTOS.conversacion} · ${titulo}` : TEXTOS.conversacionNueva"></div>
+        <h3 class="card-title">{{ t("chat.hilo_activo") }}</h3>
+      </div>
+      <span class="tag tag-blue" x-show="conexionActual()" x-text="`${conexionActual()?.alias} · ${conexionActual()?.ambiente}`"></span>
+    </div>
+
+    <div class="space-y-[18px] px-[22px] py-5" x-ref="mensajes">
+      <p class="text-sm text-fg-muted" x-show="!mensajes.length">{{ t("chat.vacio") }}</p>
+      <template x-for="m in mensajes" :key="m.id">
+        <div>
+          <template x-if="m.rol === 'usuario'">
+            <div class="flex"><div class="burbuja-usuario" x-text="m.texto"></div></div>
+          </template>
+          <template x-if="m.rol === 'asistente'">
+            <div class="flex gap-3">
+              <div class="avatar-ia">AI</div>
+              <div class="min-w-0 flex-1 text-[13.5px] leading-relaxed">
+                <p class="mb-3" x-text="m.explicacion"></p>
+                <template x-if="m.sql">
+                  <div>
+                    <div class="mb-3.5 flex flex-wrap gap-2">
+                      <span class="tag tag-blue" x-text="m.base"></span>
+                      <span class="tag" x-show="m.revision?.tipo" :class="m.revision?.tipo === 'SELECT' ? 'tag-green' : 'tag-yellow'" x-text="TEXTOS.tipos[m.revision?.tipo] || m.revision?.tipo"></span>
+                      <span class="self-center text-[11px] text-fg-faint">{{ t("chat.fuente_automatica") }}</span>
+                    </div>
+                    <div class="bloque-sql">
+                      <div class="flex items-center gap-2.5 border-b border-line px-3 py-[7px] font-mono text-[11px] uppercase tracking-[0.06em] text-fg-faint">
+                        <span x-text="`query.sql · ${lineas(m)} ${lineas(m) === 1 ? TEXTOS.linea : TEXTOS.lineas}`"></span>
+                        <span class="flex-1"></span>
+                        <span class="tag px-1.5 py-px text-[9.5px]" :class="m.confianza >= 80 ? 'tag-green' : m.confianza >= 50 ? 'tag-yellow' : 'tag-red'" x-text="`${m.confianza}% ${TEXTOS.confianza}`"></span>
+                      </div>
+                      <pre class="m-0 max-h-60 overflow-auto p-3.5 font-mono text-xs leading-relaxed" x-show="edicion?.id !== m.id" x-text="m.sql"></pre>
+                      <template x-if="edicion?.id === m.id">
+                        <textarea class="block min-h-[160px] w-full resize-y border-0 bg-transparent p-3.5 font-mono text-xs leading-relaxed outline-none" spellcheck="false"
+                                  x-model="edicion.sql" @input.debounce.600ms="revisarEdicion(m)"></textarea>
+                      </template>
+                    </div>
+
+                    <!-- Qué se puede hacer con la sentencia -->
+                    <div class="mt-2.5 space-y-1 text-xs" x-show="revision(m)">
+                      <p class="text-danger" x-show="revision(m)?.error" x-text="revision(m)?.error"></p>
+                      <p class="text-warn" x-show="revision(m)?.motivo" x-text="TEXTOS.motivos[revision(m)?.motivo]"></p>
+                      <p class="text-fg-muted" x-show="revision(m)?.segundo_factor">{{ t("chat.requiere_mfa") }}</p>
+                      <p class="text-fg-muted" x-show="(revision(m)?.sensibles || []).length" x-text="`${TEXTOS.sensibles}: ${(revision(m)?.sensibles || []).join(', ')}`"></p>
+                      <template x-for="r in [...(revision(m)?.reglas_bloqueo || []), ...(revision(m)?.advertencias || [])]" :key="r.id">
+                        <p :class="r.efecto === 'bloquear' ? 'text-danger' : 'text-warn'" x-text="`${TEXTOS.efectos[r.efecto]}: ${r.descripcion}`"></p>
+                      </template>
+                    </div>
+
+                    <div class="mt-3.5 flex flex-wrap gap-2">
+                      <button class="btn btn-primary btn-sm" x-show="revision(m)?.directo" :disabled="ocupado" @click="ejecutar(m)">
+                        {% with nombre="play", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+                        <span x-text="`${TEXTOS.ejecutarEn} ${conexionActual()?.ambiente || ''}`"></span>
+                      </button>
+                      <button class="btn btn-ghost btn-sm" x-show="revision(m)?.puede_sandbox" :disabled="ocupado" @click="validarEnSandbox(m)">
+                        {% with nombre="sandbox", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+                        {{ t("chat.validar_sandbox") }}
+                      </button>
+                      <button class="btn btn-ghost btn-sm" @click="alternarEdicion(m)" x-text="edicion?.id === m.id ? TEXTOS.descartarEdicion : TEXTOS.editar"></button>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Resultado de la ejecución o del Sandbox -->
+                <div class="burbuja-resumen mt-3 flex flex-wrap items-center gap-2.5" x-show="m.ejecucion">
+                  <span class="text-ok">✓</span>
+                  <div class="flex-1" x-text="resumenEjecucion(m)"></div>
+                  <button class="btn btn-ghost btn-sm" x-show="m.ejecucion?.tipo === 'SELECT' && resultado?.mensajeId !== m.id" @click="ejecutar(m, true)">{{ t("chat.ver_resultado") }}</button>
+                  <span class="metric-mono text-[11px] text-fg-faint" x-text="hora(m.ejecucion?.ts)"></span>
+                </div>
+                <div class="burbuja-resumen mt-3 flex flex-wrap items-center gap-2.5" x-show="m.sandbox">
+                  <span :class="m.sandbox?.estado === 'ok' ? 'text-ok' : 'text-danger'" x-text="m.sandbox?.estado === 'ok' ? '✓' : '✕'"></span>
+                  <div class="flex-1" x-text="resumenSandbox(m)"></div>
+                  <a class="btn btn-ghost btn-sm" :href="`/sandbox?registro=${m.sandbox?.registro_id}`">{{ t("chat.abrir_sandbox") }}</a>
+                </div>
+                <p class="mt-2 text-sm text-danger" x-show="errores[m.id]" x-text="errores[m.id]"></p>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+      <div class="flex gap-3" x-show="traduciendo">
+        <div class="avatar-ia">AI</div>
+        <p class="text-sm text-fg-muted">{{ t("chat.traduciendo") }}</p>
+      </div>
+    </div>
+
+    <!-- Composer -->
+    <div class="border-t border-line px-[18px] pb-4 pt-3.5" style="background: var(--bg-sunk)">
+      <div class="rounded border px-3 py-2.5" style="border-color: var(--line-strong); background: var(--bg-elev)">
+        <textarea class="min-h-11 w-full resize-none border-0 bg-transparent text-sm leading-normal outline-none" x-model="texto"
+                  placeholder="{{ t('chat.placeholder') }}" @keydown.enter="atajo($event)"></textarea>
+        <div class="mt-1.5 flex flex-wrap items-center gap-2.5">
+          <span class="text-[11.5px] text-fg-faint">✓ {{ t("chat.elige_base") }}</span>
+          <span class="flex-1"></span>
+          <span class="hidden font-mono text-[10.5px] text-fg-faint sm:inline"><span class="kbd">Ctrl</span> + <span class="kbd">↵</span></span>
+          <button class="btn btn-primary btn-sm" :disabled="traduciendo || !texto.trim() || !conexionId" @click="enviar()">{{ t("chat.traducir") }} →</button>
+        </div>
+      </div>
+      <p class="mt-2 text-sm text-danger" x-show="error" x-text="error"></p>
+      <div class="mt-2 flex flex-wrap gap-3.5 text-[11px] text-fg-faint">
+        <span>● {{ t("chat.nota.ia") }}</span><span>● {{ t("chat.nota.mfa") }}</span><span>● {{ t("chat.nota.auditado") }}</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Resultados (CU-000-001-B) -->
+  <section class="card" x-show="resultado" x-cloak>
+    <template x-if="resultado">
+      <div>
+        <div class="card-head flex-wrap gap-3">
+          <div>
+            <div class="card-eyebrow" x-text="`${TEXTOS.resultado} · ${resultado.datos.duracion_ms} ms`"></div>
+            <h3 class="card-title" x-text="tituloResultado()"></h3>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-ghost btn-sm" :disabled="ocupado" @click="ejecutar(mensajePorId(resultado.mensajeId), true)">{{ t("chat.refrescar") }}</button>
+            <a class="btn btn-ghost btn-sm" :href="`/api/chat/hilos/${hiloId}/mensajes/${resultado.mensajeId}/csv`" x-show="resultado.datos.total">{{ t("chat.exportar") }}</a>
+          </div>
+        </div>
+        <p class="px-5 pt-3 text-xs text-fg-muted" x-show="resultado.datos.enmascaradas.length">{{ t("chat.columnas_enmascaradas") }}</p>
+        <p class="card-body text-sm text-fg-muted" x-show="!resultado.datos.total">{{ t("chat.sin_registros") }}</p>
+        <div class="overflow-x-auto" x-show="resultado.datos.total">
+          <table class="data-table text-[12.5px]">
+            <thead>
+              <tr>
+                <template x-for="(c, i) in resultado.datos.columnas" :key="i">
+                  <th class="cursor-pointer whitespace-nowrap" @click="ordenar(i)">
+                    <span x-text="c"></span><span x-show="resultado.datos.enmascaradas.includes(i)"> 🔒</span>
+                    <span x-show="orden.columna === i" x-text="orden.ascendente ? ' ▲' : ' ▼'"></span>
+                  </th>
+                </template>
+              </tr>
+              <tr>
+                <template x-for="(c, i) in resultado.datos.columnas" :key="i">
+                  <th class="py-1"><input class="w-full min-w-16 rounded border border-line px-1.5 py-1 text-xs font-normal normal-case tracking-normal" :placeholder="TEXTOS.filtrar" x-model.debounce.300ms="filtros[i]" @input="pagina = 0"></th>
+                </template>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(f, k) in paginaActual()" :key="k">
+                <tr><template x-for="(v, j) in f" :key="j"><td class="metric-mono whitespace-nowrap" :class="v === null ? 'text-fg-faint' : ''" x-text="v ?? 'NULL'"></td></template></tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot flex-wrap justify-between gap-2 text-xs text-fg-muted" x-show="resultado.datos.total">
+          <span x-text="textoPaginacion()"></span>
+          <div class="flex gap-2">
+            <button class="btn btn-ghost btn-sm" :disabled="pagina === 0" @click="pagina--">←</button>
+            <button class="btn btn-ghost btn-sm" :disabled="(pagina + 1) * POR_PAGINA >= filtradas().length" @click="pagina++">→</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </section>
+</div>
+
+<script>
+  window.TEXTOS_CHAT = {
+    conversacion: {{ t("chat.conversacion") | tojson }},
+    conversacionNueva: {{ t("chat.conversacion_nueva") | tojson }},
+    linea: {{ t("chat.linea") | tojson }},
+    lineas: {{ t("chat.lineas") | tojson }},
+    confianza: {{ t("chat.confianza") | tojson }},
+    ejecutarEn: {{ t("chat.ejecutar_en") | tojson }},
+    editar: {{ t("chat.editar") | tojson }},
+    descartarEdicion: {{ t("chat.descartar_edicion") | tojson }},
+    sensibles: {{ t("chat.sensibles") | tojson }},
+    resultado: {{ t("chat.resultado") | tojson }},
+    filtrar: {{ t("chat.filtrar") | tojson }},
+    mostrando: {{ t("chat.mostrando") | tojson }},
+    registros: {{ t("chat.registros") | tojson }},
+    paginacion: {{ t("chat.paginacion") | tojson }},
+    ejecutada: {{ t("chat.ejecutada") | tojson }},
+    afectadas: {{ t("chat.afectadas") | tojson }},
+    sandboxOk: {{ t("chat.sandbox_ok") | tojson }},
+    sandboxError: {{ t("chat.sandbox_error") | tojson }},
+    confirmarEliminar: {{ t("chat.confirmar_eliminar") | tojson }},
+    confirmarMfa: {{ t("chat.confirmar_mfa") | tojson }},
+    confirmarAdvertencias: {{ t("chat.confirmar_advertencias") | tojson }},
+    sesionesBloqueando: {{ t("chat.sesiones_bloqueando") | tojson }},
+    tipos: { {% for tipo in ["SELECT", "INSERT", "UPDATE", "DELETE", "SANDBOX"] %}{{ tipo | tojson }}: {{ t("chat.tipo." ~ tipo) | tojson }},{% endfor %} },
+    motivos: { {% for m in ["sandbox", "solo_lectura", "falta_where", "tabla_restringida", "regla"] %}{{ m | tojson }}: {{ t("chat.motivo." ~ m) | tojson }},{% endfor %} },
+    efectos: { bloquear: {{ t("contexto.efecto.bloquear") | tojson }}, advertir: {{ t("contexto.efecto.advertir") | tojson }} },
+  };
+</script>
+<script src="/static/js/chat.js?v={{ version_estaticos }}"></script>
+{% endblock %}

@@ -128,6 +128,14 @@ El servicio `sandbox` crea un contenedor SQL Server por cada servidor registrado
 La primera sincronización de un servidor descarga la imagen de SQL Server y tarda
 varios minutos.
 
+### Chat IA
+
+El chat traduce los pedidos en lenguaje natural a T-SQL con la API de Claude. Completar
+`SECRETO_ANTHROPIC_API_KEY` en el `.env` (la clave se crea en console.anthropic.com). El
+modelo y el esfuerzo se ajustan con `IA_MODELO` e `IA_ESFUERZO`. Conviene cargar antes el
+**Contexto de Negocio** (glosario, reglas y tablas sensibles) de cada base: es lo que le
+indica a la IA dónde está cada dato.
+
 ### Desarrollo del backend sin Docker
 
 Requiere [uv](https://docs.astral.sh/uv/) y el driver *ODBC Driver 18 for SQL Server*.

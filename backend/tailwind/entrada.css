@@ -69,6 +69,46 @@
   }
 }
 
+/* Chat IA: burbujas de la conversación (componente ChatBubble del diseño). */
+.burbuja-usuario {
+  margin-left: auto;
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 12px 12px 4px 12px;
+  background: var(--blue-700);
+  color: #fff;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.avatar-ia {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--blue-100);
+  border-radius: 50%;
+  background: var(--blue-50);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.burbuja-resumen {
+  padding: 9px 13px;
+  border: 1px solid rgba(79, 122, 71, 0.25);
+  border-radius: var(--radius-sm);
+  background: var(--sage-bg);
+  font-size: 13px;
+}
+.bloque-sql {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunk);
+}
+
 /* Alpine.js: oculta elementos hasta que el componente inicializa. */
 [x-cloak] {
   display: none !important;

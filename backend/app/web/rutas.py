@@ -128,6 +128,26 @@ async def sandbox(request: Request, tenant: Tenant | None = Depends(tenant_actua
     return await _pagina_de_modulo(request, tenant, "sandbox", "paginas/sandbox.html", {})
 
 
+@router.get("/chat", response_class=HTMLResponse)
+async def chat(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(request, tenant, "chat", "paginas/chat.html", {})
+
+
+@router.get("/contexto", response_class=HTMLResponse)
+async def contexto(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(
+        request,
+        tenant,
+        "contexto",
+        "paginas/contexto.html",
+        {
+            "roles": ROLES,
+            "ambientes": AMBIENTES,
+            "textos_roles": {r: traducir(f"rol.{r}") for r in ROLES},
+        },
+    )
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
     return await _pagina_de_modulo(

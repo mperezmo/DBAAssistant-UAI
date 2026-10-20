@@ -15,6 +15,7 @@ window.DBA = {
     if (!respuesta.ok) {
       const error = new Error(`${datos.mensaje} (${datos.codigo})`);
       error.codigo = datos.codigo;
+      error.datos = datos.datos;
       throw error;
     }
     return datos;

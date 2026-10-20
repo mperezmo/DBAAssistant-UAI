@@ -22,6 +22,8 @@ BITACORAS = (
     "bitacora_sandbox",
 )
 COLECCION_METRICAS = "metricas"
+COLECCION_CONTEXTO = "contexto_negocio"
+COLECCION_HILOS = "chat_hilos"
 
 
 @lru_cache
@@ -48,6 +50,23 @@ async def preparar_base_tenant(nombre: str) -> None:
             [("ts", ASCENDING)], expireAfterSeconds=RETENCION_BITACORAS_SEGUNDOS, name="ttl_ts"
         )
         await db[coleccion].create_index([("usuario", ASCENDING), ("ts", ASCENDING)])
+
+    # Una tabla sensible o un término por base: el índice único evita duplicados.
+    await db[COLECCION_CONTEXTO].create_index(
+        [
+            ("tenant_id", ASCENDING),
+            ("tipo", ASCENDING),
+            ("conexion_id", ASCENDING),
+            ("base", ASCENDING),
+            ("clave", ASCENDING),
+        ],
+        unique=True,
+        partialFilterExpression={"clave": {"$exists": True}},
+        name="unico_por_base",
+    )
+    await db[COLECCION_HILOS].create_index(
+        [("usuario_id", ASCENDING), ("actualizado_en", ASCENDING)]
+    )
 
     retencion = obtener_configuracion().monitor_retencion_dias * 24 * 60 * 60
     if COLECCION_METRICAS not in existentes:

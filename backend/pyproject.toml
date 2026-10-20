@@ -18,6 +18,8 @@ dependencies = [
     "pywebpush>=2.5.0",
     "tzdata>=2026.5",
     "docker>=7.2.0",
+    "anthropic>=1.15.0",
+    "sqlglot>=30.23.0",
 ]
 
 [dependency-groups]

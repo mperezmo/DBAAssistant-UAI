@@ -18,8 +18,10 @@ from app.identidad.entidades import Sesion
 from app.modulos.alertas import notificaciones
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
+from app.modulos.chat_ia.analizador import analizar
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
+from app.modulos.contexto_negocio import servicios as contexto
 from app.modulos.sandbox import cliente, repositorios
 from app.tenants.entidades import Tenant
 from app.web.i18n import traducir
@@ -358,6 +360,10 @@ async def previa(tenant: Tenant, actor: Sesion, registro_id: str) -> dict:
     estimado = await run_in_threadpool(
         _plan_estimado, conexion, registro["base"], lotes_de(registro["sql"])
     )
+    analisis = analizar(registro["sql"], registro["base"])
+    bloqueos, advertencias = await contexto.evaluar_reglas(
+        tenant, conexion, registro["base"], analisis
+    )
     return {
         "sandbox": {
             "filas": registro["filas"],
@@ -369,12 +375,20 @@ async def previa(tenant: Tenant, actor: Sesion, registro_id: str) -> dict:
         "conexion": conexion.alias,
         "ambiente": conexion.ambiente,
         "base": registro["base"],
+        "reglas_bloqueo": bloqueos,
+        "advertencias": advertencias,
+        "segundo_factor": conexion.ambiente == "PROD" or analisis.destructiva,
     }
 
 
 async def promover(tenant: Tenant, actor: Sesion, registro_id: str) -> dict:
     registro, conexion = await _promovible(tenant, actor, registro_id)
-    if conexion.ambiente == "PROD":
+    analisis = analizar(registro["sql"], registro["base"])
+    bloqueos, _ = await contexto.evaluar_reglas(tenant, conexion, registro["base"], analisis)
+    if bloqueos:
+        raise ErrorDominio("CTX_REG_000", None, {"reglas": bloqueos})
+    # PROD y las sentencias destructivas (DELETE, TRUNCATE, DROP) piden segundo factor.
+    if conexion.ambiente == "PROD" or analisis.destructiva:
         reautenticacion.exigir_segundo_factor_reciente(actor)
     lotes = lotes_de(registro["sql"])
     try:

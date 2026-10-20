@@ -22,13 +22,11 @@ Los códigos de error marcados con *(nuevo)* no existen en el catálogo del TFI.
 
 | Acción del actor | Respuesta del sistema |
 |---|---|
-| 1- Desde la vista de resultados presiona **Exportar**. | 2- Ofrece el formato CSV y la opción de exportar todo o solo lo filtrado. |
-| 3- Elige y confirma. | 4- Genera el archivo con las columnas sensibles enmascaradas según su rol. |
-| | 5- Descarga el archivo y registra la exportación (usuario, consulta, filas). |
+| 1- Desde la vista de resultados presiona **Exportar CSV**. | 2- Vuelve a ejecutar la consulta y genera el archivo con **todas** las filas (no solo las que se muestran), con las columnas sensibles enmascaradas según su rol. |
+| | 3- Descarga el archivo y registra la exportación (usuario, consulta, filas). |
 
 **Flujo alternativo**
-- 4.0 Resultado vacío: no se habilita la exportación.
-- 4.1 Volumen excede el límite [Error-EXP_LIM_000].
+- 2.0 Resultado vacío: no se habilita la exportación.
 
 ---
 

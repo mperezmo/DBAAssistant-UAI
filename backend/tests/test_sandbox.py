@@ -10,6 +10,7 @@ import pytest
 from app.core.errores import ErrorDominio
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.sandbox import cliente, programador, repositorios, servicios
+from tests import contexto_falso
 from tests.test_conexiones import (
     CABECERA,
     TENANT,
@@ -160,7 +161,9 @@ def sbx(entorno, monkeypatch):  # noqa: F811
     monkeypatch.setattr(servicios, "_bases_de_usuario", lambda conexion: ["ERP", "ROTA"])
     monkeypatch.setattr(servicios.notificaciones, "avisar", avisar)
     monkeypatch.setattr(servicios.auditoria, "registrar_transaccion", registrar_transaccion)
+    contexto = contexto_falso.instalar(monkeypatch)
     return {
+        "contexto": contexto,
         **entorno,
         "filas": filas,
         "bitacora": bitacora,
@@ -251,6 +254,52 @@ async def test_sincronizar_ejecutar_y_promover(sbx, monkeypatch):
         await servicios.promover(TENANT, con_factor, otro["id"])
     assert error.value.codigo == "SQL_EXE_000" and "FK violada" in sbx["avisos"][-1]
     assert sbx["bitacora"][otro["id"]]["promocion"] is None
+
+
+async def test_promover_destructiva_y_reglas(sbx, monkeypatch):
+    conexion = await conexiones.crear(TENANT, _actor(), _datos(ambiente="DEV"))
+    dba = _actor()
+    await servicios.sincronizar(TENANT, dba, conexion.id)
+    await _terminar()
+    monkeypatch.setattr(servicios, "_plan_estimado", lambda c, b, lotes: {"filas_estimadas": 1})
+    monkeypatch.setattr(servicios, "_ejecutar_real", lambda c, b, lotes: 1)
+
+    # En DEV un UPDATE no pide segundo factor; un TRUNCATE sí (destructiva).
+    update = await servicios.ejecutar(TENANT, dba, conexion.id, "ERP", "UPDATE t SET a = 1", False)
+    assert (await servicios.previa(TENANT, dba, update["id"]))["segundo_factor"] is False
+    assert (await servicios.promover(TENANT, dba, update["id"]))["estado"] == "exitosa"
+    truncate = await servicios.ejecutar(TENANT, dba, conexion.id, "ERP", "TRUNCATE TABLE t", False)
+    assert (await servicios.previa(TENANT, dba, truncate["id"]))["segundo_factor"] is True
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.promover(TENANT, dba, truncate["id"])
+    assert error.value.codigo == "AMB_VAL_000"
+
+    # Una regla de bloqueo sobre DDL impide promover; las de advertencia se muestran.
+    sbx["contexto"]["r1"] = {
+        "tipo": "regla",
+        "tenant_id": str(TENANT.id),
+        "descripcion": "Sin DDL",
+        "acciones": ["DDL"],
+        "efecto": "bloquear",
+        "prioridad": 1,
+        "conexion_id": None,
+        "base": None,
+        "ambientes": [],
+        "tablas": [],
+        "desde": None,
+        "hasta": None,
+        "activa": True,
+    }
+    sbx["contexto"]["r2"] = {**sbx["contexto"]["r1"], "descripcion": "Ojo", "efecto": "advertir"}
+    alter = await servicios.ejecutar(
+        TENANT, dba, conexion.id, "ERP", "ALTER TABLE t ADD b INT", False
+    )
+    previa = await servicios.previa(TENANT, dba, alter["id"])
+    assert [r["descripcion"] for r in previa["reglas_bloqueo"]] == ["Sin DDL"]
+    assert [r["descripcion"] for r in previa["advertencias"]] == ["Ojo"]
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.promover(TENANT, dba, alter["id"])
+    assert error.value.codigo == "CTX_REG_000" and error.value.datos["reglas"][0]["id"] == "r1"
 
 
 async def test_sincronizacion_fallida_y_servicio_caido(sbx, monkeypatch):
