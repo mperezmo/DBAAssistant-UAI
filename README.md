@@ -95,6 +95,18 @@ GRANT VIEW SERVER STATE TO [login_de_la_conexion];
 
 El recolector empieza a leer una conexión nueva en hasta 30 segundos.
 
+### Notificaciones push
+
+1. Generar las claves VAPID y copiarlas al `.env`:
+   ```bash
+   docker compose run --rm backend python -m app.cli generar-vapid
+   ```
+   Completar también `VAPID_CONTACTO=mailto:<email del responsable>`.
+2. En **Alertas → Activar notificaciones en este dispositivo**.
+
+El navegador solo registra el service worker con HTTPS y un certificado confiable; con el
+certificado autofirmado de desarrollo el push no se activa.
+
 ### Desarrollo del backend sin Docker
 
 Requiere [uv](https://docs.astral.sh/uv/) y el driver *ODBC Driver 18 for SQL Server*.

@@ -16,6 +16,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from typing import Protocol
 
 import pyodbc
 from starlette.concurrency import run_in_threadpool
@@ -36,6 +37,9 @@ VIGENCIA_CANDADO_SEGUNDOS = 15
 # Las conexiones nuevas o modificadas se incorporan en, como máximo, este tiempo.
 VIGENCIA_CATALOGO_SEGUNDOS = 30
 TIMEOUT_CONEXION_SEGUNDOS = 3
+# Sin límite, una instancia que cae a mitad de una consulta dejaría la lectura colgada
+# y la caída no se detectaría.
+TIMEOUT_CONSULTA_SEGUNDOS = 10
 HILOS = 8
 
 
@@ -43,8 +47,16 @@ def _ahora() -> str:
     return datetime.now(UTC).isoformat()
 
 
+class Evaluador(Protocol):
+    async def evaluar(
+        self, tenant: Tenant, conexion: Conexion, resultado: lectura.Lectura | None
+    ) -> None: ...
+
+
 class Recolector:
-    def __init__(self) -> None:
+    def __init__(self, evaluador: Evaluador | None = None) -> None:
+        # Las alertas se evalúan sobre cada lectura (o falla) de cada instancia.
+        self._evaluador = evaluador
         self._id = uuid.uuid4().hex
         self._hilos = ThreadPoolExecutor(max_workers=HILOS, thread_name_prefix="monitor")
         # Por conexión: conexión ODBC abierta (con la huella de sus datos), estado entre
@@ -120,6 +132,7 @@ class Recolector:
                 )
             except Exception as error:
                 await self._registrar_falla(tenant, conexion, error)
+                await self._evaluar(tenant, conexion, None)
                 return
             estado = {
                 "estado": "ok",
@@ -133,6 +146,7 @@ class Recolector:
                 log.info("Se recuperó la conexión con %s.", conexion.alias)
             self._ultimas[conexion.id] = estado
             await repositorios.guardar_estado(str(tenant.id), conexion.id, estado)
+            await self._evaluar(tenant, conexion, resultado)
             await repositorios.insertar_muestra(
                 tenant.base_mongodb, conexion.id, ts, resultado.valores
             )
@@ -140,6 +154,16 @@ class Recolector:
             log.exception("No se pudo guardar la lectura de %s.", conexion.alias)
         finally:
             self._en_curso.discard(conexion.id)
+
+    async def _evaluar(
+        self, tenant: Tenant, conexion: Conexion, resultado: lectura.Lectura | None
+    ) -> None:
+        if self._evaluador is None:
+            return
+        try:
+            await self._evaluador.evaluar(tenant, conexion, resultado)
+        except Exception:
+            log.exception("No se pudieron evaluar las alertas de %s.", conexion.alias)
 
     async def _registrar_falla(self, tenant: Tenant, conexion: Conexion, error: Exception) -> None:
         anterior = self._ultimas.get(conexion.id, {})
@@ -183,6 +207,7 @@ class Recolector:
             cifrado.descifrar(conexion.password_sql_cifrada),
             timeout=TIMEOUT_CONEXION_SEGUNDOS,
         )
+        abierta.timeout = TIMEOUT_CONSULTA_SEGUNDOS
         self._abiertas[conexion.id] = (huella, abierta)
         return abierta
 

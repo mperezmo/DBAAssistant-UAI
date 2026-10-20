@@ -17,6 +17,12 @@
 - Alertas por email.
 - Firma digital del PDF de auditoría.
 
+## Pendientes de infraestructura
+
+- **Túnel público para probar push en el celular:** Cloudflare Tunnel con un dominio propio
+  (`*.<dominio>` con certificado válido hacia el NGINX local). Se configura cuando haya
+  dominio; es un desvío temporal del diagrama hasta el despliegue en Azure.
+
 ## Para investigar más adelante
 
 - Herramientas de calidad: evaluar sumar chequeo de tipos (mypy o pyright) y linter para JavaScript y plantillas.

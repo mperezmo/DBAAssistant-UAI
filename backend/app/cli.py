@@ -5,6 +5,7 @@ Uso (dentro del contenedor del backend):
     python -m app.cli migrar
     python -m app.cli sincronizar-auth0 --slug acme
     python -m app.cli generar-clave
+    python -m app.cli generar-vapid
 """
 
 import argparse
@@ -46,6 +47,16 @@ def _generar_clave(_: argparse.Namespace) -> None:
     print(f"SECRETO_CLAVE_CIFRADO={cifrado.generar_clave()}")
 
 
+def _generar_vapid(_: argparse.Namespace) -> None:
+    from app.modulos.web_push.servicios import generar_claves
+
+    publica, privada = generar_claves()
+    print("Agregar al .env (la clave privada no se comparte ni se versiona):")
+    print(f"VAPID_CLAVE_PUBLICA={publica}")
+    print(f"SECRETO_VAPID_CLAVE_PRIVADA={privada}")
+    print("VAPID_CONTACTO=mailto:<email de contacto del responsable>")
+
+
 def main(argumentos: list[str] | None = None) -> int:
     configurar_registro(obtener_configuracion().log_nivel)
     parser = argparse.ArgumentParser(prog="python -m app.cli")
@@ -70,6 +81,11 @@ def main(argumentos: list[str] | None = None) -> int:
         "generar-clave", help="Genera la clave maestra para cifrar credenciales."
     )
     generar.set_defaults(funcion=_generar_clave)
+
+    vapid = comandos.add_parser(
+        "generar-vapid", help="Genera las claves VAPID para las notificaciones push."
+    )
+    vapid.set_defaults(funcion=_generar_vapid)
 
     args = parser.parse_args(argumentos)
     try:

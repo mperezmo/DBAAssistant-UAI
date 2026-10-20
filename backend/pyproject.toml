@@ -15,6 +15,7 @@ dependencies = [
     "httpx2>=2.14.0",
     "pyjwt[crypto]>=2.15.1",
     "pywinrm>=0.5.0",
+    "pywebpush>=2.5.0",
 ]
 
 [dependency-groups]

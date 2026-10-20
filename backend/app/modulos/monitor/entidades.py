@@ -51,3 +51,5 @@ class Lectura:
     valores: dict[str, float | None]
     bloqueos: list[dict] = field(default_factory=list)
     volumenes: list[dict] = field(default_factory=list)
+    bases_no_disponibles: list[dict] = field(default_factory=list)
+    logs: list[dict] = field(default_factory=list)

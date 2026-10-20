@@ -43,6 +43,11 @@ class Configuracion(BaseSettings):
     monitor_intervalo_segundos: int = 3
     monitor_retencion_dias: int = 30
 
+    # Notificaciones push (Web Push con VAPID). La clave privada es un secreto
+    # (SECRETO_VAPID_CLAVE_PRIVADA); se generan con ``python -m app.cli generar-vapid``.
+    vapid_clave_publica: str = ""
+    vapid_contacto: str = ""
+
     # Identidad (Auth0). Cada tenant es una Organization y entra por su subdominio
     # (<slug>.<dominio_base>).
     dominio_base: str = "localhost"

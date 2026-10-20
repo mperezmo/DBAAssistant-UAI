@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from app.core.errores import ErrorDominio
 from app.identidad.dependencias import sesion_actual, tenant_actual
 from app.identidad.entidades import AMBIENTES, ROLES
+from app.modulos.monitor.entidades import METRICAS
 from app.tenants.entidades import Tenant
 from app.web.i18n import traducir
 from app.web.menu import ICONOS, MENU
@@ -89,6 +90,22 @@ async def conexiones(request: Request, tenant: Tenant | None = Depends(tenant_ac
 @router.get("/monitor", response_class=HTMLResponse)
 async def monitor(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
     return await _pagina_de_modulo(request, tenant, "monitor", "paginas/monitor.html", {})
+
+
+@router.get("/alertas", response_class=HTMLResponse)
+async def alertas(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(
+        request,
+        tenant,
+        "alertas",
+        "paginas/alertas.html",
+        {
+            "roles": ROLES,
+            "ambientes": AMBIENTES,
+            "metricas": list(METRICAS),
+            "textos_roles": {rol: traducir(f"rol.{rol}") for rol in ROLES},
+        },
+    )
 
 
 @router.get("/admin", response_class=HTMLResponse)

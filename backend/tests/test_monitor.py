@@ -57,6 +57,8 @@ def _respuestas(logins=100, cpu=42):
         lectura.CONSULTA_ACTIVIDAD: [(7, 215, logins)],
         lectura.CONSULTA_BLOQUEOS: [(87, 52, "ERP", "KEY: 5:72", "LCK_M_X", 28_400)],
         lectura.CONSULTA_DEADLOCKS: [(2,)],
+        lectura.CONSULTA_BASES: [("ERP", "SUSPECT")],
+        lectura.CONSULTA_LOGS: [("ERP", 93), ("CRM", 12)],
         lectura.CONSULTA_COSTOSAS: [(14_820, 124, "  EXEC sp_Facturar  ")],
     }
 
@@ -86,6 +88,8 @@ def test_leer_calcula_metricas_tasas_y_bloqueos():
         "uso": 60.0,
     }
     assert primera.volumenes[1]["volumen"] == "/"
+    assert primera.bases_no_disponibles == [{"base": "ERP", "estado": "SUSPECT"}]
+    assert primera.logs == [{"base": "ERP", "uso": 93.0}, {"base": "CRM", "uso": 12.0}]
     assert primera.bloqueos == [
         {
             "sid": 87,

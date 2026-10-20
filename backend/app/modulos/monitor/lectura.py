@@ -54,6 +54,17 @@ FROM sys.dm_exec_requests AS r
 WHERE r.blocking_session_id <> 0
 ORDER BY r.wait_time DESC"""
 
+# Bases que no están disponibles (OFFLINE, SUSPECT, RECOVERY_PENDING, etc.).
+CONSULTA_BASES = f"""{MARCA}
+SELECT name, state_desc FROM sys.databases WHERE state_desc <> 'ONLINE'"""
+
+# % de uso del log de transacciones por base.
+CONSULTA_LOGS = f"""{MARCA}
+SELECT RTRIM(instance_name), cntr_value
+FROM sys.dm_os_performance_counters
+WHERE counter_name = 'Percent Log Used' AND object_name LIKE '%:Databases%'
+  AND instance_name NOT IN ('_Total', 'mssqlsystemresource')"""
+
 # Deadlocks de las últimas 24 h, registrados por la sesión de eventos system_health.
 CONSULTA_DEADLOCKS = f"""{MARCA}
 SELECT COUNT(*)
@@ -140,6 +151,15 @@ def leer(conexion: pyodbc.Connection, estado: EstadoLectura, ahora: float) -> Le
         ).fetchall()
     ]
 
+    bases = [
+        {"base": nombre, "estado": estado_base}
+        for nombre, estado_base in cursor.execute(CONSULTA_BASES).fetchall()
+    ]
+    logs = [
+        {"base": nombre, "uso": float(uso)}
+        for nombre, uso in cursor.execute(CONSULTA_LOGS).fetchall()
+    ]
+
     if estado.deadlocks_en is None or ahora - estado.deadlocks_en >= INTERVALO_DEADLOCKS_SEGUNDOS:
         estado.deadlocks = cursor.execute(CONSULTA_DEADLOCKS).fetchone()[0]
         estado.deadlocks_en = ahora
@@ -157,6 +177,8 @@ def leer(conexion: pyodbc.Connection, estado: EstadoLectura, ahora: float) -> Le
         },
         bloqueos=bloqueos,
         volumenes=volumenes,
+        bases_no_disponibles=bases,
+        logs=logs,
     )
 
 

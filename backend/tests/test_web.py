@@ -61,6 +61,9 @@ async def test_inicio_lanza_y_detiene_el_recolector(monkeypatch):
     eventos = []
 
     class RecolectorFalso:
+        def __init__(self, evaluador):
+            eventos.append(type(evaluador).__name__)
+
         async def ejecutar(self):
             eventos.append("ejecutar")
 
@@ -77,4 +80,4 @@ async def test_inicio_lanza_y_detiene_el_recolector(monkeypatch):
     async with main.ciclo_de_vida(main.app):
         await main.asyncio.sleep(0)
 
-    assert eventos == ["ejecutar", "detener"]
+    assert eventos == ["Motor", "ejecutar", "detener"]

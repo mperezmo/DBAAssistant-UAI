@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("menu.alertas") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="alertas()" x-init="iniciar()">
+  <div class="page-head flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="page-eyebrow">{{ t("alertas.eyebrow") }}</div>
+      <h1 class="page-title">{{ t("alertas.titulo") }} <em>{{ t("alertas.titulo_enfasis") }}</em>.</h1>
+      <p class="page-subtitle" x-text="subtitulo()"></p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button class="btn btn-ghost btn-sm" x-show="push.disponible" @click="alternarPush()" :disabled="push.procesando"
+              x-text="push.suscripto ? TEXTOS.pushDesactivar : TEXTOS.pushActivar"></button>
+      <button class="btn btn-ghost btn-sm" x-show="permisos.configurar" @click="abrirReglas()">
+        {% with nombre="settings", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+        {{ t("alertas.reglas.boton") }}
+      </button>
+    </div>
+  </div>
+  <p class="mb-4 text-sm" :class="push.error ? 'text-danger' : 'text-fg-muted'" x-show="push.mensaje" x-text="push.mensaje"></p>
+  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+
+  <div class="grid gap-5 lg:grid-cols-[2fr_1fr]">
+    <!-- Listado -->
+    <section class="card overflow-hidden">
+      <div class="card-head flex-wrap gap-3">
+        <div>
+          <div class="card-eyebrow" x-text="estado === 'activa' ? TEXTOS.ordenActivas : TEXTOS.ordenAtendidas"></div>
+          <h3 class="card-title" x-text="`${filtradas().length} ${TEXTOS.cantidad}`"></h3>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button class="btn btn-sm" :class="estado === 'activa' ? 'btn-primary' : 'btn-ghost'" @click="cambiarEstado('activa')">{{ t("alertas.activas") }}</button>
+          <button class="btn btn-sm" :class="estado === 'atendida' ? 'btn-primary' : 'btn-ghost'" @click="cambiarEstado('atendida')">{{ t("alertas.atendidas") }}</button>
+          <span class="mx-1 h-4 border-l border-line"></span>
+          {% for s in ["critical", "warning", "info"] %}
+          <button class="btn btn-sm" :class="severidades.includes('{{ s }}') ? 'btn-ghost' : 'btn-ghost opacity-40'"
+                  @click="alternarSeveridad('{{ s }}')">{{ t("alertas.severidad." ~ s) }}</button>
+          {% endfor %}
+          <select class="btn btn-ghost btn-sm" x-model="ambiente" aria-label="{{ t('alertas.filtro.ambiente') }}">
+            <option value="">{{ t("alertas.filtro.todos_ambientes") }}</option>
+            {% for a in ambientes %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+          </select>
+          <select class="btn btn-ghost btn-sm" x-model="origen" aria-label="{{ t('alertas.filtro.tipo') }}">
+            <option value="">{{ t("alertas.filtro.todos_tipos") }}</option>
+            {% for o in ["umbral", "evento", "regla"] %}<option value="{{ o }}">{{ t("alertas.origen." ~ o) }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <template x-for="a in filtradas()" :key="a.id">
+        <div class="cursor-pointer border-b border-line px-5 py-4" @click="seleccionar(a)"
+             :style="seleccionada?.id === a.id ? `border-left: 3px solid ${colorSeveridad(a.severidad)}; background: var(--bg-sunk)` : 'border-left: 3px solid transparent'">
+          <div class="mb-1.5 flex items-center gap-2.5">
+            <span class="tag" :class="claseSeveridad(a.severidad)" x-text="TEXTOS.severidades[a.severidad]"></span>
+            <span class="font-mono text-[11px] text-fg-faint" x-text="`A-${a.id}`"></span>
+            <span class="tag tag-green" x-show="a.estado === 'activa' && a.normalizada">{{ t("alertas.normalizada") }}</span>
+            <span class="flex-1"></span>
+            <span class="font-mono text-[11px] text-fg-faint" x-text="hora(a.disparada_en)"></span>
+          </div>
+          <div class="mb-1 text-sm font-medium" x-text="a.titulo"></div>
+          <div class="mb-2 text-[12.5px] text-fg-muted" x-text="a.descripcion"></div>
+          <div class="flex flex-wrap gap-3.5 text-[11.5px] text-fg-faint">
+            <span x-text="`${a.conexion_alias} · ${a.ambiente}`"></span>
+            <span x-text="TEXTOS.origenes[a.origen]"></span>
+            <span x-show="a.ocurrencias > 1" x-text="`${a.ocurrencias} ${TEXTOS.ocurrencias}`"></span>
+            <span x-show="a.atendida_por" x-text="a.atendida_por"></span>
+          </div>
+        </div>
+      </template>
+      <p class="card-body text-center text-sm text-fg-muted" x-show="cargado && filtradas().length === 0"
+         x-text="estado === 'activa' ? TEXTOS.sinActivas : TEXTOS.sinAtendidas"></p>
+    </section>
+
+    <!-- Detalle -->
+    <section class="card self-start lg:sticky lg:top-20" x-show="seleccionada" x-cloak>
+      <template x-if="seleccionada">
+        <div>
+          <div class="p-1" :style="`background: ${colorSeveridad(seleccionada.severidad)}`">
+            <div class="flex items-center gap-2.5 px-4 py-3 text-white">
+              <span class="font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
+                    x-text="`${TEXTOS.severidades[seleccionada.severidad]} · A-${seleccionada.id}`"></span>
+              <span class="flex-1"></span>
+              <span class="font-mono text-[11px]" x-text="hora(seleccionada.disparada_en)"></span>
+            </div>
+          </div>
+          <div class="card-body">
+            <h3 class="mb-2 font-serif text-xl" x-text="seleccionada.titulo"></h3>
+            <p class="mb-4 text-[13.5px] text-fg-muted" x-text="seleccionada.descripcion"></p>
+
+            <div class="mb-4 rounded border border-line p-3.5 font-mono text-xs leading-relaxed" style="background: var(--bg-sunk)">
+              <div class="mb-2 text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("alertas.detalle.datos") }}</div>
+              <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                <span class="text-fg-faint">{{ t("alertas.detalle.instancia") }}</span><span x-text="`${seleccionada.conexion_alias} (${seleccionada.servidor})`"></span>
+                <span class="text-fg-faint">{{ t("alertas.detalle.ambiente") }}</span><span x-text="seleccionada.ambiente"></span>
+                <template x-if="seleccionada.metrica">
+                  <span class="text-fg-faint">{{ t("alertas.detalle.metrica") }}</span>
+                </template>
+                <template x-if="seleccionada.metrica">
+                  <span x-text="TEXTOS.metricas[seleccionada.metrica] || seleccionada.metrica"></span>
+                </template>
+                <template x-if="seleccionada.valor !== null">
+                  <span class="text-fg-faint">{{ t("alertas.detalle.valor") }}</span>
+                </template>
+                <template x-if="seleccionada.valor !== null">
+                  <span :style="`color: ${colorSeveridad(seleccionada.severidad)}`" x-text="medida(seleccionada.valor, seleccionada.unidad)"></span>
+                </template>
+                <template x-if="seleccionada.umbral !== null">
+                  <span class="text-fg-faint">{{ t("alertas.detalle.umbral") }}</span>
+                </template>
+                <template x-if="seleccionada.umbral !== null">
+                  <span x-text="medida(seleccionada.umbral, seleccionada.unidad)"></span>
+                </template>
+                <span class="text-fg-faint">{{ t("alertas.detalle.disparada") }}</span><span x-text="fecha(seleccionada.disparada_en)"></span>
+                <span class="text-fg-faint">{{ t("alertas.detalle.actualizada") }}</span><span x-text="fecha(seleccionada.actualizada_en)"></span>
+                <span class="text-fg-faint">{{ t("alertas.detalle.ocurrencias") }}</span><span x-text="seleccionada.ocurrencias"></span>
+                <span class="text-fg-faint">{{ t("alertas.detalle.estado") }}</span><span x-text="textoEstado(seleccionada)"></span>
+              </div>
+            </div>
+
+            <template x-if="seleccionada.estado === 'atendida'">
+              <div class="mb-4 text-[13px]">
+                <div class="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("alertas.detalle.atencion") }}</div>
+                <p x-text="`${TEXTOS.acciones[seleccionada.accion] || seleccionada.accion} · ${seleccionada.atendida_por} · ${fecha(seleccionada.atendida_en)}`"></p>
+                <p class="mt-1 text-fg-muted" x-show="seleccionada.comentario" x-text="seleccionada.comentario"></p>
+              </div>
+            </template>
+
+            <a class="btn btn-ghost btn-block" href="/monitor">{{ t("alertas.ver_monitoreo") }}</a>
+
+            <template x-if="seleccionada.estado === 'activa' && permisos.atender">
+              <form class="mt-4 border-t border-line pt-4" @submit.prevent="atender()">
+                <div class="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("alertas.atender.titulo") }}</div>
+                <label class="mb-1.5 flex items-center gap-2 text-sm"><input type="radio" value="manual" x-model="atencion.accion"> {{ t("alertas.accion.manual") }}</label>
+                <label class="mb-3 flex items-center gap-2 text-sm"><input type="radio" value="falsa_alarma" x-model="atencion.accion"> {{ t("alertas.accion.falsa_alarma") }}</label>
+                <div class="field">
+                  <label for="a-comentario">{{ t("alertas.atender.comentario") }}</label>
+                  <textarea id="a-comentario" rows="3" maxlength="1000" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="atencion.comentario" required></textarea>
+                </div>
+                <p class="mb-2 text-sm text-danger" x-show="atencion.mensaje" x-text="atencion.mensaje"></p>
+                <button type="submit" class="btn btn-primary btn-block" :disabled="atencion.enviando">
+                  {% with nombre="play", tam=14 %}{% include "parciales/icono.html" %}{% endwith %}
+                  {{ t("alertas.atender.confirmar") }}
+                </button>
+              </form>
+            </template>
+          </div>
+        </div>
+      </template>
+    </section>
+  </div>
+
+  <!-- Reglas de alerta (CU-000-004-A y D) -->
+  <template x-if="reglas.abierto">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-8"
+       @click.self="reglas.abierto = false" @keydown.escape.window="reglas.abierto = false">
+    <div class="card w-full max-w-3xl">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow">{{ t("alertas.reglas.eyebrow") }}</div>
+          <h3 class="card-title">{{ t("alertas.reglas.titulo") }}</h3>
+        </div>
+        <button class="btn btn-primary btn-sm" @click="nuevaRegla()" x-show="!reglas.formulario">
+          {% with nombre="plus", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+          {{ t("alertas.reglas.nueva") }}
+        </button>
+      </div>
+
+      <template x-if="!reglas.formulario">
+        <div>
+          <p class="card-body text-xs text-fg-muted">{{ t("alertas.reglas.ayuda") }}</p>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ t("alertas.reglas.col.nombre") }}</th>
+                <th>{{ t("alertas.reglas.col.condicion") }}</th>
+                <th>{{ t("alertas.reglas.col.severidad") }}</th>
+                <th>{{ t("alertas.reglas.col.instancia") }}</th>
+                <th>{{ t("alertas.reglas.col.destinatarios") }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="r in reglas.lista" :key="r.id">
+                <tr :class="!r.activa && 'opacity-50'">
+                  <td class="font-medium" x-text="r.nombre"></td>
+                  <td class="metric-mono text-[11.5px]" x-text="textoCondicion(r)"></td>
+                  <td><span class="tag" :class="claseSeveridad(r.severidad)" x-text="TEXTOS.severidades[r.severidad]"></span></td>
+                  <td class="text-[12px]" x-text="nombreConexion(r.conexion_id)"></td>
+                  <td class="text-[12px]" x-text="r.destinatarios.map((rol) => TEXTOS.roles[rol]).join(', ') + (r.push ? ' · push' : '')"></td>
+                  <td class="whitespace-nowrap text-right">
+                    <button class="btn btn-ghost btn-sm" @click="editarRegla(r)">{{ t("alertas.reglas.editar") }}</button>
+                    <button class="btn btn-ghost btn-sm" @click="eliminarRegla(r)">{{ t("alertas.reglas.eliminar") }}</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="reglas.lista.length === 0">
+                <td colspan="6" class="text-center text-fg-muted">{{ t("alertas.reglas.vacio") }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="card-body text-sm text-danger" x-show="reglas.mensaje" x-text="reglas.mensaje"></p>
+          <div class="card-foot justify-end">
+            <button class="btn btn-ghost btn-sm" @click="reglas.abierto = false">{{ t("alertas.reglas.cerrar") }}</button>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="reglas.formulario">
+        <form @submit.prevent="guardarRegla()">
+          <div class="card-body grid grid-cols-2 gap-3">
+            <div class="field col-span-2">
+              <label for="r-nombre">{{ t("alertas.reglas.form.nombre") }}</label>
+              <input id="r-nombre" maxlength="100" required x-model="reglas.formulario.nombre">
+            </div>
+            <div class="field">
+              <label for="r-metrica">{{ t("alertas.reglas.form.metrica") }}</label>
+              <select id="r-metrica" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="reglas.formulario.metrica">
+                <template x-for="(nombre, id) in TEXTOS.metricas" :key="id">
+                  <option :value="id" x-text="nombre"></option>
+                </template>
+              </select>
+            </div>
+            <div class="grid grid-cols-[auto_1fr] gap-2">
+              <div class="field">
+                <label for="r-operador">{{ t("alertas.reglas.form.operador") }}</label>
+                <select id="r-operador" class="rounded border border-line px-2 py-2 text-sm" x-model="reglas.formulario.operador">
+                  {% for o in [">", ">=", "<", "<="] %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label for="r-valor">{{ t("alertas.reglas.form.valor") }}</label>
+                <input id="r-valor" type="number" step="any" required x-model="reglas.formulario.valor">
+              </div>
+            </div>
+            <div class="field">
+              <label for="r-severidad">{{ t("alertas.reglas.form.severidad") }}</label>
+              <select id="r-severidad" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="reglas.formulario.severidad">
+                {% for s in ["info", "warning", "critical"] %}<option value="{{ s }}">{{ t("alertas.severidad." ~ s) }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="r-sostenida">{{ t("alertas.reglas.form.sostenida") }}</label>
+              <input id="r-sostenida" type="number" min="0" max="86400" required x-model.number="reglas.formulario.sostenida_segundos">
+            </div>
+            <div class="field col-span-2">
+              <label for="r-conexion">{{ t("alertas.reglas.form.instancia") }}</label>
+              <select id="r-conexion" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="reglas.formulario.conexion_id">
+                <option value="">{{ t("alertas.reglas.form.todas") }}</option>
+                <template x-for="c in conexiones" :key="c.id">
+                  <option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option>
+                </template>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("alertas.reglas.form.destinatarios") }}</div>
+              <div class="flex flex-wrap gap-4 text-sm">
+                {% for rol in roles %}
+                <label class="flex items-center gap-2"><input type="checkbox" class="size-4" value="{{ rol }}" x-model="reglas.formulario.destinatarios"> {{ textos_roles[rol] }}</label>
+                {% endfor %}
+                <label class="flex items-center gap-2"><input type="checkbox" class="size-4" x-model="reglas.formulario.push"> {{ t("alertas.reglas.form.push") }}</label>
+                <label class="flex items-center gap-2"><input type="checkbox" class="size-4" x-model="reglas.formulario.activa"> {{ t("alertas.reglas.form.activa") }}</label>
+              </div>
+            </div>
+            <p class="col-span-2 text-sm text-danger" x-show="reglas.formulario.mensaje" x-text="reglas.formulario.mensaje"></p>
+          </div>
+          <div class="card-foot justify-end gap-2">
+            <button type="button" class="btn btn-ghost btn-sm" @click="reglas.formulario = null">{{ t("alertas.reglas.cancelar") }}</button>
+            <button type="submit" class="btn btn-primary btn-sm" :disabled="reglas.formulario.guardando">{{ t("alertas.reglas.guardar") }}</button>
+          </div>
+        </form>
+      </template>
+    </div>
+  </div>
+  </template>
+</div>
+
+<script>
+  window.TEXTOS_ALERTAS = {
+    severidades: { {% for s in ["critical", "warning", "info"] %}{{ s | tojson }}: {{ t("alertas.severidad." ~ s) | tojson }},{% endfor %} },
+    origenes: { {% for o in ["umbral", "evento", "regla"] %}{{ o | tojson }}: {{ t("alertas.origen." ~ o) | tojson }},{% endfor %} },
+    acciones: { {% for a in ["manual", "falsa_alarma", "regla_eliminada"] %}{{ a | tojson }}: {{ t("alertas.accion." ~ a) | tojson }},{% endfor %} },
+    metricas: { {% for m in metricas %}{{ m | tojson }}: {{ t("monitor.metrica." ~ m) | tojson }},{% endfor %} },
+    roles: {{ textos_roles | tojson }},
+    subtitulo: {{ t("alertas.subtitulo") | tojson }},
+    cantidad: {{ t("alertas.cantidad") | tojson }},
+    ocurrencias: {{ t("alertas.ocurrencias") | tojson }},
+    ordenActivas: {{ t("alertas.orden.activas") | tojson }},
+    ordenAtendidas: {{ t("alertas.orden.atendidas") | tojson }},
+    sinActivas: {{ t("alertas.sin_activas") | tojson }},
+    sinAtendidas: {{ t("alertas.sin_atendidas") | tojson }},
+    estadoActiva: {{ t("alertas.estado.activa") | tojson }},
+    estadoNormalizada: {{ t("alertas.estado.normalizada") | tojson }},
+    estadoAtendida: {{ t("alertas.estado.atendida") | tojson }},
+    todas: {{ t("alertas.reglas.form.todas") | tojson }},
+    confirmarEliminar: {{ t("alertas.reglas.confirmar_eliminar") | tojson }},
+    pushActivar: {{ t("alertas.push.activar") | tojson }},
+    pushDesactivar: {{ t("alertas.push.desactivar") | tojson }},
+    pushActivado: {{ t("alertas.push.activado") | tojson }},
+    pushDesactivado: {{ t("alertas.push.desactivado") | tojson }},
+    pushDenegado: {{ t("alertas.push.denegado") | tojson }},
+    pushNoSoportado: {{ t("alertas.push.no_soportado") | tojson }},
+    pushSinServiceWorker: {{ t("alertas.push.sin_service_worker") | tojson }},
+  };
+</script>
+<script src="/static/js/alertas.js?v={{ version_estaticos }}"></script>
+{% endblock %}

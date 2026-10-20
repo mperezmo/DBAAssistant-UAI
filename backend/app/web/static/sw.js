@@ -28,3 +28,37 @@ self.addEventListener("fetch", (evento) => {
       .catch(() => caches.match(evento.request))
   );
 });
+
+// Notificación push de una alerta (CU-000-004-E). El contenido lo arma el backend.
+self.addEventListener("push", (evento) => {
+  let datos = {};
+  try {
+    datos = evento.data ? evento.data.json() : {};
+  } catch {
+    datos = { cuerpo: evento.data ? evento.data.text() : "" };
+  }
+  evento.waitUntil(
+    self.registration.showNotification(datos.titulo || "DBA Assistant", {
+      body: datos.cuerpo || "",
+      tag: datos.etiqueta,
+      icon: "/static/img/logo.svg",
+      badge: "/static/img/logo.svg",
+      data: { url: datos.url || "/alertas" },
+      requireInteraction: true,
+    })
+  );
+});
+
+// Al tocar la notificación se abre el detalle de la alerta; si la sesión venció, la
+// propia app redirige al ingreso.
+self.addEventListener("notificationclick", (evento) => {
+  evento.notification.close();
+  const destino = new URL(evento.notification.data?.url || "/alertas", self.location.origin).href;
+  evento.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ventanas) => {
+      const abierta = ventanas.find((v) => v.url.startsWith(self.location.origin));
+      if (abierta) return abierta.focus().then(() => abierta.navigate(destino));
+      return self.clients.openWindow(destino);
+    })
+  );
+});

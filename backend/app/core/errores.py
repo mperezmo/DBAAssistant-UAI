@@ -44,6 +44,10 @@ CATALOGO: dict[str, DefinicionError] = {
     "CON_DB_003": DefinicionError("Se perdió la conexión con la instancia.", 503),
     "MNT_DAT_000": DefinicionError("Error obteniendo métricas.", 502),
     "MNT_CFG_000": DefinicionError("El umbral critical debe ser mayor que el warning.", 422),
+    "ALR_VAL_000": DefinicionError("Alerta o regla no encontrada.", 404),
+    "ALR_VAL_001": DefinicionError("Ya existe una alerta con ese nombre.", 409),
+    "ALR_VAL_002": DefinicionError("La alerta ya fue atendida.", 409),
+    "NTF_PSH_000": DefinicionError("Error enviando notificación push.", 502),
     "WRM_000": DefinicionError("No se logró conectar al servidor Windows (WinRM).", 422),
     "AKV_000": DefinicionError("Falla en el almacenamiento de credenciales.", 500),
     "AMB_VAL_000": DefinicionError(

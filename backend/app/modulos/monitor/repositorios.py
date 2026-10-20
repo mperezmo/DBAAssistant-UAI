@@ -30,6 +30,26 @@ def listar_umbrales(base: str, tenant_id: str, conexion_id: str) -> dict[str, Um
     return {f.metrica: Umbral(f.metrica, bool(f.habilitada), f.warning, f.critical) for f in filas}
 
 
+def listar_umbrales_del_tenant(base: str, tenant_id: str) -> dict[str, dict[str, Umbral]]:
+    """Configuración de todas las conexiones: {conexion_id: {metrica: Umbral}}."""
+    with sqlserver.conectar(base) as conexion:
+        filas = (
+            conexion.cursor()
+            .execute(
+                """SELECT conexion_id, metrica, habilitada, warning, critical
+                   FROM dbo.umbral_metrica WHERE tenant_id = ?""",
+                tenant_id,
+            )
+            .fetchall()
+        )
+    resultado: dict[str, dict[str, Umbral]] = {}
+    for f in filas:
+        resultado.setdefault(str(f.conexion_id), {})[f.metrica] = Umbral(
+            f.metrica, bool(f.habilitada), f.warning, f.critical
+        )
+    return resultado
+
+
 def guardar_umbrales(base: str, tenant_id: str, conexion_id: str, umbrales: list[Umbral]) -> None:
     """Reemplaza la configuración completa de la conexión en una sola transacción."""
     with sqlserver.conectar(base) as conexion:

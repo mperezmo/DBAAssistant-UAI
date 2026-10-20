@@ -84,7 +84,8 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Certificado de las instancias | Siempre se confía en el certificado del servidor (las instancias de clientes suelen usar certificados autofirmados). La conexión igual viaja cifrada. |
 | Acciones sobre PROD | Exigen confirmar con el segundo factor en el momento (Auth0 vuelve a pedir login y código); la confirmación vale 5 minutos. El MFA del ingreso no cuenta. |
 | Permisos por ambiente | Por ahora, ambientes habilitados por usuario; las acciones finas se suman con cada módulo. |
-| Notificaciones push | Web Push con VAPID (W3C), sin servicios de terceros. |
+| Notificaciones push | Web Push con VAPID (W3C), sin servicios de terceros. Claves con `python -m app.cli generar-vapid`; la privada es un secreto. Requieren HTTPS con certificado confiable. |
+| Alertas (motor) | Se evalúan sobre cada lectura del recolector. Orígenes: umbrales de Monitoreo (warning/critical, sostenidos 1 min), eventos fijos (instancia sin conexión y base no disponible: critical, confirmados en 5 s; bloqueo > 30 s y log > 90%: warning) y reglas propias (métrica, condición, severidad, tiempo sostenido, todas las conexiones o una, roles destinatarios y push). Una sola alerta activa por condición e instancia: se actualiza y escala, no se duplica. Al normalizarse sigue activa hasta que un DBA la atienda (acción manual o falsa alarma, con comentario). Push: reglas según su configuración; umbrales y eventos, solo critical y al rol DBA. Escalamiento: fuera de alcance por ahora. |
 | Exportación de auditoría | CSV y PDF sin firma digital (firma omitida por ahora). |
 | Histórico de métricas | Colecciones *time-series* de MongoDB, retención de 30 días (`MONITOR_RETENCION_DIAS`). Rangos de 1 h, 24 h, 7 d y 30 d, promediados por tramo. |
 | Histórico de schema | Registra lo ejecutado desde la app: usuario, query y quién la autorizó. Lo ejecutado fuera de la app (SSMS, etc.) queda fuera de alcance. |
@@ -109,3 +110,5 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Conexiones dentro del Panel Admin | Menú propio **Conexiones** en Sistema | El DBA también gestiona conexiones y el Panel Admin es solo del Administrador. |
 | Invitación por email al nuevo usuario (CU-001-000-A) | El usuario se da de alta en la base del tenant y entra por la dirección de su empresa | El envío de emails quedó para más adelante. Auth0 suma a la organización a quien se autentica, pero la app solo deja entrar a quien está dado de alta en el tenant y, en el primer ingreso, con email verificado. |
 | MongoDB Atlas | MongoDB en Docker (provisorio) | Pendiente de decisión (ver `docs/pendientes.md`). |
+| TFI CU-000-004-E: push vía Firebase Cloud Messaging | Web Push con VAPID (W3C) | Es lo que indica el diagrama ("Web Push Notifier, VAPID, estándar W3C"); no depende de terceros. |
+| TFI CU-000-004-E: dispositivos registrados en MongoDB | Suscripciones en la base SQL Server del tenant | Regla del proyecto: estructura funcional en SQL Server; se borran en cascada con el usuario. |
