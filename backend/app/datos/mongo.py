@@ -9,6 +9,7 @@ from functools import lru_cache
 from pymongo import ASCENDING, AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.core.config import obtener_configuracion
 from app.core.secretos import proveedor_secretos
 
 # Requisito del TFI: las bitácoras se conservan 5 años.
@@ -48,11 +49,16 @@ async def preparar_base_tenant(nombre: str) -> None:
         )
         await db[coleccion].create_index([("usuario", ASCENDING), ("ts", ASCENDING)])
 
+    retencion = obtener_configuracion().monitor_retencion_dias * 24 * 60 * 60
     if COLECCION_METRICAS not in existentes:
         await db.create_collection(
             COLECCION_METRICAS,
             timeseries={"timeField": "ts", "metaField": "meta", "granularity": "seconds"},
+            expireAfterSeconds=retencion,
         )
+    else:
+        # Aplica la retención vigente a colecciones creadas antes o con otro valor.
+        await db.command("collMod", COLECCION_METRICAS, expireAfterSeconds=retencion)
 
 
 async def verificar() -> None:

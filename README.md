@@ -85,6 +85,16 @@ El SQL Server corre en Linux dentro de Docker, por lo que **no admite autenticac
 | Password | el valor de `SECRETO_SQLSERVER_PASSWORD` del `.env` |
 | Encryption | Mandatory, con **Trust server certificate** tildado |
 
+### Instancias monitoreadas
+
+El login SQL de cada conexión necesita permiso para leer las vistas de administración:
+
+```sql
+GRANT VIEW SERVER STATE TO [login_de_la_conexion];
+```
+
+El recolector empieza a leer una conexión nueva en hasta 30 segundos.
+
 ### Desarrollo del backend sin Docker
 
 Requiere [uv](https://docs.astral.sh/uv/) y el driver *ODBC Driver 18 for SQL Server*.

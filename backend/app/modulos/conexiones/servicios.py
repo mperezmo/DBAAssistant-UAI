@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from dataclasses import replace
+from uuid import UUID
 
 from starlette.concurrency import run_in_threadpool
 
@@ -83,6 +84,10 @@ async def listar(tenant: Tenant) -> list[Conexion]:
 
 
 async def obtener(tenant: Tenant, conexion_id: str) -> Conexion:
+    try:
+        UUID(conexion_id)
+    except ValueError:
+        raise ErrorDominio("CON_DB_002", conexion_id) from None
     conexion = await run_in_threadpool(
         repositorios.obtener, tenant.base_sqlserver, str(tenant.id), conexion_id
     )

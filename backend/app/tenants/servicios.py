@@ -38,6 +38,16 @@ def migrar_todo() -> None:
             migraciones.aplicar(tenant.base_sqlserver, "tenant")
 
 
+async def preparar_mongo_todo() -> None:
+    """Aplica colecciones e índices vigentes (p. ej. la retención de métricas) a cada tenant."""
+    for tenant in await run_in_threadpool(repositorios.listar):
+        if tenant.estado in ("activo", "suspendido"):
+            try:
+                await mongo.preparar_base_tenant(tenant.base_mongodb)
+            except Exception:
+                log.exception("No se pudo preparar MongoDB del tenant %s.", tenant.slug)
+
+
 async def aprovisionar(slug: str, nombre: str, email_administrador: str) -> Tenant:
     validar_slug(slug)
     if not nombre.strip() or "@" not in email_administrador:

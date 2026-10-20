@@ -37,6 +37,12 @@ class Configuracion(BaseSettings):
     cache_ttl_contexto: int = 600
     cache_ttl_metricas: int = 30
 
+    # Monitoreo: el recolector lee cada instancia registrada cada N segundos y guarda
+    # las métricas en MongoDB durante los días de retención.
+    monitor_recolector_activo: bool = True
+    monitor_intervalo_segundos: int = 3
+    monitor_retencion_dias: int = 30
+
     # Identidad (Auth0). Cada tenant es una Organization y entra por su subdominio
     # (<slug>.<dominio_base>).
     dominio_base: str = "localhost"

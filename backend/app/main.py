@@ -18,6 +18,8 @@ from app.core.registro import configurar_registro
 from app.identidad import api as identidad
 from app.identidad import api_usuarios
 from app.modulos.conexiones import api as conexiones
+from app.modulos.monitor import api as monitor
+from app.modulos.monitor.recolector import Recolector
 from app.tenants import servicios as tenants
 from app.web import rutas as web
 from app.web.rutas import DIRECTORIO_ESTATICOS, plantillas
@@ -42,7 +44,16 @@ async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
                 raise
             log.warning("SQL Server no disponible (intento %s): %s", intento, error)
             await asyncio.sleep(ESPERA_ENTRE_INTENTOS_SEGUNDOS)
+    await tenants.preparar_mongo_todo()
+
+    recolector, tarea = None, None
+    if obtener_configuracion().monitor_recolector_activo:
+        recolector = Recolector()
+        tarea = asyncio.create_task(recolector.ejecutar())
     yield
+    if tarea:
+        tarea.cancel()
+        recolector.detener()
 
 
 async def manejar_error_dominio(request: Request, error: ErrorDominio):
@@ -71,6 +82,7 @@ def crear_app() -> FastAPI:
     app.include_router(identidad.router)
     app.include_router(api_usuarios.router)
     app.include_router(conexiones.router)
+    app.include_router(monitor.router)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

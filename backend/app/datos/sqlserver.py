@@ -79,14 +79,14 @@ def servidor_externo(host: str, puerto: int | None, instancia: str | None) -> st
     return host
 
 
-@contextmanager
-def conectar_externo(
+def abrir_externo(
     servidor: str, usuario: str, password: str, base: str = BASE_SISTEMA, timeout: int = 5
-) -> Iterator[pyodbc.Connection]:
-    """Conexión a una instancia SQL Server de un cliente, con autenticación SQL.
+) -> pyodbc.Connection:
+    """Abre una conexión a una instancia SQL Server de un cliente, con autenticación SQL.
 
     Se confía en el certificado del servidor porque las instancias de los clientes suelen
     usar certificados autofirmados (decisión documentada en docs/arquitectura.md).
+    El llamador es responsable de cerrarla.
     """
     cfg = obtener_configuracion()
     partes = {
@@ -100,11 +100,19 @@ def conectar_externo(
     }
     # autocommit evita dejar transacciones implícitas abiertas en las conexiones que el
     # driver devuelve al pool; las operaciones de escritura las abrirán explícitamente.
-    conexion = pyodbc.connect(
+    return pyodbc.connect(
         ";".join(f"{clave}={valor}" for clave, valor in partes.items()),
         timeout=timeout,
         autocommit=True,
     )
+
+
+@contextmanager
+def conectar_externo(
+    servidor: str, usuario: str, password: str, base: str = BASE_SISTEMA, timeout: int = 5
+) -> Iterator[pyodbc.Connection]:
+    """Como ``abrir_externo``, garantizando el cierre al salir del bloque."""
+    conexion = abrir_externo(servidor, usuario, password, base, timeout)
     try:
         yield conexion
     finally:

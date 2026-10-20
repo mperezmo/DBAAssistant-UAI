@@ -69,7 +69,9 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Roles | Se guardan en la base del tenant; Auth0 solo verifica identidad, MFA y pertenencia a la organización. |
 | Sandbox | Un contenedor por IP registrada y por tenant. |
 | Cambios de estructura | Scripts T-SQL numerados en `backend/app/datos/migraciones/{catalogo,tenant}`, aplicados automáticamente al arrancar. |
-| Monitoreo | Refresco de métricas cada 3 segundos. |
+| Monitoreo | Recolector en segundo plano dentro del backend: lee todas las conexiones cada 3 s (`MONITOR_INTERVALO_SEGUNDOS`) con una conexión persistente por instancia, aunque nadie tenga el dashboard abierto. Un candado en Redis asegura un solo recolector si hay varias réplicas. Última lectura en Redis; el dashboard refresca cada 3 s. Si la instancia no responde se muestran los últimos valores marcados como obsoletos (CON_DB_003). |
+| Métricas | CPU del proceso de SQL Server; memoria física del servidor; espacio del volumen más lleno con archivos de bases; latencia = duración promedio de las consultas en curso; sesiones de usuario activas; sesiones bloqueadas; deadlocks de 24 h (`system_health`, leído cada minuto); conexiones por segundo. El login necesita `VIEW SERVER STATE`. |
+| Umbrales de monitoreo | Warning y critical por conexión y métrica (critical > warning), con los valores del diseño por defecto; en la base SQL del tenant. Los configuran Administrador y DBA; Consulta ve el monitoreo de todas las conexiones en solo lectura. |
 | Retención | Bitácoras y excepciones: 5 años (requisito del TFI). |
 | Capas | Cada módulo con `api`, `servicios`, `repositorios` y `entidades`; catálogo central de códigos de error del TFI. |
 | Biometría móvil | Confirmación con WebAuthn (Face ID / Touch ID o PIN) en la PWA. |
@@ -84,7 +86,7 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Permisos por ambiente | Por ahora, ambientes habilitados por usuario; las acciones finas se suman con cada módulo. |
 | Notificaciones push | Web Push con VAPID (W3C), sin servicios de terceros. |
 | Exportación de auditoría | CSV y PDF sin firma digital (firma omitida por ahora). |
-| Histórico de métricas | Colecciones *time-series* de MongoDB. |
+| Histórico de métricas | Colecciones *time-series* de MongoDB, retención de 30 días (`MONITOR_RETENCION_DIAS`). Rangos de 1 h, 24 h, 7 d y 30 d, promediados por tramo. |
 | Histórico de schema | Registra lo ejecutado desde la app: usuario, query y quién la autorizó. Lo ejecutado fuera de la app (SSMS, etc.) queda fuera de alcance. |
 
 ## Módulos por rol

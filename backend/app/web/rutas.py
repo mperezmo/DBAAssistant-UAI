@@ -86,6 +86,11 @@ async def conexiones(request: Request, tenant: Tenant | None = Depends(tenant_ac
     )
 
 
+@router.get("/monitor", response_class=HTMLResponse)
+async def monitor(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(request, tenant, "monitor", "paginas/monitor.html", {})
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
     return await _pagina_de_modulo(

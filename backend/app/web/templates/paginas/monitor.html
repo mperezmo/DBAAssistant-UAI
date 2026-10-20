@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% set medidores = ["cpu", "memoria", "disco", "latencia"] %}
+{% set contadores = ["sesiones", "bloqueos", "deadlocks", "conexiones_seg"] %}
+{% set metricas = medidores + contadores %}
+
+{% block miga %}{{ t("menu.monitor") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="monitor()" x-init="iniciar()">
+  <div class="page-head">
+    <div class="page-eyebrow">
+      {{ t("monitor.eyebrow") }} · <span x-text="actual?.conexion?.servidor || '—'"></span> · {{ t("monitor.refresco") }}
+    </div>
+    <h1 class="page-title">{{ t("monitor.titulo") }} <em>{{ t("monitor.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle">{{ t("monitor.subtitulo") }}</p>
+  </div>
+
+  <template x-if="cargado && conexiones.length === 0">
+    <section class="card card-body text-center">
+      <h3 class="card-title">{{ t("monitor.vacio.titulo") }}</h3>
+      <p class="mt-2 text-sm text-fg-muted">{{ t("monitor.vacio.texto") }}</p>
+    </section>
+  </template>
+
+  <div x-show="conexiones.length > 0" x-cloak>
+    <!-- Panel de instrumentos -->
+    <section class="card p-6">
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+        <div class="flex items-center gap-3.5">
+          <span class="live-dot" x-show="actual?.estado === 'ok'"></span>
+          <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-muted" x-text="textoEstado()"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <select class="btn btn-ghost btn-sm" x-model="conexionId" @change="cambiarConexion()" aria-label="{{ t('monitor.conexion') }}">
+            <template x-for="c in conexiones" :key="c.id">
+              <option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option>
+            </template>
+          </select>
+          <button class="btn btn-ghost btn-sm" x-show="puedeConfigurar" @click="abrirUmbrales()">
+            {% with nombre="settings", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+            {{ t("monitor.umbrales") }}
+          </button>
+        </div>
+      </div>
+
+      <p class="mb-4 text-sm text-danger" x-show="actual?.estado === 'sin_conexion'" x-text="textoObsoleto()"></p>
+      <p class="mb-4 text-sm text-fg-muted" x-show="actual?.estado === 'sin_datos'">{{ t("monitor.sin_datos") }}</p>
+      <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+
+      <div :class="actual?.estado === 'sin_conexion' && 'opacity-50'">
+        <div class="grid grid-cols-2 gap-6 lg:grid-cols-4">
+          {% for m in medidores %}
+          <button type="button" class="flex cursor-pointer flex-col items-center justify-start text-center" x-show="habilitada('{{ m }}')"
+                  @click="verHistorico('{{ m }}')" title="{{ t('monitor.ver_historico') }}">
+            <div class="mb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-fg-faint">{{ t("monitor.metrica." ~ m) }}</div>
+            <svg viewBox="0 0 200 120" class="mx-auto h-auto w-full max-w-[200px]">
+              <path :d="arco(-180, 0)" stroke="var(--line)" stroke-width="14" fill="none"/>
+              <path :d="medidor('{{ m }}').zonaWarning" stroke="var(--mustard-bg)" stroke-width="14" fill="none"/>
+              <path :d="medidor('{{ m }}').zonaCritical" stroke="var(--terracotta-bg)" stroke-width="14" fill="none"/>
+              <path :d="medidor('{{ m }}').relleno" :stroke="medidor('{{ m }}').color" stroke-width="14" fill="none"/>
+              <path :d="marcas()" stroke="var(--ink-700)" stroke-width="0.8" opacity="0.6"/>
+              <line x1="100" y1="100" :x2="medidor('{{ m }}').aguja[0]" :y2="medidor('{{ m }}').aguja[1]"
+                    stroke="var(--ink-900)" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="100" cy="100" r="6" fill="var(--ink-900)" stroke="var(--bg-elev)" stroke-width="1"/>
+              <circle cx="100" cy="100" r="2" fill="var(--bg-elev)"/>
+            </svg>
+            <div class="-mt-2.5 metric-large text-[34px]" :style="`color: ${medidor('{{ m }}').color}`">
+              <span x-text="formato(valor('{{ m }}'))"></span><span class="ml-0.5 text-sm text-fg-muted" x-text="unidad('{{ m }}')"></span>
+            </div>
+            {% if m == "disco" %}
+            <div class="mt-1 text-[11px] text-fg-muted" x-text="textoVolumenes()"></div>
+            {% endif %}
+          </button>
+          {% endfor %}
+        </div>
+
+        <div class="divider my-6"></div>
+
+        <div class="grid grid-cols-2 gap-6 lg:grid-cols-4">
+          {% for m in contadores %}
+          <button type="button" class="flex cursor-pointer flex-col items-center justify-start border-t pt-3.5 text-center" style="border-color: var(--line-strong)" x-show="habilitada('{{ m }}')"
+                  @click="verHistorico('{{ m }}')" title="{{ t('monitor.ver_historico') }}">
+            <div class="mb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("monitor.metrica." ~ m) }}</div>
+            <div class="metric-large text-[38px]" :style="`color: ${colorContador('{{ m }}')}`" x-text="formato(valor('{{ m }}'))"></div>
+            <div class="mt-1 text-[11.5px] text-fg-muted">{{ t("monitor.detalle." ~ m) }}</div>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <!-- Serie temporal (histórico) -->
+    <section class="card mt-5" x-ref="historico">
+      <div class="card-head flex-wrap gap-3">
+        <div>
+          <div class="card-eyebrow">{{ t("monitor.serie.eyebrow") }} · <span x-text="textoRango()"></span></div>
+          <h3 class="card-title" x-text="tituloSerie()"></h3>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          {% for m in metricas %}
+          <button type="button" class="rounded-[3px] px-2.5 py-1 font-mono text-[10px] tracking-[0.1em]"
+                  :style="seleccion.includes('{{ m }}') ? `background: var(--blue-100); color: ${COLORES['{{ m }}']}` : 'background: var(--bg-sunk); color: var(--fg-faint)'"
+                  x-show="habilitada('{{ m }}')" @click="alternar('{{ m }}')">● {{ t("monitor.corto." ~ m) }}</button>
+          {% endfor %}
+          <span class="mx-1 h-4 border-l border-line"></span>
+          {% for r in ["1h", "24h", "7d", "30d"] %}
+          <button type="button" class="btn btn-sm" :class="rango === '{{ r }}' ? 'btn-primary' : 'btn-ghost'"
+                  @click="cambiarRango('{{ r }}')">{{ t("monitor.rango." ~ r) }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="px-5 py-6">
+        <p class="text-sm text-danger" x-show="errorSerie" x-text="errorSerie"></p>
+        <p class="text-sm text-fg-muted" x-show="serie && serie.puntos.length === 0">{{ t("monitor.serie.vacia") }}</p>
+        <svg viewBox="0 0 1100 240" class="block h-auto w-full" x-show="serie && serie.puntos.length > 0">
+          <path :d="grilla()" stroke="var(--line)" stroke-width="0.6" stroke-dasharray="2,4" fill="none"/>
+          {% for v in [0, 25, 50, 75, 100] %}
+          <text x="24" :y="ejeY({{ v }}) + 3" text-anchor="end" font-size="9" fill="var(--fg-faint)" font-family="var(--font-mono)">{{ v }}</text>
+          {% endfor %}
+          {% for i in range(5) %}
+          <text :x="30 + {{ i }} * 260" y="230" text-anchor="middle" font-size="9" fill="var(--fg-faint)" font-family="var(--font-mono)" x-text="etiquetaX({{ i }})"></text>
+          {% endfor %}
+          {% for m in metricas %}
+          <path :d="trazo('{{ m }}')" :stroke="COLORES['{{ m }}']" stroke-width="1.6" fill="none"
+                {% if m == "memoria" %}stroke-dasharray="4,3"{% endif %} x-show="seleccion.includes('{{ m }}')"/>
+          {% endfor %}
+        </svg>
+        <p class="mt-2 font-mono text-[10px] text-fg-faint" x-show="serie && serie.puntos.length > 0" x-text="textoEscalas()"></p>
+      </div>
+    </section>
+
+    <div class="grid-2 mt-5 gap-5">
+      <!-- Sesiones bloqueadas -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow">{{ t("monitor.bloqueos.eyebrow") }}</div>
+            <h3 class="card-title">{{ t("monitor.bloqueos.titulo") }}</h3>
+          </div>
+          <span class="tag" :class="(actual?.bloqueos || []).length ? 'tag-yellow' : 'tag-green'"
+                x-text="`${(actual?.bloqueos || []).length} {{ t('monitor.bloqueos.cantidad') }}`"></span>
+        </div>
+        <table class="data-table text-[12.5px]">
+          <thead>
+            <tr>
+              <th>{{ t("monitor.bloqueos.sid") }}</th>
+              <th>{{ t("monitor.bloqueos.bloqueador") }}</th>
+              <th>{{ t("monitor.bloqueos.recurso") }}</th>
+              <th>{{ t("monitor.bloqueos.modo") }}</th>
+              <th>{{ t("monitor.bloqueos.tiempo") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="b in (actual?.bloqueos || [])" :key="`${b.sid}-${b.recurso}`">
+              <tr>
+                <td class="metric-mono" x-text="b.sid"></td>
+                <td class="metric-mono" x-text="b.bloqueador"></td>
+                <td x-text="b.base ? `${b.base} · ${b.recurso}` : b.recurso"></td>
+                <td><span class="tag px-1.5 py-px text-[9.5px]" x-text="b.modo"></span></td>
+                <td class="metric-mono" x-text="`${b.espera_s}s`"></td>
+              </tr>
+            </template>
+            <tr x-show="!(actual?.bloqueos || []).length">
+              <td colspan="5" class="text-center text-fg-muted">{{ t("monitor.bloqueos.vacio") }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Consultas más costosas -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow">{{ t("monitor.costosas.eyebrow") }}</div>
+            <h3 class="card-title">{{ t("monitor.costosas.titulo") }}</h3>
+          </div>
+        </div>
+        <div class="px-5 py-3">
+          <p class="text-sm text-danger" x-show="errorCostosas" x-text="errorCostosas"></p>
+          <p class="text-sm text-fg-muted" x-show="!errorCostosas && costosas.length === 0">{{ t("monitor.costosas.vacio") }}</p>
+          <template x-for="(c, i) in costosas" :key="i">
+            <div class="border-b border-line py-2.5 last:border-b-0">
+              <div class="mb-1.5 flex justify-between gap-3 text-[13px]">
+                <span class="metric-mono truncate text-xs" :title="c.texto" x-text="c.texto"></span>
+                <span class="metric-mono shrink-0 text-[11px] text-fg-muted" x-text="`${c.ejecuciones.toLocaleString()} {{ t('monitor.costosas.ejecuciones') }}`"></span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <div class="h-[5px] flex-1 overflow-hidden rounded-sm" style="background: var(--bg-sunk)">
+                  <div class="h-full" :style="`width: ${anchoCostosa(c)}%; background: ${anchoCostosa(c) > 66 ? 'var(--terracotta)' : 'var(--accent)'}`"></div>
+                </div>
+                <span class="metric-mono min-w-[60px] text-right text-[11px] text-fg-muted" x-text="`${c.cpu_ms.toLocaleString()} ms`"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Configuración de métricas (CU-000-003-B) -->
+  <template x-if="edicion">
+  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-8"
+       @click.self="edicion = null" @keydown.escape.window="edicion = null">
+    <form class="card w-full max-w-2xl" @submit.prevent="guardarUmbrales()">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow" x-text="actual?.conexion?.alias"></div>
+          <h3 class="card-title">{{ t("monitor.config.titulo") }}</h3>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="mb-3 text-xs text-fg-muted">{{ t("monitor.config.ayuda") }}</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ t("monitor.config.metrica") }}</th>
+              <th>{{ t("monitor.config.habilitada") }}</th>
+              <th>{{ t("monitor.config.warning") }}</th>
+              <th>{{ t("monitor.config.critical") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="u in edicion.umbrales" :key="u.metrica">
+              <tr>
+                <td x-text="TEXTOS.metricas[u.metrica]"></td>
+                <td><input type="checkbox" class="size-4" x-model="u.habilitada"></td>
+                <td><input type="number" step="any" min="0" class="w-24 rounded border border-line px-2 py-1" x-model="u.warning"
+                           :placeholder="unidad(u.metrica)"></td>
+                <td><input type="number" step="any" min="0" class="w-24 rounded border border-line px-2 py-1" x-model="u.critical"
+                           :placeholder="unidad(u.metrica)"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <p class="mt-3 text-sm text-danger" x-show="edicion.mensaje" x-text="edicion.mensaje"></p>
+      </div>
+      <div class="card-foot justify-end gap-2">
+        <button type="button" class="btn btn-ghost btn-sm" @click="edicion = null">{{ t("monitor.config.cancelar") }}</button>
+        <button type="submit" class="btn btn-primary btn-sm" :disabled="edicion.guardando">{{ t("monitor.config.guardar") }}</button>
+      </div>
+    </form>
+  </div>
+  </template>
+</div>
+
+<script>
+  window.TEXTOS_MONITOR = {
+    metricas: {
+      {% for m in metricas %}{{ m | tojson }}: {{ t("monitor.metrica." ~ m) | tojson }},{% endfor %}
+    },
+    enVivo: {{ t("monitor.en_vivo") | tojson }},
+    sinConexion: {{ t("monitor.sin_conexion") | tojson }},
+    obsoleto: {{ t("monitor.obsoleto") | tojson }},
+    sinLecturas: {{ t("monitor.sin_lecturas") | tojson }},
+    rangos: {
+      {% for r in ["1h", "24h", "7d", "30d"] %}{{ r | tojson }}: {{ t("monitor.rango_largo." ~ r) | tojson }},{% endfor %}
+    },
+    escalas: {{ t("monitor.serie.escalas") | tojson }},
+    ahora: {{ t("monitor.ahora") | tojson }},
+  };
+</script>
+<script src="/static/js/monitor.js?v={{ version_estaticos }}"></script>
+{% endblock %}
