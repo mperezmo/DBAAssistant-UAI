@@ -321,7 +321,7 @@ async def test_motor_sostiene_escala_refresca_y_normaliza(alertas):
     await m.evaluar(TENANT, conexion, _lectura(cpu=95.0))
     assert repo.alertas[alerta.id].severidad == "critical"
     roles, mensaje = enviados[-1]
-    assert roles == ("DBA",) and mensaje["url"] == f"/alertas?id={alerta.id}"
+    assert roles == ("ADMINISTRADOR", "DBA") and mensaje["url"] == f"/alertas?id={alerta.id}"
     assert mensaje["titulo"] == "CRITICAL · ERP-PROD-01"
 
     reloj.ahora += 61
@@ -761,7 +761,7 @@ async def test_notificar_por_push_y_correo(alertas, smtp, monkeypatch):
     await m.evaluar(TENANT, conexion, None)
 
     [alerta] = alertas["alertas"].alertas.values()
-    assert alertas["enviados"][-1][0] == ("DBA",)
+    assert alertas["enviados"][-1][0] == ("ADMINISTRADOR", "DBA")
     _, asunto, para, texto = smtp[-1]
     assert asunto == "[CRITICAL] ERP-PROD-01 · Instancia sin conexión" and para == ["dba@acme.com"]
     assert f"https://acme.localhost/alertas?id={alerta.id}" in texto and "Crítica" in texto

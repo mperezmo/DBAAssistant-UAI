@@ -191,7 +191,7 @@ document.addEventListener("alpine:init", () => {
     nuevaRegla() {
       this.reglas.formulario = {
         id: null, nombre: "", metrica: "cpu", operador: ">", valor: "", severidad: "warning",
-        conexion_id: "", sostenida_segundos: 60, destinatarios: ["DBA"], push: false, email: false, activa: true,
+        conexion_id: "", sostenida_segundos: 60, destinatarios: ["ADMINISTRADOR", "DBA"], push: false, email: false, activa: true,
         mensaje: "", guardando: false,
       };
     },

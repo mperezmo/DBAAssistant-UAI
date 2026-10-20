@@ -7,7 +7,7 @@ document.addEventListener("alpine:init", () => {
   const fecha = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
   const formularioVacio = () => ({
     id: null, nombre: "", descripcion: "", categoria: "mantenimiento", criticidad: "info",
-    ambientes: ["DEV", "TESTING"], roles: ["DBA"], transaccional: true, condicion: "", pasos: [""],
+    ambientes: ["DEV", "TESTING"], roles: ["ADMINISTRADOR", "DBA"], transaccional: true, condicion: "", pasos: [""],
     validar_conexion_id: "", validar_base: "", bases: [], mensaje: "", guardando: false,
   });
 

@@ -5,12 +5,13 @@ Tres orígenes: umbrales del monitoreo (CU-000-003-B), eventos fijos y reglas pr
 devuelven las condiciones que se cumplen en ese momento.
 """
 
+from app.identidad.entidades import ROLES_OPERATIVOS
 from app.modulos.alertas.entidades import Condicion, Regla
 from app.modulos.monitor.entidades import METRICAS, Lectura, Umbral
 from app.web.i18n import traducir
 
 # Destinatarios de las alertas que no vienen de una regla propia.
-DESTINATARIOS_SISTEMA = ("DBA",)
+DESTINATARIOS_SISTEMA = ROLES_OPERATIVOS
 
 CLAVE_INSTANCIA = "evento:instancia"
 # Confirmación antes de declarar caída una instancia o una base (dos lecturas fallidas);

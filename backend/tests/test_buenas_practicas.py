@@ -258,7 +258,7 @@ async def test_solicitar_y_aplicar(bp, monkeypatch):
     assert aplicada["sandbox"]["registro_id"] == "r1" and llamadas[0][0] == "Ventas"
     assert bp["informes"][informe["id"]]["sugerencias"][0]["sandbox"]["estado"] == "ok"
     for actor, sugerencia, codigo in (
-        (_actor("ADMINISTRADOR"), 0, "USR_PER_000"),
+        (_actor("CONSULTA"), 0, "USR_PER_000"),
         (_actor(), 1, "BPR_VAL_001"),
         (_actor(), 9, "BPR_VAL_000"),
     ):
@@ -326,7 +326,7 @@ async def test_reglas_del_equipo(bp):
         "activa"
     ] is False
     for actor, regla_id, texto, codigo in (
-        (_actor("ADMINISTRADOR"), None, "x", "USR_PER_000"),
+        (_actor("CONSULTA"), None, "x", "USR_PER_000"),
         (_actor(), None, " ", "USR_VAL_002"),
         (_actor(), str(ObjectId()), "x", "BPR_VAL_000"),
     ):

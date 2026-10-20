@@ -17,7 +17,7 @@ from app.core import cifrado
 from app.core.errores import ErrorDominio
 from app.datos import sqlserver
 from app.identidad import repositorios as usuarios
-from app.identidad.entidades import Sesion
+from app.identidad.entidades import ROLES_OPERATIVOS, Sesion
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.buenas_practicas import analisis_ia, chequeos, repositorios
@@ -30,9 +30,8 @@ from app.tenants.entidades import Tenant
 
 log = logging.getLogger(__name__)
 
-ROLES_ANALIZAN = frozenset({"ADMINISTRADOR", "DBA"})
-# CU-000-007-B y la definición de reglas son del DBA Senior (rol DBA).
-ROLES_APLICAN = frozenset({"DBA"})
+ROLES_ANALIZAN = ROLES_OPERATIVOS
+ROLES_APLICAN = ROLES_OPERATIVOS
 VENCIMIENTO_EN_CURSO = timedelta(minutes=15)
 LARGO_MAXIMO_REGLA = 500
 

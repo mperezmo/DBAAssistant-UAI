@@ -248,7 +248,7 @@ async def test_sincronizar_ejecutar_y_promover(sbx, monkeypatch):
     previa = await servicios.previa(TENANT, dba, resultado["id"])
     assert previa["real"]["filas_estimadas"] == 7 and previa["ambiente"] == "PROD"
     with pytest.raises(ErrorDominio) as error:
-        await servicios.previa(TENANT, _actor("ADMINISTRADOR"), resultado["id"])
+        await servicios.previa(TENANT, _actor("CONSULTA"), resultado["id"])
     assert error.value.codigo == "USR_PER_000"
     with pytest.raises(ErrorDominio) as error:
         await servicios.promover(TENANT, dba, resultado["id"])

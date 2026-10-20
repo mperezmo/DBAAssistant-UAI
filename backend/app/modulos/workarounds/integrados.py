@@ -14,11 +14,10 @@ from dataclasses import dataclass
 import pyodbc
 
 from app.core.errores import ErrorDominio
-from app.identidad.entidades import AMBIENTES
+from app.identidad.entidades import AMBIENTES, ROLES_OPERATIVOS
 from app.modulos.workarounds.entidades import Paso
 
-TODOS = ("ADMINISTRADOR", "DBA")
-SOLO_DBA = ("DBA",)
+TODOS = ROLES_OPERATIVOS
 
 
 @dataclass(frozen=True)
@@ -49,7 +48,7 @@ CATALOGO: dict[str, Integrado] = {
             "Lista las sesiones que bloquean a otras y termina con KILL las que se elijan.",
             "performance",
             "critical",
-            SOLO_DBA,
+            TODOS,
             requiere_base=False,
         ),
         Integrado(
@@ -70,7 +69,7 @@ CATALOGO: dict[str, Integrado] = {
             "REBUILD de los índices con fragmentación mayor al 30% y al menos 1000 páginas.",
             "performance",
             "warning",
-            SOLO_DBA,
+            TODOS,
             requiere_base=True,
             requiere_ventana=True,
         ),
@@ -81,7 +80,7 @@ CATALOGO: dict[str, Integrado] = {
             "UPDATE STATISTICS sobre las estadísticas con más del 20% de filas modificadas.",
             "mantenimiento",
             "info",
-            SOLO_DBA,
+            TODOS,
             requiere_base=True,
             requiere_ventana=True,
         ),
@@ -92,7 +91,7 @@ CATALOGO: dict[str, Integrado] = {
             "Elimina los planes en caché de la base elegida (no afecta a las demás).",
             "performance",
             "warning",
-            SOLO_DBA,
+            TODOS,
             requiere_base=True,
         ),
         Integrado(

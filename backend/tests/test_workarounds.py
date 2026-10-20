@@ -531,7 +531,7 @@ async def test_biblioteca_detalle_y_propios(wk):
 
     with pytest.raises(ErrorDominio) as error:
         await servicios.guardar_propio(
-            TENANT, _actor("ADMINISTRADOR"), None, _propio(), (conexion.id, None)
+            TENANT, _actor("CONSULTA"), None, _propio(), (conexion.id, None)
         )
     assert error.value.codigo == "USR_PER_000"
     for cambios in ({"nombre": " "}, {"pasos": ()}, {"ambientes": ()}, {"categoria": "x"}):
@@ -590,7 +590,7 @@ async def test_ejecutar_controles_y_registro(wk):
     assert error.value.codigo == "USR_VAL_002"
     with pytest.raises(ErrorDominio) as error:
         await servicios.ejecutar(
-            TENANT, _actor("ADMINISTRADOR"), "kill_bloqueos", conexion.id, None, {}, "web"
+            TENANT, _actor("CONSULTA"), "kill_bloqueos", conexion.id, None, {}, "web"
         )
     assert error.value.codigo == "USR_PER_000"
     with pytest.raises(ErrorDominio) as error:
@@ -612,7 +612,7 @@ async def test_ejecucion_fallida_avisa(wk, monkeypatch):
     await servicios.ejecutar(TENANT, _dba(wk), "checkpoint", conexion.id, "ERP", {}, "web")
     await _terminar()
     roles, _, cuerpo = wk["avisos"][-1]
-    assert roles == ("DBA",) and "Login failed" in cuerpo
+    assert roles == ("ADMINISTRADOR", "DBA") and "Login failed" in cuerpo
 
 
 async def test_propios_en_prod_solo_version_aprobada(wk):
@@ -848,7 +848,7 @@ async def test_validar_en_sandbox_aprueba_o_conserva_la_anterior(wk, monkeypatch
 
     with pytest.raises(ErrorDominio) as error:
         await servicios.validar_en_sandbox(
-            TENANT, _actor("ADMINISTRADOR"), creado["id"], conexion.id, "ERP"
+            TENANT, _actor("CONSULTA"), creado["id"], conexion.id, "ERP"
         )
     assert error.value.codigo == "USR_PER_000"
 

@@ -184,7 +184,7 @@ async def test_workarounds_de_punta_a_punta(prefijo_aislado, entorno):
     assert [p["estado"] for p in resultado["pasos"]] == ["revertido", "error"]
     with sqlserver.conectar_externo(SERVIDOR, "sa", password, base) as c:
         assert c.cursor().execute("SELECT x FROM dbo.t").fetchone()[0] != 99
-    assert avisos and avisos[-1][0] == ("DBA",)
+    assert avisos and avisos[-1][0] == ("ADMINISTRADOR", "DBA")
 
     # Modificar crea una versión nueva.
     modificado = await servicios.guardar_propio(

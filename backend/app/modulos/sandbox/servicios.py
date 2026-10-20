@@ -14,7 +14,7 @@ from app.core import cifrado
 from app.core.errores import ErrorDominio
 from app.datos import sqlserver
 from app.identidad import reautenticacion
-from app.identidad.entidades import Sesion
+from app.identidad.entidades import ROLES_OPERATIVOS, Sesion
 from app.modulos.alertas import notificaciones
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
@@ -29,7 +29,7 @@ from app.web.i18n import traducir
 
 log = logging.getLogger(__name__)
 
-ROLES_PROMUEVEN = frozenset({"DBA"})
+ROLES_PROMUEVEN = ROLES_OPERATIVOS
 VIGENCIA_ESTRUCTURA = timedelta(hours=24)
 LARGO_MAXIMO_SQL = 100_000
 SEPARADOR_LOTES = re.compile(r"^\s*GO\s*$", re.IGNORECASE | re.MULTILINE)
@@ -440,7 +440,7 @@ async def promover(tenant: Tenant, actor: Sesion, registro_id: str) -> dict:
     # Aviso interno al equipo DBA (CU-000-002-B, paso 6).
     await notificaciones.avisar(
         tenant,
-        ("DBA",),
+        ROLES_OPERATIVOS,
         traducir("sandbox.aviso.titulo").format(conexion=conexion.alias),
         traducir(f"sandbox.aviso.{estado_promocion}").format(
             usuario=actor.email, base=registro["base"], filas=filas, error=error or ""

@@ -15,7 +15,7 @@ from app.core.errores import ErrorDominio
 from app.datos import sqlserver, winrm
 from app.identidad import reautenticacion
 from app.identidad import repositorios as usuarios
-from app.identidad.entidades import AMBIENTES, Sesion
+from app.identidad.entidades import AMBIENTES, ROLES_OPERATIVOS, Sesion
 from app.modulos.alertas import notificaciones
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
@@ -41,9 +41,9 @@ from app.web.i18n import traducir
 
 log = logging.getLogger(__name__)
 
-ROLES_CREAN = frozenset({"DBA"})
-ROLES_AUTORIZAN = frozenset({"ADMINISTRADOR", "DBA"})
-ROLES_EJECUTORES = ("ADMINISTRADOR", "DBA")
+ROLES_CREAN = ROLES_OPERATIVOS
+ROLES_AUTORIZAN = ROLES_OPERATIVOS
+ROLES_EJECUTORES = ROLES_OPERATIVOS
 USUARIO_AUTOMATICO = "sistema (ejecución automática)"
 MAXIMO_PASOS = 20
 LARGO_PASO = 20_000
@@ -586,7 +586,7 @@ async def _correr(
         clave = "automatica" if registro.origen == "automatica" else "manual"
         await notificaciones.avisar(
             tenant,
-            ("DBA",),
+            ROLES_OPERATIVOS,
             f"{registro.workaround_nombre} · {conexion.alias}",
             traducir(f"workarounds.aviso.{clave}").format(
                 estado=traducir(f"workarounds.estado.{estado}"), error=error or "—"
@@ -851,7 +851,7 @@ class Automatizador:
                 log.warning("Ejecución automática de %s no realizada: %s", a.workaround, error)
                 await notificaciones.avisar(
                     tenant,
-                    ("DBA",),
+                    ROLES_OPERATIVOS,
                     traducir("workarounds.aviso.no_realizada_titulo").format(
                         conexion=conexion.alias
                     ),

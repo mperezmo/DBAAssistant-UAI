@@ -5,6 +5,9 @@ from datetime import datetime
 
 ROLES = ("ADMINISTRADOR", "DBA", "CONSULTA")
 AMBIENTES = ("DEV", "TESTING", "PROD")
+# Roles con las facultades operativas del DBA. El Administrador también las tiene, para
+# que un equipo sin DBA designado pueda operar (ver docs/arquitectura.md).
+ROLES_OPERATIVOS = ("ADMINISTRADOR", "DBA")
 DIAS_GRACIA_BAJA = 30
 
 # Módulos del menú habilitados por rol (docs/arquitectura.md, "Módulos por rol").

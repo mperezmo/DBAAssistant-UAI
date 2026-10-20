@@ -97,7 +97,7 @@ async def test_motor_y_atencion_de_alertas(prefijo_aislado, entorno):
     activas = {a.clave: a for a in await servicios.listar(tenant, "activa")}
     assert set(activas) == {"umbral:cpu", "evento:instancia"}
     assert activas["umbral:cpu"].normalizada is False
-    assert enviados[-1] == (("DBA",), "Instancia sin conexión")
+    assert enviados[-1] == (("ADMINISTRADOR", "DBA"), "Instancia sin conexión")
 
     # Atender: Administrador y DBA, con comentario; no se puede atender dos veces.
     consulta = Sesion("s", "u", str(tenant.id), "acme", "c@acme.com", "C", "CONSULTA", 0)
