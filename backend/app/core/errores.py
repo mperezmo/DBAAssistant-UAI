@@ -93,6 +93,8 @@ CATALOGO: dict[str, DefinicionError] = {
     "EXP_LIM_000": DefinicionError(
         "El volumen excede el límite de exportación: acotá los filtros.", 422
     ),
+    "BPR_VAL_000": DefinicionError("Informe, sugerencia o regla no encontrados.", 404),
+    "BPR_VAL_001": DefinicionError("La sugerencia no tiene T-SQL para aplicar.", 422),
     "SCH_SNP_000": DefinicionError("Versión de schema no disponible.", 404),
     "IA_API_000": DefinicionError("Error de comunicación con el motor IA.", 502),
     "IA_TRA_000": DefinicionError("No se pudo traducir la consulta.", 422),

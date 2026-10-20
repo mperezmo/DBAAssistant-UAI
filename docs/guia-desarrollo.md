@@ -59,7 +59,8 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
   (CU-000-001); panel de Inicio.
 - **Sprint 8 (en `dev`, pendiente de QA):** Auditoría (CU-000-009), bitácora de
   excepciones e Histórico de Schema (CU-000-008 A y B).
-- **Pendiente:** Buenas Prácticas (CU-000-007), biometría en la PWA, push en el celular
+- **Sprint 9 (en `dev`, pendiente de QA):** Buenas Prácticas (CU-000-007 A y B).
+- **Pendiente:** biometría en la PWA, push en el celular
   (dominio + túnel) y despliegue en Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.

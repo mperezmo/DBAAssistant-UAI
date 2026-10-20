@@ -77,6 +77,52 @@ def _clave_cache(modelo: str, contexto: str, historial: list[dict], pedido: str)
     return f"ia:traduccion:{huella}"
 
 
+async def solicitar(
+    instrucciones: str,
+    contexto: str,
+    mensajes: list[dict],
+    formato: type[BaseModel],
+    maximo_tokens: int,
+    codigo_sin_respuesta: str,
+    timeout: float = TIMEOUT_SEGUNDOS,
+):
+    """Pedido con salida estructurada; el contexto va cacheado. Devuelve el objeto parseado."""
+    cfg = obtener_configuracion()
+    try:
+        respuesta = (
+            await _cliente()
+            .with_options(timeout=timeout)
+            .messages.parse(
+                model=cfg.ia_modelo,
+                max_tokens=maximo_tokens,
+                system=[
+                    {"type": "text", "text": instrucciones},
+                    {"type": "text", "text": contexto, "cache_control": {"type": "ephemeral"}},
+                ],
+                messages=mensajes,
+                output_format=formato,
+                output_config={"effort": cfg.ia_esfuerzo},
+            )
+        )
+    except anthropic.APIConnectionError as error:
+        raise ErrorDominio("IA_API_000", f"conexión: {error}") from error
+    except anthropic.RateLimitError as error:
+        raise ErrorDominio("IA_API_000", "límite de uso de la API") from error
+    except anthropic.APIStatusError as error:
+        raise ErrorDominio("IA_API_000", f"{error.status_code}: {error.message}") from error
+
+    if respuesta.stop_reason == "refusal" or respuesta.parsed_output is None:
+        raise ErrorDominio(codigo_sin_respuesta, f"stop_reason={respuesta.stop_reason}")
+    log.info(
+        "IA (%s): %s tokens de entrada (%s desde caché), %s de salida",
+        formato.__name__,
+        respuesta.usage.input_tokens,
+        respuesta.usage.cache_read_input_tokens,
+        respuesta.usage.output_tokens,
+    )
+    return respuesta.parsed_output
+
+
 async def traducir(contexto: str, historial: list[dict], pedido: str) -> Traduccion:
     """``historial``: turnos previos del hilo como mensajes user/assistant de texto."""
     cfg = obtener_configuracion()
@@ -87,33 +133,13 @@ async def traducir(contexto: str, historial: list[dict], pedido: str) -> Traducc
     except Exception as error:
         log.warning("Caché de IA no disponible: %s", error)
 
-    try:
-        respuesta = await _cliente().messages.parse(
-            model=cfg.ia_modelo,
-            max_tokens=MAXIMO_TOKENS,
-            system=[
-                {"type": "text", "text": INSTRUCCIONES},
-                {"type": "text", "text": contexto, "cache_control": {"type": "ephemeral"}},
-            ],
-            messages=[*historial, {"role": "user", "content": pedido}],
-            output_format=Traduccion,
-            output_config={"effort": cfg.ia_esfuerzo},
-        )
-    except anthropic.APIConnectionError as error:
-        raise ErrorDominio("IA_API_000", f"conexión: {error}") from error
-    except anthropic.RateLimitError as error:
-        raise ErrorDominio("IA_API_000", "límite de uso de la API") from error
-    except anthropic.APIStatusError as error:
-        raise ErrorDominio("IA_API_000", f"{error.status_code}: {error.message}") from error
-
-    if respuesta.stop_reason == "refusal" or respuesta.parsed_output is None:
-        raise ErrorDominio("IA_TRA_000", f"stop_reason={respuesta.stop_reason}")
-    traduccion = respuesta.parsed_output
-    log.info(
-        "Traducción IA: %s tokens de entrada (%s desde caché), %s de salida",
-        respuesta.usage.input_tokens,
-        respuesta.usage.cache_read_input_tokens,
-        respuesta.usage.output_tokens,
+    traduccion = await solicitar(
+        INSTRUCCIONES,
+        contexto,
+        [*historial, {"role": "user", "content": pedido}],
+        Traduccion,
+        MAXIMO_TOKENS,
+        "IA_TRA_000",
     )
     try:
         await cache.cliente().set(clave, traduccion.model_dump_json(), ex=cfg.cache_ttl_ia)

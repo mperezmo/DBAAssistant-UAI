@@ -413,6 +413,12 @@ class _Mensajes:
         return self.resultado
 
 
+def _cliente_falso(mensajes):
+    cliente = SimpleNamespace(messages=mensajes)
+    cliente.with_options = lambda **opciones: cliente
+    return cliente
+
+
 def _respuesta(parsed, stop_reason="end_turn"):
     return SimpleNamespace(
         stop_reason=stop_reason,
@@ -424,7 +430,7 @@ def _respuesta(parsed, stop_reason="end_turn"):
 async def test_motor_ia(monkeypatch, redis_falso):
     traduccion = _traduccion("SELECT 1")
     mensajes = _Mensajes(_respuesta(traduccion))
-    monkeypatch.setattr(motor_ia, "_cliente", lambda: SimpleNamespace(messages=mensajes))
+    monkeypatch.setattr(motor_ia, "_cliente", lambda: _cliente_falso(mensajes))
 
     historial = [{"role": "user", "content": "antes"}]
     assert await motor_ia.traducir("ctx", historial, "pedido") == traduccion
@@ -458,9 +464,7 @@ async def test_motor_ia(monkeypatch, redis_falso):
         (_respuesta(None, "refusal"), "IA_TRA_000"),
     )
     for resultado, codigo in errores:
-        monkeypatch.setattr(
-            motor_ia, "_cliente", lambda r=resultado: SimpleNamespace(messages=_Mensajes(r))
-        )
+        monkeypatch.setattr(motor_ia, "_cliente", lambda r=resultado: _cliente_falso(_Mensajes(r)))
         with pytest.raises(ErrorDominio) as error:
             await motor_ia.traducir("ctx", [], f"otro {codigo} {id(resultado)}")
         assert error.value.codigo == codigo

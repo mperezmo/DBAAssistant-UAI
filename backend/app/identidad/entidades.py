@@ -20,6 +20,7 @@ MODULOS_POR_ROL: dict[str, frozenset[str]] = {
             "contexto",
             "schema",
             "auditoria",
+            "buenas_practicas",
             "admin",
             "conexiones",
         }
@@ -35,6 +36,7 @@ MODULOS_POR_ROL: dict[str, frozenset[str]] = {
             "contexto",
             "schema",
             "auditoria",
+            "buenas_practicas",
             "conexiones",
         }
     ),

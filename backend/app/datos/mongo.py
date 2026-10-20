@@ -25,6 +25,8 @@ COLECCION_METRICAS = "metricas"
 COLECCION_CONTEXTO = "contexto_negocio"
 COLECCION_HILOS = "chat_hilos"
 COLECCION_SCHEMA = "schema_versiones"
+COLECCION_INFORMES = "informes_buenas_practicas"
+COLECCION_REGLAS_BP = "reglas_buenas_practicas"
 
 
 @lru_cache
@@ -75,6 +77,7 @@ async def preparar_base_tenant(nombre: str) -> None:
         unique=True,
         name="version_por_base",
     )
+    await db[COLECCION_INFORMES].create_index([("tenant_id", ASCENDING), ("ts", ASCENDING)])
     await db[COLECCION_HILOS].create_index(
         [("usuario_id", ASCENDING), ("actualizado_en", ASCENDING)]
     )

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% set tipos = ["consultas", "indices", "fragmentacion", "esquema"] %}
+
+{% block miga %}{{ t("menu.buenas_practicas") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="buenasPracticas()" x-init="iniciar()">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("bp.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("bp.titulo") }} <em>{{ t("bp.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle">{{ t("bp.subtitulo") }}</p>
+  </div>
+
+  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+  <p class="mb-4 text-sm text-fg-muted" x-show="cargado && !conexiones.length" x-cloak>{{ t("bp.sin_conexiones") }}</p>
+
+  <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+    <div class="space-y-5">
+      <!-- Nuevo análisis (CU-000-007-A) -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow">{{ t("bp.nuevo.eyebrow") }}</div>
+            <h3 class="card-title">{{ t("bp.nuevo.titulo") }}</h3>
+          </div>
+        </div>
+        <div class="card-body space-y-3 text-sm">
+          <select class="w-full rounded border border-line px-3 py-2 text-sm" x-model="conexionId" @change="cargarBases()" aria-label="{{ t('bp.instancia') }}">
+            <template x-for="c in conexiones" :key="c.id"><option :value="c.id" x-text="`${c.alias} · ${c.ambiente}`"></option></template>
+          </select>
+          <select class="w-full rounded border border-line px-3 py-2 text-sm" x-model="base" aria-label="{{ t('bp.base') }}">
+            <option value="">{{ t("bp.base") }}</option>
+            <template x-for="b in bases" :key="b"><option :value="b" x-text="b"></option></template>
+          </select>
+          {% for tipo in tipos %}
+          <label class="flex items-start gap-2.5">
+            <input type="checkbox" class="mt-0.5 size-4" value="{{ tipo }}" x-model="tiposElegidos">
+            <span><span class="font-medium">{{ t("bp.tipo." ~ tipo) }}</span><span class="block text-xs text-fg-muted">{{ t("bp.tipo_ayuda." ~ tipo) }}</span></span>
+          </label>
+          {% endfor %}
+          <button class="btn btn-primary btn-block" :disabled="analizando || !base || !tiposElegidos.length" @click="analizar()"
+                  x-text="analizando ? TEXTOS.analizando : TEXTOS.analizar"></button>
+        </div>
+      </section>
+
+      <!-- Reglas del equipo -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow">{{ t("bp.reglas.eyebrow") }}</div>
+            <h3 class="card-title" x-text="`${TEXTOS.reglasTitulo} · ${reglas.length}`"></h3>
+          </div>
+        </div>
+        <div class="divide-y divide-[var(--line)] text-[13px]">
+          <template x-for="r in reglas" :key="r.id">
+            <div class="flex items-start gap-2.5 px-5 py-3" :class="r.activa ? '' : 'opacity-50'">
+              <input type="checkbox" class="mt-0.5 size-4" :checked="r.activa" :disabled="!permisos.reglas" @change="guardarRegla(r, { activa: $event.target.checked })" :aria-label="TEXTOS.activa">
+              <span class="flex-1" x-text="r.texto"></span>
+              <button class="btn btn-ghost btn-sm px-2 py-0.5" x-show="permisos.reglas" @click="eliminarRegla(r)" aria-label="{{ t('bp.reglas.eliminar') }}">✕</button>
+            </div>
+          </template>
+          <p class="px-5 py-3 text-fg-muted" x-show="!reglas.length">{{ t("bp.reglas.vacio") }}</p>
+        </div>
+        <form class="card-foot gap-2" x-show="permisos.reglas" @submit.prevent="nuevaRegla()">
+          <input class="min-w-0 flex-1 rounded border border-line px-3 py-1.5 text-sm" maxlength="500" x-model="textoRegla" placeholder="{{ t('bp.reglas.ejemplo') }}">
+          <button class="btn btn-primary btn-sm" :disabled="!textoRegla.trim()">{{ t("bp.reglas.agregar") }}</button>
+        </form>
+      </section>
+    </div>
+
+    <div class="space-y-5">
+      <!-- Informe elegido -->
+      <section class="card" x-show="informe" x-cloak>
+        <template x-if="informe">
+          <div>
+            <div class="card-head flex-wrap gap-3">
+              <div>
+                <div class="card-eyebrow" x-text="`${informe.conexion_alias} · ${informe.base} · ${fecha(informe.ts)}`"></div>
+                <h3 class="card-title">{{ t("bp.informe.titulo") }}</h3>
+              </div>
+              <span class="tag" :class="claseEstado(informe.estado)" x-text="TEXTOS.estados[informe.estado]"></span>
+            </div>
+            <div class="card-body space-y-3 text-[13px]">
+              <p class="text-fg-muted" x-show="informe.estado === 'en_curso'">{{ t("bp.informe.en_curso") }}</p>
+              <p class="text-danger" x-show="informe.error" x-text="TEXTOS.errores[informe.error] || informe.error"></p>
+              <p x-show="informe.resumen" x-text="informe.resumen"></p>
+              <div class="flex flex-wrap gap-2" x-show="informe.estado === 'listo'">
+                <span class="tag tag-red" x-text="`${informe.conteo.alta} ${TEXTOS.severidades.alta}`"></span>
+                <span class="tag tag-yellow" x-text="`${informe.conteo.media} ${TEXTOS.severidades.media}`"></span>
+                <span class="tag" x-text="`${informe.conteo.baja} ${TEXTOS.severidades.baja}`"></span>
+              </div>
+            </div>
+            <div class="divide-y divide-[var(--line)]">
+              <template x-for="s in ordenadas()" :key="s.id">
+                <div class="px-5 py-4">
+                  <div class="mb-1.5 flex flex-wrap items-center gap-2">
+                    <span class="tag" :class="{ alta: 'tag-red', media: 'tag-yellow', baja: '' }[s.severidad]" x-text="TEXTOS.severidades[s.severidad]"></span>
+                    <span class="tag tag-blue" x-text="TEXTOS.tipos[s.tipo] || s.tipo"></span>
+                    <span class="metric-mono text-xs text-fg-muted" x-text="s.objeto"></span>
+                  </div>
+                  <div class="mb-1 text-sm font-medium" x-text="s.titulo"></div>
+                  <p class="mb-2.5 text-[13px] text-fg-muted" x-text="s.descripcion"></p>
+                  <pre class="bloque-sql mb-2.5 max-h-48 overflow-auto p-3 font-mono text-xs" x-show="s.sql" x-text="s.sql"></pre>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button class="btn btn-ghost btn-sm" x-show="s.sql && permisos.aplicar" :disabled="validando === s.id" @click="validar(s)">
+                      {% with nombre="sandbox", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
+                      <span x-text="validando === s.id ? TEXTOS.validando : TEXTOS.validar"></span>
+                    </button>
+                    <template x-if="s.sandbox">
+                      <span class="flex flex-wrap items-center gap-2 text-xs">
+                        <span :class="s.sandbox.estado === 'ok' ? 'text-ok' : 'text-danger'" x-text="s.sandbox.estado === 'ok' ? TEXTOS.sandboxOk : `${TEXTOS.sandboxError} ${s.sandbox.error || ''}`"></span>
+                        <a class="btn btn-ghost btn-sm" :href="`/sandbox?registro=${s.sandbox.registro_id}`">{{ t("bp.abrir_sandbox") }}</a>
+                      </span>
+                    </template>
+                  </div>
+                  <p class="mt-1.5 text-xs text-danger" x-show="errores[s.id]" x-text="errores[s.id]"></p>
+                </div>
+              </template>
+            </div>
+            <details class="border-t border-line px-5 py-3 text-xs" x-show="(informe.hallazgos || []).length">
+              <summary class="cursor-pointer text-fg-muted" x-text="`${TEXTOS.datosMedidos} · ${(informe.hallazgos || []).length}`"></summary>
+              <pre class="bloque-sql mt-2 max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="JSON.stringify(informe.hallazgos, null, 2)"></pre>
+            </details>
+          </div>
+        </template>
+      </section>
+
+      <!-- Informes anteriores -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow">{{ t("bp.informes.eyebrow") }}</div>
+            <h3 class="card-title">{{ t("bp.informes.titulo") }}</h3>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="data-table text-[12.5px]">
+            <thead><tr><th>{{ t("bp.col.fecha") }}</th><th>{{ t("bp.col.base") }}</th><th>{{ t("bp.col.usuario") }}</th><th>{{ t("bp.col.estado") }}</th><th>{{ t("bp.col.sugerencias") }}</th></tr></thead>
+            <tbody>
+              <template x-for="i in informes" :key="i.id">
+                <tr class="cursor-pointer" :style="informe?.id === i.id ? 'background: var(--bg-sunk)' : ''" @click="abrir(i.id)">
+                  <td class="metric-mono whitespace-nowrap" x-text="fecha(i.ts)"></td>
+                  <td x-text="`${i.conexion_alias} · ${i.base}`"></td>
+                  <td x-text="i.usuario"></td>
+                  <td><span class="tag" :class="claseEstado(i.estado)" x-text="TEXTOS.estados[i.estado]"></span></td>
+                  <td class="metric-mono" x-text="i.estado === 'listo' ? `${i.conteo.alta} / ${i.conteo.media} / ${i.conteo.baja}` : '—'"></td>
+                </tr>
+              </template>
+              <tr x-show="!informes.length"><td colspan="5" class="text-center text-fg-muted">{{ t("bp.informes.vacio") }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.TEXTOS_BP = {
+    analizar: {{ t("bp.analizar") | tojson }},
+    analizando: {{ t("bp.analizando") | tojson }},
+    validar: {{ t("bp.validar") | tojson }},
+    validando: {{ t("bp.validando") | tojson }},
+    sandboxOk: {{ t("bp.sandbox_ok") | tojson }},
+    sandboxError: {{ t("bp.sandbox_error") | tojson }},
+    reglasTitulo: {{ t("bp.reglas.titulo") | tojson }},
+    activa: {{ t("bp.reglas.activa") | tojson }},
+    confirmarEliminar: {{ t("bp.reglas.confirmar_eliminar") | tojson }},
+    datosMedidos: {{ t("bp.datos_medidos") | tojson }},
+    estados: { {% for e in ["en_curso", "listo", "error", "interrumpido"] %}{{ e | tojson }}: {{ t("bp.estado." ~ e) | tojson }},{% endfor %} },
+    severidades: { {% for s in ["alta", "media", "baja"] %}{{ s | tojson }}: {{ t("bp.severidad." ~ s) | tojson }},{% endfor %} },
+    tipos: { {% for tipo in tipos + ["regla"] %}{{ tipo | tojson }}: {{ t("bp.tipo." ~ tipo) | tojson }},{% endfor %} },
+    errores: { IA_API_000: {{ t("bp.error.ia") | tojson }}, MNT_DAT_000: {{ t("bp.error.metricas") | tojson }} },
+  };
+</script>
+<script src="/static/js/buenas_practicas.js?v={{ version_estaticos }}"></script>
+{% endblock %}

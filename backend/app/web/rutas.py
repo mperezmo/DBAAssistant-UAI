@@ -162,6 +162,13 @@ async def schema(request: Request, tenant: Tenant | None = Depends(tenant_actual
     return await _pagina_de_modulo(request, tenant, "schema", "paginas/schema.html", {})
 
 
+@router.get("/buenas-practicas", response_class=HTMLResponse)
+async def buenas_practicas(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(
+        request, tenant, "buenas_practicas", "paginas/buenas_practicas.html", {}
+    )
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
     return await _pagina_de_modulo(

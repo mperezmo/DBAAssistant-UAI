@@ -175,6 +175,9 @@
             <div class="card-eyebrow">{{ t("monitor.costosas.eyebrow") }}</div>
             <h3 class="card-title">{{ t("monitor.costosas.titulo") }}</h3>
           </div>
+          {% if sesion.puede_ver("buenas_practicas") %}
+          <a class="btn btn-ghost btn-sm" :href="`/buenas-practicas?conexion=${conexionId}&tipos=consultas`">{{ t("monitor.costosas.optimizar") }} →</a>
+          {% endif %}
         </div>
         <div class="px-5 py-3">
           <p class="text-sm text-danger" x-show="errorCostosas" x-text="errorCostosas"></p>
