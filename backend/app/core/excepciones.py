@@ -92,7 +92,7 @@ class Escritor:
         self.tenants_activos = tenants_activos  # () -> dict slug -> base MongoDB
         self.detener = threading.Event()
         self.bases: dict[str, str] = {}
-        self.refrescado = 0.0
+        self.refrescado: float | None = None  # None: todavía no se leyeron los tenants
 
     def iniciar(self) -> None:
         hilo = threading.Thread(target=self._ejecutar, name="bitacora-excepciones", daemon=True)
@@ -124,7 +124,10 @@ class Escritor:
                 cliente = self._conectar()
                 continue
             try:
-                if time.monotonic() - self.refrescado > REFRESCO_SEGUNDOS:
+                if (
+                    self.refrescado is None
+                    or time.monotonic() - self.refrescado > REFRESCO_SEGUNDOS
+                ):
                     self._refrescar(cliente)
                 doc = self.manejador.cola.get(timeout=1)
             except queue.Empty:
