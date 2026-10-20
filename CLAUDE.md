@@ -58,7 +58,14 @@ Guía para retomar el proyecto en cada sesión.
   (`lectura.py`, requiere `VIEW SERVER STATE`), histórico en MongoDB time-series (30 días),
   última lectura en Redis, umbrales warning/critical por conexión (Administrador y DBA)
   y panel de instrumentos del diseño. Consulta ve el monitoreo en solo lectura.
-- **Próximo: Sprint 4 (Alertas + notificaciones push).**
+- **Sprint 4 ✅ (`v0.4.0`):** alertas (CU-000-004-A a E): motor sobre cada lectura del
+  recolector (`modulos/alertas/motor.py` y `condiciones.py`) con umbrales, eventos fijos
+  (instancia sin conexión, base no disponible, bloqueo > 30 s, log > 90%) y reglas propias;
+  una alerta activa por condición e instancia (escala, se normaliza y queda hasta que la
+  atiendan Administrador o DBA); desestimar condiciones esperadas con vencimiento;
+  notificaciones Web Push con VAPID (`modulos/web_push`, suscripciones en SQL Server) y
+  por correo SMTP (`datos/correo.py`). Push en el celular pendiente de dominio + túnel.
+- **Próximo: Sprint 5 (Workarounds).**
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.
