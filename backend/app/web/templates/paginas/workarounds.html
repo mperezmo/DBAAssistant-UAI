@@ -262,8 +262,8 @@
             </template>
             <p class="text-fg-muted" x-show="!automatizaciones.length">{{ t("workarounds.automatizaciones.vacio") }}</p>
             <form class="mt-3 grid gap-2 sm:grid-cols-4" x-show="permisos.automatizar" @submit.prevent="crearAutomatizacion()">
-              <select class="rounded border border-line px-2 py-2 text-sm" x-model="nuevaAutomatizacion.evento">
-                {% for e in ["log", "instancia"] %}<option value="{{ e }}">{{ t("workarounds.evento." ~ e) }}</option>{% endfor %}
+              <select class="rounded border border-line px-2 py-2 text-sm" x-model="nuevaAutomatizacion.evento" @change="nuevaAutomatizacion.workaround = automatizables()[0]?.id || ''">
+                {% for e in ["log", "instancia", "base"] %}<option value="{{ e }}">{{ t("workarounds.evento." ~ e) }}</option>{% endfor %}
               </select>
               <select class="rounded border border-line px-2 py-2 text-sm" x-model="nuevaAutomatizacion.workaround">
                 <template x-for="w in automatizables()" :key="w.id"><option :value="w.id" x-text="w.nombre"></option></template>
@@ -312,7 +312,7 @@
     estados: { {% for e in ["integrado", "aprobado", "pendiente_sandbox"] %}{{ e | tojson }}: {{ t("workarounds.estado_w." ~ e) | tojson }},{% endfor %} },
     estadosEjecucion: { {% for e in ["en_curso", "exitosa", "fallida", "revertida"] %}{{ e | tojson }}: {{ t("workarounds.estado." ~ e) | tojson }},{% endfor %} },
     estadosAutorizacion: { {% for e in ["pendiente", "autorizada"] %}{{ e | tojson }}: {{ t("workarounds.autorizaciones.estado." ~ e) | tojson }},{% endfor %} },
-    eventos: { {% for e in ["log", "instancia"] %}{{ e | tojson }}: {{ t("workarounds.evento." ~ e) | tojson }},{% endfor %} },
+    eventos: { {% for e in ["log", "instancia", "base"] %}{{ e | tojson }}: {{ t("workarounds.evento." ~ e) | tojson }},{% endfor %} },
     paneles: { {% for p in ["autorizaciones", "automatizaciones", "ejecuciones"] %}{{ p | tojson }}: {{ t("workarounds." ~ p ~ ".titulo") | tojson }},{% endfor %} },
     roles: {{ textos_roles | tojson }},
     subtitulo: {{ t("workarounds.subtitulo") | tojson }},

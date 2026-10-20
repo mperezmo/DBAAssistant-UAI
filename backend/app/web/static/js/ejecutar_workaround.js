@@ -12,7 +12,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("ejecutorWorkaround", () => ({
     TEXTOS_EJ: window.TEXTOS_EJ,
     abierto: false, w: null, conexiones: [], bases: [],
-    conexionId: "", base: "", alertaId: null, sids: [], servicio: "", motivo: "",
+    conexionId: "", base: "", alertaId: null, sids: [], servicio: "", baseOffline: "", motivo: "",
     diag: null, cargando: false, mensaje: "", enviando: false, ejecucion: null,
 
     init() {
@@ -28,13 +28,15 @@ document.addEventListener("alpine:init", () => {
       Object.assign(this, {
         abierto: true, w: null, bases: [], diag: null, mensaje: "", ejecucion: null, enviando: false,
         conexionId: datos.conexion_id || "", base: datos.base || "", alertaId: datos.alerta_id || null,
-        sids: datos.sids || [], servicio: datos.servicio || "", motivo: "",
+        sids: datos.sids || [], servicio: datos.servicio || "", baseOffline: datos.base_offline || "", motivo: "",
       });
       try {
         const [w, monitor] = await Promise.all([
           api("GET", `/api/workarounds/${datos.workaround}`), api("GET", "/api/monitor"),
         ]);
         this.w = w;
+        // Desde la alerta llega la base caída: es un parámetro, el workaround corre desde master.
+        if (w.id === "base_online" && this.base) [this.baseOffline, this.base] = [this.base, ""];
         this.conexiones = monitor.conexiones;
         if (this.conexionId) await this.cambioConexion(true);
       } catch (error) {
@@ -72,6 +74,7 @@ document.addEventListener("alpine:init", () => {
       const parametros = {};
       if (this.w.id === "kill_bloqueos") parametros.sids = this.sids;
       if (this.w.id === "iniciar_servicio") parametros.servicio = this.servicio;
+      if (this.w.id === "base_online") parametros.base = this.baseOffline;
       return {
         conexion_id: this.conexionId, base: this.base || null, parametros,
         alerta_id: this.alertaId, origen: origen(),
@@ -96,6 +99,7 @@ document.addEventListener("alpine:init", () => {
       if (!this.diag) return [];
       if (this.w.id === "kill_bloqueos") return this.sids.map((s) => `KILL ${s}`);
       if (this.w.id === "iniciar_servicio") return this.servicio ? [`Start-Service ${this.servicio}`] : [];
+      if (this.w.id === "base_online") return this.baseOffline ? [`ALTER DATABASE [${this.baseOffline}] SET ONLINE`] : [];
       return this.diag.pasos.map((p) => p.comando);
     },
 
@@ -113,7 +117,7 @@ document.addEventListener("alpine:init", () => {
         if (error.codigo === "AMB_VAL_000" && window.confirm(this.TEXTOS_EJ.confirmarMfa)) {
           sessionStorage.setItem(CLAVE_PENDIENTE, JSON.stringify({
             workaround: this.w.id, conexion_id: this.conexionId, base: this.base,
-            alerta_id: this.alertaId, sids: this.sids, servicio: this.servicio,
+            alerta_id: this.alertaId, sids: this.sids, servicio: this.servicio, base_offline: this.baseOffline,
           }));
           const volver = location.pathname + location.search;
           window.location.href = `/auth/confirmar?volver=${encodeURIComponent(volver)}`;

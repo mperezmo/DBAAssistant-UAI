@@ -71,6 +71,19 @@ def test_pasos_de_los_integrados():
         with pytest.raises(ErrorDominio):
             integrados.pasos(i["iniciar_servicio"], None, servicios_win, {"servicio": servicio})
 
+    # Poner online: solo una base OFFLINE de las que mostró el diagnóstico.
+    no_disponibles = {
+        "bases": [
+            {"nombre": "Ventas]x", "estado": "OFFLINE", "recuperable": True},
+            {"nombre": "Legado", "estado": "SUSPECT", "recuperable": False},
+        ]
+    }
+    [paso] = integrados.pasos(i["base_online"], None, no_disponibles, {"base": "Ventas]x"})
+    assert paso.sql == "ALTER DATABASE [Ventas]]x] SET ONLINE"
+    for base in ("Legado", "Otra", None):
+        with pytest.raises(ErrorDominio):
+            integrados.pasos(i["base_online"], None, no_disponibles, {"base": base})
+
 
 def test_diagnosticos_con_cursor_falso():
     class Cursor:
@@ -93,6 +106,7 @@ def test_diagnosticos_con_cursor_falso():
         integrados.CONSULTA_FRAGMENTACION: [("dbo", "t", "IX", 75.123, 5000, 3)],
         integrados.CONSULTA_ESTADISTICAS: [("dbo", "t", "s", 100, 50, datetime(2026, 1, 1))],
         integrados.CONSULTA_PLAN_CACHE: [(12, 3)],
+        integrados.CONSULTA_BASES_NO_DISPONIBLES: [("Ventas", "OFFLINE"), ("Legado", "SUSPECT")],
     }
     conexion = SimpleNamespace(cursor=lambda: Cursor(filas))
     i = integrados.CATALOGO
@@ -118,6 +132,10 @@ def test_diagnosticos_con_cursor_falso():
         "tamano_mb": 3,
     }
     assert integrados.diagnosticar(i["checkpoint"], conexion) == {}
+    assert integrados.diagnosticar(i["base_online"], conexion)["bases"] == [
+        {"nombre": "Ventas", "estado": "OFFLINE", "recuperable": True},
+        {"nombre": "Legado", "estado": "SUSPECT", "recuperable": False},
+    ]
     assert integrados.servicios_desde_json('{"Name":"MSSQLSERVER","Status":"Stopped"}') == [
         {"nombre": "MSSQLSERVER", "estado": "Stopped"}
     ]
@@ -128,6 +146,7 @@ def test_sugerido_para_alertas():
     assert integrados.sugerido_para("evento:bloqueo") == ("kill_bloqueos", {})
     assert integrados.sugerido_para("evento:log:ERP") == ("shrink_log", {"base": "ERP"})
     assert integrados.sugerido_para("evento:instancia") == ("iniciar_servicio", {})
+    assert integrados.sugerido_para("evento:base:Ventas") == ("base_online", {"base": "Ventas"})
     assert integrados.sugerido_para("umbral:cpu") is None
 
 
@@ -697,7 +716,11 @@ async def test_automatizaciones_y_automatizador(wk, monkeypatch):
         TENANT, dba, "instancia", "iniciar_servicio", conexion.id
     )
     await servicios.crear_automatizacion(TENANT, dba, "log", "checkpoint", conexion.id)
-    assert len(await servicios.automatizaciones(TENANT)) == 2
+    await servicios.crear_automatizacion(TENANT, dba, "base", "base_online", conexion.id)
+    assert len(await servicios.automatizaciones(TENANT)) == 3
+    wk["diagnosticos"]["base_online"] = {
+        "bases": [{"nombre": "Ventas", "estado": "OFFLINE", "recuperable": True}]
+    }
 
     wk["diagnosticos"]["iniciar_servicio"] = {
         "servicios": [{"nombre": "MSSQL$ERP", "estado": "Stopped"}]
@@ -711,11 +734,18 @@ async def test_automatizaciones_y_automatizador(wk, monkeypatch):
         TENANT, guardada, SimpleNamespace(clave="evento:log:ERP", id=6)
     )
     await automatizador.alerta_disparada(
+        TENANT, guardada, SimpleNamespace(clave="evento:base:Ventas", id=9)
+    )
+    await automatizador.alerta_disparada(
         TENANT, guardada, SimpleNamespace(clave="umbral:cpu", id=7)
     )
     await _terminar()
     automaticas = await servicios.ejecuciones(TENANT)
-    assert [e["origen"] for e in automaticas] == ["automatica", "automatica"]
+    assert [e["origen"] for e in automaticas] == ["automatica"] * 3
+    # La base afectada va como parámetro: el workaround corre desde master.
+    en_base = next(e for e in automaticas if e["workaround"] == "base_online")
+    assert en_base["base"] is None and en_base["parametros"] == {"base": "Ventas"}
+    assert wk["corridas"][-1][0] == "ALTER DATABASE [Ventas] SET ONLINE"
     assert wk["corridas"][0][0].startswith("Start-Service -Name 'MSSQL$ERP'")
     assert (
         automaticas[1]["base"] == "ERP"
@@ -743,7 +773,7 @@ async def test_api_workarounds(wk, monkeypatch):
     monkeypatch.setattr(servicios, "bases", lambda tenant, conexion_id: _lista(["ERP"]))
 
     biblioteca = navegador.get("/api/workarounds").json()
-    assert biblioteca["permisos"]["crear"] is True and len(biblioteca["workarounds"]) == 7
+    assert biblioteca["permisos"]["crear"] is True and len(biblioteca["workarounds"]) == 8
     assert navegador.get("/api/workarounds/kill_bloqueos").json()["codigo"] == "WK-01"
     assert navegador.get(f"/api/workarounds/conexiones/{conexion.id}/bases").json() == {
         "bases": ["ERP"]

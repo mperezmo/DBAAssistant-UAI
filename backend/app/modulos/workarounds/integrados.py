@@ -116,6 +116,17 @@ CATALOGO: dict[str, Integrado] = {
             requiere_base=False,
             eventos_automaticos=("instancia",),
         ),
+        Integrado(
+            "base_online",
+            "WK-08",
+            "Poner online una base",
+            "Lista las bases que no están disponibles y pone ONLINE la elegida, si está OFFLINE.",
+            "servicio",
+            "critical",
+            TODOS,
+            requiere_base=False,
+            eventos_automaticos=("base",),
+        ),
     )
 }
 
@@ -190,6 +201,14 @@ WHERE o.is_ms_shipped = 0 AND sp.rows > 0
 ORDER BY sp.modification_counter DESC
 """
 
+# Se lee desde master: la base afectada no admite conexiones.
+CONSULTA_BASES_NO_DISPONIBLES = """
+SELECT name, state_desc FROM sys.databases WHERE state_desc <> 'ONLINE' ORDER BY name
+"""
+# SET ONLINE resuelve una base puesta offline. SUSPECT, RECOVERY_PENDING o EMERGENCY
+# necesitan diagnóstico manual (archivos, DBCC CHECKDB): forzarlas puede perder datos.
+ESTADO_RECUPERABLE = "OFFLINE"
+
 CONSULTA_PLAN_CACHE = """
 SELECT COUNT(*), COALESCE(SUM(CAST(cp.size_in_bytes AS BIGINT)), 0) / 1048576
 FROM sys.dm_exec_cached_plans AS cp
@@ -261,6 +280,14 @@ def diagnosticar(integrado: Integrado, conexion: pyodbc.Connection | None) -> di
     if integrado.id == "limpiar_plan_cache":
         planes, mb = conexion.cursor().execute(CONSULTA_PLAN_CACHE).fetchone()
         return {"planes": planes, "tamano_mb": mb}
+    if integrado.id == "base_online":
+        filas = conexion.cursor().execute(CONSULTA_BASES_NO_DISPONIBLES).fetchall()
+        return {
+            "bases": [
+                {"nombre": f[0], "estado": f[1], "recuperable": f[1] == ESTADO_RECUPERABLE}
+                for f in filas
+            ]
+        }
     return {}
 
 
@@ -338,6 +365,18 @@ def pasos(
     if integrado.id == "checkpoint":
         return [Paso("CHECKPOINT", sql="CHECKPOINT")]
 
+    if integrado.id == "base_online":
+        elegida = parametros.get("base") or ""
+        recuperables = {b["nombre"] for b in diagnostico["bases"] if b["recuperable"]}
+        if elegida not in recuperables:
+            raise ErrorDominio("WKR_EJE_001")
+        return [
+            Paso(
+                f"ALTER DATABASE {elegida} SET ONLINE",
+                sql=f"ALTER DATABASE {citar(elegida)} SET ONLINE",
+            )
+        ]
+
     # iniciar_servicio
     servicio = parametros.get("servicio") or ""
     detenidos = {s["nombre"] for s in diagnostico.get("servicios", []) if s["estado"] != "Running"}
@@ -363,4 +402,6 @@ def sugerido_para(clave: str) -> tuple[str, dict] | None:
         return "shrink_log", {"base": clave.removeprefix("evento:log:")}
     if clave == "evento:instancia":
         return "iniciar_servicio", {}
+    if clave.startswith("evento:base:"):
+        return "base_online", {"base": clave.removeprefix("evento:base:")}
     return None

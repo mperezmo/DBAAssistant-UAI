@@ -8,7 +8,7 @@ CRITICIDADES = ("info", "warning", "critical")
 ESTADOS_EJECUCION = ("en_curso", "exitosa", "fallida", "revertida")
 ORIGENES = ("web", "mobile", "automatica")
 # Eventos de alerta que admiten ejecución automática de un integrado apto.
-EVENTOS_AUTOMATIZABLES = ("log", "instancia")
+EVENTOS_AUTOMATIZABLES = ("log", "instancia", "base")
 # Tiempo para que otro usuario autorice un pedido y, una vez autorizado, para ejecutarlo.
 VIGENCIA_PEDIDO_HORAS = 24
 VIGENCIA_AUTORIZACION_HORAS = 2

@@ -81,7 +81,7 @@ async def test_workarounds_de_punta_a_punta(prefijo_aislado, entorno):
         )
     assert base in await servicios.bases(tenant, conexion.id)
 
-    # Biblioteca: los 7 integrados.
+    # Biblioteca: los integrados.
     assert {w["id"] for w in await servicios.biblioteca(tenant)} >= {"kill_bloqueos", "shrink_log"}
 
     # Checkpoint y shrink del log.
@@ -92,6 +92,22 @@ async def test_workarounds_de_punta_a_punta(prefijo_aislado, entorno):
             tenant, dba, workaround, conexion.id, base, {}, "web"
         )
         assert (await _esperar(tenant, ejecucion_id))["estado"] == "exitosa"
+
+    # Poner online una base que quedó OFFLINE: el diagnóstico y los pasos corren en master.
+    with sqlserver.conectar_externo(SERVIDOR, "sa", password) as c:
+        c.cursor().execute(f"ALTER DATABASE [{base}] SET OFFLINE WITH ROLLBACK IMMEDIATE")
+    assert base not in await servicios.bases(tenant, conexion.id)
+    diag = await servicios.diagnostico(
+        tenant, dba, "base_online", conexion.id, None, {"base": base}
+    )
+    caida = next(b for b in diag["diagnostico"]["bases"] if b["nombre"] == base)
+    assert caida == {"nombre": base, "estado": "OFFLINE", "recuperable": True}
+    assert diag["pasos"][0]["comando"] == f"ALTER DATABASE [{base}] SET ONLINE"
+    ejecucion_id = await servicios.ejecutar(
+        tenant, dba, "base_online", conexion.id, None, {"base": base}, "web"
+    )
+    assert (await _esperar(tenant, ejecucion_id))["estado"] == "exitosa"
+    assert base in await servicios.bases(tenant, conexion.id)
 
     # KILL de una sesión bloqueante elegida en el diagnóstico.
     bloqueadora = sqlserver.abrir_externo(SERVIDOR, "sa", password, base)

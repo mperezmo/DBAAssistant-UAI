@@ -90,6 +90,19 @@
               </div>
             </template>
 
+            <template x-if="w.id === 'base_online'">
+              <div class="space-y-1 text-sm">
+                <p class="text-fg-muted" x-show="!diag.diagnostico.bases.length">{{ t("workarounds.ejecutar.sin_bases_caidas") }}</p>
+                <template x-for="b in diag.diagnostico.bases" :key="b.nombre">
+                  <label class="flex items-center gap-2">
+                    <input type="radio" :value="b.nombre" x-model="baseOffline" :disabled="!b.recuperable">
+                    <span class="metric-mono" x-text="`${b.nombre} · ${b.estado}`"></span>
+                  </label>
+                </template>
+                <p class="mt-1 text-[11px] text-fg-faint" x-show="diag.diagnostico.bases.some((b) => !b.recuperable)">{{ t("workarounds.ejecutar.base_no_recuperable") }}</p>
+              </div>
+            </template>
+
             <template x-if="w.id === 'limpiar_plan_cache'">
               <p class="text-sm" x-text="`${diag.diagnostico.planes} ${TEXTOS_EJ.planes} (${diag.diagnostico.tamano_mb} MB)`"></p>
             </template>
@@ -101,7 +114,7 @@
                 <template x-for="(p, i) in pasosVisibles()" :key="i"><li x-text="p"></li></template>
               </ol>
             </div>
-            <p class="text-sm text-fg-muted" x-show="!pasosVisibles().length && w.id !== 'kill_bloqueos' && w.id !== 'iniciar_servicio'">{{ t("workarounds.ejecutar.nada") }}</p>
+            <p class="text-sm text-fg-muted" x-show="!pasosVisibles().length && !['kill_bloqueos', 'iniciar_servicio', 'base_online'].includes(w.id)">{{ t("workarounds.ejecutar.nada") }}</p>
 
             <!-- Fuera de la ventana: pedido de autorización a otro usuario -->
             <div class="rounded border border-line p-3" x-show="diag.requiere_ventana && !diag.dentro_de_ventana">

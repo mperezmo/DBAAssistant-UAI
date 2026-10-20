@@ -815,6 +815,8 @@ def evento_de_clave(clave: str) -> tuple[str, str | None] | None:
         return "instancia", None
     if clave.startswith("evento:log:"):
         return "log", clave.removeprefix("evento:log:")
+    if clave.startswith("evento:base:"):
+        return "base", clave.removeprefix("evento:base:")
     return None
 
 
@@ -833,16 +835,20 @@ class Automatizador:
             if not a.activa or a.evento != tipo or (a.conexion_id and a.conexion_id != conexion.id):
                 continue
             parametros: dict = {}
+            destino = base
             if a.workaround == "iniciar_servicio":
                 servicio = f"MSSQL${conexion.instancia}" if conexion.instancia else "MSSQLSERVER"
                 parametros = {"servicio": servicio}
+            if a.workaround == "base_online":
+                # La base afectada es el parámetro: el workaround corre desde master.
+                parametros, destino = {"base": base}, None
             try:
                 await ejecutar(
                     tenant,
                     None,
                     a.workaround,
                     conexion.id,
-                    base,
+                    destino,
                     parametros,
                     "automatica",
                     alerta.id,

@@ -68,7 +68,7 @@ class ResolucionEntrada(BaseModel):
 
 
 class AutomatizacionEntrada(BaseModel):
-    evento: Literal["log", "instancia"]
+    evento: Literal["log", "instancia", "base"]
     workaround: str = Field(max_length=60)
     conexion_id: str | None = None
 

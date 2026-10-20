@@ -14,6 +14,7 @@ from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import DatosConexion
 from app.modulos.inicio import repositorios, servicios
 from app.modulos.monitor import repositorios as monitor
+from app.modulos.workarounds import integrados
 from app.tenants import servicios as tenants
 
 pytestmark = pytest.mark.integracion
@@ -109,7 +110,7 @@ async def test_resumen_con_datos_reales(prefijo_aislado, entorno):
     # Registrada hace instantes y caída desde hace una hora: el período es casi todo caída.
     assert resumen["salud"]["disponibilidad"] < 5
     assert resumen["pendientes_promocion"] == 1
-    assert resumen["workarounds"]["disponibles"] == 7
+    assert resumen["workarounds"]["disponibles"] == len(integrados.CATALOGO)
 
     todos = await servicios.resumen(tenant, dba, servicios.TODOS, ahora)
     assert todos["salud"]["online"] == 1 and todos["salud"]["sesiones"] == 5

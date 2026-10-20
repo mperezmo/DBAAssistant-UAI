@@ -6,6 +6,7 @@ import pytest
 from app.core.errores import ErrorDominio
 from app.modulos.inicio import repositorios, servicios
 from app.modulos.monitor import repositorios as monitor
+from app.modulos.workarounds import integrados
 from tests.test_conexiones import (
     TENANT,
     _actor,
@@ -131,8 +132,12 @@ async def test_resumen_por_ambiente_y_rol(datos):
 
     todos = await servicios.resumen(TENANT, _actor("DBA"), servicios.TODOS, AHORA)
     assert todos["instancias"]["total"] == 3 and todos["alertas"]["activas"] == 7
-    # Los 7 integrados aplican a todos los ambientes; los propios, a los suyos.
-    assert (prod["workarounds"]["disponibles"], todos["workarounds"]["disponibles"]) == (8, 9)
+    # Los integrados aplican a todos los ambientes; los propios, a los suyos.
+    n = len(integrados.CATALOGO)
+    assert (prod["workarounds"]["disponibles"], todos["workarounds"]["disponibles"]) == (
+        n + 1,
+        n + 2,
+    )
     assert todos["salud"]["sesiones"] == 320
 
     consulta = await servicios.resumen(TENANT, _actor("CONSULTA"), "DEV", AHORA)
