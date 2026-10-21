@@ -39,6 +39,7 @@ from app.tenants import repositorios as tenants_repositorios
 from app.tenants import resolucion
 from app.tenants import servicios as tenants
 from app.web import rutas as web
+from app.web.i18n import idioma_de_cabecera
 from app.web.rutas import DIRECTORIO_ESTATICOS, plantillas
 
 log = logging.getLogger(__name__)
@@ -105,9 +106,11 @@ async def manejar_error_dominio(request: Request, error: ErrorDominio):
 
 
 async def registrar_contexto(request: Request, siguiente):
-    """Deja a mano el tenant (por el subdominio), la IP y la ruta de la petición."""
+    """Deja a mano el tenant (por el subdominio), la IP, la ruta y el idioma."""
     contexto.ip.set(request.client.host if request.client else None)
     contexto.ruta.set(request.url.path)
+    # Hasta conocer al usuario, el idioma del navegador.
+    contexto.idioma.set(idioma_de_cabecera(request.headers.get("accept-language")))
     contexto.tenant_slug.set(
         resolucion.slug_desde_host(
             request.headers.get("host", ""), obtener_configuracion().dominio_base
@@ -126,6 +129,7 @@ def crear_app() -> FastAPI:
     app.include_router(salud.router)
     app.include_router(identidad.router)
     app.include_router(api_usuarios.router)
+    app.include_router(api_usuarios.router_perfil)
     app.include_router(conexiones.router)
     app.include_router(monitor.router)
     app.include_router(alertas.router)

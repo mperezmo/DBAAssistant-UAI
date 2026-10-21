@@ -62,6 +62,7 @@ class ClienteAuth0:
         nonce: str,
         organizacion: str,
         reautenticar: bool = False,
+        idioma: str | None = None,
     ) -> str:
         parametros = {
             "response_type": "code",
@@ -73,6 +74,9 @@ class ClienteAuth0:
             "nonce": nonce,
             "organization": organizacion,
         }
+        if idioma:
+            # Pantalla de Auth0 (Universal Login) en el idioma del usuario.
+            parametros["ui_locales"] = idioma
         if reautenticar:
             # Obliga a Auth0 a autenticar de nuevo (y, con la política "Always", a pedir
             # el segundo factor) aunque exista una sesión de Auth0 vigente.

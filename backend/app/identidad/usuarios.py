@@ -22,6 +22,7 @@ from app.identidad.entidades import AMBIENTES, ROLES, Sesion, Usuario
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.tenants.entidades import Tenant
+from app.web.i18n import IDIOMAS
 
 log = logging.getLogger(__name__)
 PATRON_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -175,3 +176,13 @@ async def rehabilitar(tenant: Tenant, actor: Sesion, usuario_id: str) -> Usuario
     )
     await _auditar(tenant, actor, "usuario.rehabilitado", {"email": usuario.email})
     return await _obtener(tenant, usuario.id)
+
+
+async def cambiar_idioma(tenant: Tenant, actor: Sesion, idioma: str) -> None:
+    """Idioma de la interfaz del propio usuario; lo usan también sus avisos."""
+    if idioma not in IDIOMAS:
+        raise ErrorDominio("USR_VAL_002", "Idioma inválido.")
+    await run_in_threadpool(
+        repositorios.guardar_idioma, tenant.base_sqlserver, str(tenant.id), actor.usuario_id, idioma
+    )
+    await _auditar(tenant, actor, "usuario.idioma", {"idioma": idioma})

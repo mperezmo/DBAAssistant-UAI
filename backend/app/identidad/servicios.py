@@ -15,6 +15,7 @@ from app.identidad.entidades import Sesion
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.tenants.entidades import Tenant
+from app.web.i18n import idioma_actual
 
 
 @lru_cache
@@ -57,7 +58,12 @@ async def iniciar_ingreso(
         },
     )
     return cliente_auth0().url_autorizacion(
-        redirect_uri, state, nonce, tenant.auth0_organizacion_id, reautenticar is not None
+        redirect_uri,
+        state,
+        nonce,
+        tenant.auth0_organizacion_id,
+        reautenticar is not None,
+        idioma_actual(),
     )
 
 
@@ -110,6 +116,15 @@ async def completar_ingreso(
         )
 
     await run_in_threadpool(repositorios.registrar_ingreso, tenant.base_sqlserver, usuario.id)
+    if usuario.idioma is None:
+        # Sin elección propia, sus avisos salen en el idioma del navegador con que ingresa.
+        await run_in_threadpool(
+            repositorios.guardar_idioma,
+            tenant.base_sqlserver,
+            str(tenant.id),
+            usuario.id,
+            idioma_actual(),
+        )
     sesion = await sesiones.crear(
         {
             "usuario_id": usuario.id,

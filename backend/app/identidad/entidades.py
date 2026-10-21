@@ -59,6 +59,7 @@ class Usuario:
     ambientes: tuple[str, ...] = field(default_factory=tuple)
     fecha_baja: datetime | None = None
     ultimo_ingreso: datetime | None = None
+    idioma: str | None = None  # None: el del navegador
 
     @property
     def puede_ingresar(self) -> bool:

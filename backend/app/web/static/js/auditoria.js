@@ -74,7 +74,7 @@ document.addEventListener("alpine:init", () => {
         if (!respuesta.ok) {
           const datos = await respuesta.json();
           this.error = datos.codigo === "EXP_LIM_000"
-            ? TEXTOS.limite.replace("{registros}", datos.datos.registros.toLocaleString()).replace("{limite}", datos.datos.limite.toLocaleString())
+            ? TEXTOS.limite.replace("{registros}", datos.datos.registros.toLocaleString(window.DBA.locale)).replace("{limite}", datos.datos.limite.toLocaleString(window.DBA.locale))
             : `${datos.mensaje} (${datos.codigo})`;
         } else {
           const nombre = /filename="([^"]+)"/.exec(respuesta.headers.get("Content-Disposition") || "")?.[1] || `auditoria.${formato}`;
@@ -99,14 +99,14 @@ document.addEventListener("alpine:init", () => {
     },
 
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString() : "—";
+      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—";
     },
     textoFiltros() {
       const activos = Object.entries(this.filtros).filter(([, v]) => v && String(v).trim()).map(([, v]) => v);
       return activos.length ? `${TEXTOS.filtrosAplicados} · ${activos.join(" · ")}` : TEXTOS.sinFiltros;
     },
     textoPaginacion() {
-      return TEXTOS.paginacion.replace("{n}", this.registros.length).replace("{total}", this.total.toLocaleString())
+      return TEXTOS.paginacion.replace("{n}", this.registros.length).replace("{total}", this.total.toLocaleString(window.DBA.locale))
         .replace("{pagina}", this.pagina).replace("{paginas}", this.paginas);
     },
     colorResultado(resultado) {

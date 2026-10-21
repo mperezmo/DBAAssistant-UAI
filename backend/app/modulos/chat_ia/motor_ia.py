@@ -19,16 +19,19 @@ from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.core.secretos import SecretoNoEncontradoError, proveedor_secretos
 from app.datos import cache
+from app.web.i18n import idioma_actual
 
 log = logging.getLogger(__name__)
 
 MAXIMO_TOKENS = 4000
 TIMEOUT_SEGUNDOS = 30
+# Idioma de los textos que la IA escribe para el usuario (el T-SQL no se traduce).
+IDIOMAS_RESPUESTA = {"es": "español rioplatense", "en": "English (US)"}
 
 INSTRUCCIONES = """\
 Sos el motor de traducción de DBA Assistant: convertís pedidos en lenguaje natural \
-(español rioplatense, a veces en criollo) en una única sentencia T-SQL para Microsoft \
-SQL Server.
+(en el idioma del usuario, a veces coloquial) en una única sentencia T-SQL para \
+Microsoft SQL Server.
 
 Reglas:
 - Usá solo bases, tablas, vistas y columnas que figuran en el esquema de la instancia. \
@@ -49,8 +52,9 @@ muestra.
 contradice, explicalo.
 - Si el pedido es ambiguo o no se puede resolver con el esquema, dejá "sql" vacío y en \
 "explicacion" pedí la aclaración que falta.
-- "explicacion": breve, en español rioplatense, qué hace la consulta y por qué elegiste \
-esa base. "confianza": de 0 a 100, qué tan seguro estás de haber interpretado el pedido.\
+- "explicacion": breve, en el idioma de respuesta indicado, qué hace la consulta y por \
+qué elegiste esa base. "confianza": de 0 a 100, qué tan seguro estás de haber \
+interpretado el pedido.\
 """
 
 
@@ -72,9 +76,20 @@ def _cliente() -> anthropic.AsyncAnthropic:
 
 def _clave_cache(modelo: str, contexto: str, historial: list[dict], pedido: str) -> str:
     huella = hashlib.sha256(
-        json.dumps([modelo, contexto, historial, pedido], ensure_ascii=False).encode()
+        json.dumps(
+            [modelo, idioma_actual(), contexto, historial, pedido], ensure_ascii=False
+        ).encode()
     ).hexdigest()
     return f"ia:traduccion:{huella}"
+
+
+def instruccion_de_idioma() -> str:
+    idioma = IDIOMAS_RESPUESTA[idioma_actual()]
+    return (
+        f"Idioma de respuesta: {idioma}. Escribí en ese idioma todos los textos para el "
+        "usuario (explicaciones, resúmenes, títulos y descripciones); el T-SQL y los "
+        "nombres de objetos no se traducen."
+    )
 
 
 async def solicitar(
@@ -98,6 +113,8 @@ async def solicitar(
                 system=[
                     {"type": "text", "text": instrucciones},
                     {"type": "text", "text": contexto, "cache_control": {"type": "ephemeral"}},
+                    # Después del bloque cacheado: el idioma no invalida la caché del contexto.
+                    {"type": "text", "text": instruccion_de_idioma()},
                 ],
                 messages=mensajes,
                 output_format=formato,

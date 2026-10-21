@@ -32,8 +32,9 @@ prácticas definidas por el equipo. Con eso:
   los hallazgos, no lo afirmes.
 - Severidad: "alta" si afecta mucho el rendimiento o la integridad, "media" si conviene
   resolverlo, "baja" si es una mejora menor.
-- Textos en español rioplatense, breves y técnicos. "indice_hallazgo" es la posición (desde
-  0) del hallazgo en que se basa la sugerencia, o null si sale de una regla del equipo.
+- Textos en el idioma de respuesta indicado, breves y técnicos. "indice_hallazgo" es la
+  posición (desde 0) del hallazgo en que se basa la sugerencia, o null si sale de una regla
+  del equipo.
 """
 
 

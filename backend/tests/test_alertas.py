@@ -283,7 +283,7 @@ def alertas(entorno, monkeypatch):  # noqa: F811
     enviados = []
 
     async def enviar(tenant, roles, mensaje):
-        enviados.append((roles, mensaje))
+        enviados.append((roles, mensaje() if callable(mensaje) else mensaje))
         return 1
 
     reloj = SimpleNamespace(ahora=1000.0)
@@ -753,7 +753,7 @@ def test_comando_probar_correo(smtp, capsys, monkeypatch):
 async def test_notificar_por_push_y_correo(alertas, smtp, monkeypatch):
     conexion = await _conexion()
     monkeypatch.setattr(
-        notificaciones.usuarios, "emails_por_roles", lambda base, t, roles: ["dba@acme.com"]
+        notificaciones.usuarios, "emails_por_roles", lambda base, t, roles: [("dba@acme.com", None)]
     )
     m = motor.Motor()
     await m.evaluar(TENANT, conexion, None)

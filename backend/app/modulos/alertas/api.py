@@ -65,7 +65,9 @@ def _sugerido(a: Alerta) -> dict | None:
 
 def _alerta(a: Alerta) -> dict:
     return {
-        **{k: v for k, v in a.__dict__.items() if not k.endswith("_en")},
+        **{k: v for k, v in a.__dict__.items() if not k.endswith("_en") and k != "textos"},
+        "titulo": a.titulo_visible,
+        "descripcion": a.descripcion_visible,
         **{k: _fecha(v) for k, v in a.__dict__.items() if k.endswith("_en")},
         "workaround_sugerido": _sugerido(a),
     }
@@ -89,7 +91,12 @@ async def resumen(ctx=contexto) -> dict:
 
 
 def _desestimada(d: Desestimada) -> dict:
-    return {**d.__dict__, "hasta": _fecha(d.hasta), "creada_en": _fecha(d.creada_en)}
+    return {
+        **{k: v for k, v in d.__dict__.items() if k != "textos"},
+        "titulo": d.titulo_visible,
+        "hasta": _fecha(d.hasta),
+        "creada_en": _fecha(d.creada_en),
+    }
 
 
 @router.get("/desestimadas")

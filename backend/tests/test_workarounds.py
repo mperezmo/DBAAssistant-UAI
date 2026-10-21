@@ -480,7 +480,7 @@ def wk(entorno, monkeypatch):  # noqa: F811
     avisos, transacciones, corridas = [], [], []
 
     async def avisar(tenant, roles, titulo, cuerpo, ruta):
-        avisos.append((roles, titulo, cuerpo))
+        avisos.append((roles, titulo(), cuerpo()))
 
     async def registrar_transaccion(base, evento):
         transacciones.append(evento)

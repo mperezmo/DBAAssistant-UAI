@@ -7,6 +7,8 @@ que lo corrige. La IA trabaja sobre estos hallazgos: no inventa métricas.
 
 from collections.abc import Callable
 
+from app.web.i18n import formatear, traducir
+
 TIPOS = ("consultas", "indices", "fragmentacion", "esquema")
 MAXIMO_POR_CHEQUEO = 20
 PAGINAS_MINIMAS = 1000  # índices chicos no se benefician de un rebuild
@@ -122,7 +124,7 @@ def consultas(cursor) -> list[dict]:
                 "consultas",
                 severidad,
                 " ".join((texto or "").split())[:80],
-                "Consulta costosa en CPU",
+                traducir("bp.hallazgo.consulta_costosa"),
                 {
                     "texto": (texto or "")[:2000],
                     "ejecuciones": ejecuciones,
@@ -155,7 +157,7 @@ def indices(cursor) -> list[dict]:
                 "indices",
                 severidad,
                 f"{esquema}.{tabla}",
-                "Índice faltante sugerido por el optimizador",
+                traducir("bp.hallazgo.indice_faltante"),
                 {
                     "columnas_igualdad": igualdad,
                     "columnas_desigualdad": desigualdad,
@@ -181,7 +183,7 @@ def fragmentacion(cursor) -> list[dict]:
                 "fragmentacion",
                 "alta" if reconstruir else "media",
                 f"{esquema}.{tabla}.{indice}",
-                f"Índice fragmentado ({accion} recomendado)",
+                formatear("bp.hallazgo.fragmentado", accion=accion),
                 {"fragmentacion_pct": round(float(porcentaje), 1), "paginas": int(paginas)},
                 f"ALTER INDEX {_q(indice)} ON {_q(esquema)}.{_q(tabla)} {accion};",
             )
@@ -197,7 +199,9 @@ def esquema(cursor) -> list[dict]:
                 "esquema",
                 "alta",
                 f"{nombre_esquema}.{tabla}",
-                "Tabla sin clave primaria" + (" ni índice clustered" if sin_clustered else ""),
+                traducir(
+                    "bp.hallazgo.sin_pk_ni_clustered" if sin_clustered else "bp.hallazgo.sin_pk"
+                ),
                 {},
             )
         )
@@ -207,7 +211,7 @@ def esquema(cursor) -> list[dict]:
                 "esquema",
                 "media",
                 f"{nombre_esquema}.{tabla}",
-                "Tabla heap: la clave primaria no es clustered",
+                traducir("bp.hallazgo.heap"),
                 {},
             )
         )
@@ -217,7 +221,7 @@ def esquema(cursor) -> list[dict]:
                 "esquema",
                 "media",
                 f"{nombre_esquema}.{tabla}",
-                f"Clave foránea {fk} sin índice en {columna}",
+                formatear("bp.hallazgo.fk_sin_indice", fk=fk, columna=columna),
                 {"clave_foranea": fk, "columna": columna},
                 f"CREATE NONCLUSTERED INDEX {_q(f'IX_{tabla}_{columna}')} "
                 f"ON {_q(nombre_esquema)}.{_q(tabla)} ({_q(columna)});",
@@ -229,7 +233,7 @@ def esquema(cursor) -> list[dict]:
                 "esquema",
                 "baja",
                 f"{nombre_esquema}.{tabla}.{columna}",
-                f"Tipo de dato obsoleto ({tipo})",
+                formatear("bp.hallazgo.tipo_obsoleto", tipo=tipo),
                 {"tipo": tipo},
                 f"ALTER TABLE {_q(nombre_esquema)}.{_q(tabla)} ALTER COLUMN {_q(columna)} "
                 f"{REEMPLAZOS_TIPO[tipo]};",

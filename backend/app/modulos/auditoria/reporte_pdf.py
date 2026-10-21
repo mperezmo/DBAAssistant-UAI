@@ -7,6 +7,7 @@ from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
 from app.modulos.conexiones.entidades import ZONA_HORARIA_POR_DEFECTO
+from app.web.i18n import formatear, traducir
 
 LARGO_MAXIMO_CELDA = 120
 # Ancho relativo de las columnas que suelen tener textos largos.
@@ -37,10 +38,20 @@ def generar(
     pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 8, _texto(f"DBA Assistant · {titulo}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", "", 9)
-    detalle = f"{empresa} · generado por {generado_por} el {ahora} · {len(filas)} registros"
+    detalle = formatear(
+        "auditoria.pdf.detalle",
+        empresa=empresa,
+        usuario=generado_por,
+        fecha=ahora,
+        registros=len(filas),
+    )
     pdf.cell(0, 5, _texto(detalle), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     if filtros:
-        texto = "Filtros: " + ", ".join(f"{k}={v}" for k, v in filtros.items())
+        texto = (
+            traducir("auditoria.pdf.filtros")
+            + " "
+            + ", ".join(f"{k}={v}" for k, v in filtros.items())
+        )
         pdf.cell(0, 5, _texto(texto), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(2)
 

@@ -9,7 +9,8 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
 2. **No asumir.** Ante una duda funcional o técnica, se consulta antes de implementar.
 3. El diseño visual de referencia es `design/DBA Assistant.html`.
 4. Todo en **español**: código, comentarios, documentación y commits. Los textos de la
-   interfaz van en `backend/app/web/i18n/` (luego se suma inglés).
+   interfaz van en `backend/app/web/i18n/` (`es.json` y `en.json`, siempre con las mismas
+   claves y marcadores; una prueba lo verifica).
 5. Comentarios profesionales y medidos: explicar el porqué, no lo obvio.
 6. Autor de los commits: `mperezmo <martinpmoreno01@gmail.com>`.
 7. Nunca versionar `.env` ni secretos.

@@ -105,6 +105,8 @@ def test_login_redirige_a_auth0_con_la_organizacion(entorno):
     assert parametros["client_id"] == CLIENT_ID
     assert parametros["audience"] == AUDIENCIA
     assert parametros["redirect_uri"] == "https://acme.localhost/auth/callback"
+    # La pantalla de Auth0 en el idioma del navegador (o del usuario, si ya eligió).
+    assert parametros["ui_locales"] == "es"
 
 
 def test_primer_ingreso_activa_al_invitado_y_abre_sesion(entorno):
@@ -120,6 +122,9 @@ def test_primer_ingreso_activa_al_invitado_y_abre_sesion(entorno):
     assert "Max-Age=28800" in cookie
     assert entorno["activados"] == ["google|admin"]
     assert entorno["eventos"] == ["sesion.iniciada"]
+    # Sin idioma elegido, queda el del navegador con que ingresó (lo usan sus avisos).
+    [admin] = [u for u in entorno["repo"].usuarios.values() if u.email == "admin@acme.com"]
+    assert admin.idioma == "es"
 
     inicio = navegador.get("/")
     assert inicio.status_code == 200

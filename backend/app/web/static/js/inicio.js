@@ -38,7 +38,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     encabezado() {
-      const fecha = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      const fecha = new Date().toLocaleDateString(window.DBA.locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
       return `${TEXTOS.eyebrow} · ${fecha.charAt(0).toUpperCase()}${fecha.slice(1)}`;
     },
 
@@ -63,7 +63,7 @@ document.addEventListener("alpine:init", () => {
     },
     disponibilidad() {
       const valor = this.datos?.salud.disponibilidad;
-      return valor === null || valor === undefined ? "—" : valor.toLocaleString("es-AR", { minimumFractionDigits: 1 });
+      return valor === null || valor === undefined ? "—" : valor.toLocaleString(window.DBA.locale, { minimumFractionDigits: 1 });
     },
     colorDisponibilidad() {
       const valor = this.datos?.salud.disponibilidad;

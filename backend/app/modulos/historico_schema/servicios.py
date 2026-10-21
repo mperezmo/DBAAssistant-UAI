@@ -22,6 +22,7 @@ from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
 from app.modulos.historico_schema import captura, repositorios
 from app.tenants.entidades import Tenant
+from app.web.i18n import formatear, traducir
 
 log = logging.getLogger(__name__)
 ACTUAL = "actual"
@@ -196,16 +197,20 @@ async def comparar(
 
 def como_script(comparacion: dict) -> str:
     """Reporte de diferencias en texto, para descargar."""
-    renglones = [
-        f"-- Diferencias de schema · {comparacion['conexion']} · {comparacion['base']}",
-        f"-- v{comparacion['desde']} → {comparacion['hasta']}",
-        "",
-    ]
+    titulo = formatear(
+        "schema.script.titulo", conexion=comparacion["conexion"], base=comparacion["base"]
+    )
+    renglones = [f"-- {titulo}", f"-- v{comparacion['desde']} → {comparacion['hasta']}", ""]
     for cambio in comparacion["cambios"]:
-        renglones.append(f"-- {cambio['operacion'].upper()}: {cambio['tipo']} {cambio['nombre']}")
+        operacion = traducir(f"schema.operacion.{cambio['operacion']}").upper()
+        tipo = traducir(f"schema.tipo.{cambio['tipo']}")
+        renglones.append(f"-- {operacion}: {tipo} {cambio['nombre']}")
         if cambio["antes"]:
-            renglones += ["-- Antes:", *[f"--   {r}" for r in cambio["antes"].splitlines()]]
+            renglones += [
+                f"-- {traducir('schema.script.antes')}",
+                *[f"--   {r}" for r in cambio["antes"].splitlines()],
+            ]
         if cambio["despues"]:
-            renglones += ["-- Después:", cambio["despues"]]
+            renglones += [f"-- {traducir('schema.script.despues')}", cambio["despues"]]
         renglones.append("")
     return "\n".join(renglones)

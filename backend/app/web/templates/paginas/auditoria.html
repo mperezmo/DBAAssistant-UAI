@@ -85,7 +85,7 @@
                 <td class="metric-mono text-xs" x-text="r.filas != null ? Number(r.filas).toLocaleString() : '—'"></td>
               </template>
               <template x-if="actual === 'transacciones'">
-                <td><span class="metric-mono text-[11px] font-semibold uppercase" :style="`color: ${colorResultado(r.resultado)}`" x-text="r.resultado"></span></td>
+                <td><span class="metric-mono text-[11px] font-semibold uppercase" :style="`color: ${colorResultado(r.resultado)}`" x-text="r.resultado_texto"></span></td>
               </template>
               <template x-if="actual === 'sistema'">
                 <td class="metric-mono max-w-[420px] truncate text-xs text-fg-muted" x-text="r.resumen"></td>

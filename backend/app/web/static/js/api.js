@@ -1,6 +1,10 @@
 // Cliente de la API REST del backend, compartido por las pantallas.
 // Las peticiones que modifican datos llevan la cabecera X-Solicitud (defensa CSRF).
 window.DBA = {
+  // Idioma de la interfaz y su locale para fechas y números (Intl).
+  idioma: document.documentElement.lang || "es",
+  locale: document.documentElement.dataset.locale || "es-AR",
+
   async api(metodo, ruta, cuerpo) {
     const respuesta = await fetch(ruta, {
       method: metodo,

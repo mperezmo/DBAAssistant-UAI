@@ -40,7 +40,7 @@ def entorno(monkeypatch):
     enviados = []
 
     async def enviar(tenant, roles, mensaje):
-        enviados.append((roles, mensaje["cuerpo"]))
+        enviados.append((roles, (mensaje() if callable(mensaje) else mensaje)["cuerpo"]))
         return 1
 
     monkeypatch.setattr(modulo_motor.notificaciones.push, "enviar", enviar)
@@ -151,8 +151,8 @@ async def test_suscripciones_push_por_rol(prefijo_aislado, monkeypatch):
     assert suscripciones.listar_por_roles(base, tenant_id, ("DBA",)) == [s_dba]
     assert suscripciones.contar_del_usuario(base, tenant_id, dba_id) == 1
     assert usuarios.emails_por_roles(base, tenant_id, ("DBA", "ADMINISTRADOR")) == [
-        "admin@acme.com",
-        "dba@acme.com",
+        ("admin@acme.com", None),
+        ("dba@acme.com", None),
     ]
     assert usuarios.emails_por_roles(base, tenant_id, ()) == []
 

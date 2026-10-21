@@ -4,7 +4,7 @@ document.addEventListener("alpine:init", () => {
   const api = window.DBA.api;
   const CLAVE_AUTOMATIZACION = "dba.workarounds.automatizacion";
 
-  const fecha = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+  const fecha = (iso) => (iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—");
   const formularioVacio = () => ({
     id: null, nombre: "", descripcion: "", categoria: "mantenimiento", criticidad: "info",
     ambientes: ["DEV", "TESTING"], roles: ["ADMINISTRADOR", "DBA"], transaccional: true, condicion: "", pasos: [""],

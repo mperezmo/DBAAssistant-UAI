@@ -1,10 +1,11 @@
 """Rutas que devuelven páginas HTML."""
 
 import hashlib
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.errores import ErrorDominio
@@ -12,7 +13,7 @@ from app.identidad.dependencias import sesion_actual, tenant_actual
 from app.identidad.entidades import AMBIENTES, ROLES
 from app.modulos.monitor.entidades import METRICAS
 from app.tenants.entidades import Tenant
-from app.web.i18n import traducir
+from app.web.i18n import IDIOMAS, LOCALES, idioma_actual, traducir
 from app.web.menu import ICONOS, MENU
 
 DIRECTORIO_WEB = Path(__file__).parent
@@ -35,7 +36,13 @@ def _version_estaticos() -> str:
 
 plantillas = Jinja2Templates(directory=DIRECTORIO_WEB / "templates")
 plantillas.env.globals.update(
-    t=traducir, menu=MENU, iconos=ICONOS, version_estaticos=_version_estaticos()
+    t=traducir,
+    menu=MENU,
+    iconos=ICONOS,
+    version_estaticos=_version_estaticos(),
+    idioma_actual=idioma_actual,
+    idiomas=IDIOMAS,
+    locales=LOCALES,
 )
 
 router = APIRouter(include_in_schema=False)
@@ -187,6 +194,18 @@ async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)
                 e: traducir(f"estado.{e}") for e in ("invitado", "activo", "baja", "inactivo")
             },
         },
+    )
+
+
+# Manifest de la PWA en el idioma del usuario (descripción y lang).
+MANIFEST = json.loads((DIRECTORIO_ESTATICOS / "manifest.webmanifest").read_text(encoding="utf-8"))
+
+
+@router.get("/manifest.webmanifest")
+async def manifest() -> JSONResponse:
+    return JSONResponse(
+        {**MANIFEST, "description": traducir("app.descripcion"), "lang": idioma_actual()},
+        media_type="application/manifest+json",
     )
 
 

@@ -36,7 +36,7 @@ def entorno(monkeypatch):
     avisos = []
 
     async def avisar(tenant, roles, titulo, cuerpo, ruta):
-        avisos.append((roles, titulo, cuerpo))
+        avisos.append((roles, titulo(), cuerpo()))
 
     monkeypatch.setattr(servicios.notificaciones, "avisar", avisar)
     yield avisos

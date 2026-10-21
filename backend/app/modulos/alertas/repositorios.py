@@ -1,5 +1,7 @@
 """Persistencia de reglas y alertas en la base SQL Server del tenant."""
 
+import json
+
 from app.datos import sqlserver
 from app.modulos.alertas.entidades import (
     Alerta,
@@ -18,7 +20,7 @@ COLUMNAS_ALERTA = (
     "id, tenant_id, conexion_id, conexion_alias, servidor, ambiente, origen, clave, regla_id,"
     " titulo, descripcion, severidad, metrica, valor, umbral, unidad, estado, normalizada,"
     " ocurrencias, disparada_en, actualizada_en, normalizada_en, atendida_en, atendida_por,"
-    " accion, comentario"
+    " accion, comentario, textos"
 )
 ORDEN_SEVERIDAD = "CASE severidad WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END"
 
@@ -68,6 +70,7 @@ def _alerta(f) -> Alerta:
         normalizada_en=f.normalizada_en,
         atendida_en=f.atendida_en,
         atendida_por=f.atendida_por,
+        textos=json.loads(f.textos) if f.textos else None,
         accion=f.accion,
         comentario=f.comentario,
     )
@@ -223,9 +226,9 @@ def disparar(
             alerta_id = cursor.execute(
                 """INSERT INTO dbo.alerta (tenant_id, conexion_id, conexion_alias, servidor,
                        ambiente, origen, clave, regla_id, titulo, descripcion, severidad,
-                       metrica, valor, umbral, unidad)
+                       metrica, valor, umbral, unidad, textos)
                    OUTPUT inserted.id
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 tenant_id,
                 conexion_id,
                 alias,
@@ -241,6 +244,7 @@ def disparar(
                 c.valor,
                 c.umbral,
                 c.unidad,
+                json.dumps(c.textos, ensure_ascii=False) if c.textos else None,
             ).fetchone()[0]
             nueva, escalo = True, False
         else:
@@ -251,9 +255,16 @@ def disparar(
             # Al escalar se toman título, descripción y umbral del nivel nuevo.
             titulo = c.titulo if escalo else actual.titulo
             umbral = c.umbral if escalo else actual.umbral
+            textos = dict(c.textos or {})
+            if not escalo:
+                anteriores = json.loads(actual.textos) if actual.textos else {}
+                textos.pop("titulo", None)
+                if "titulo" in anteriores:
+                    textos["titulo"] = anteriores["titulo"]
             cursor.execute(
                 """UPDATE dbo.alerta
                    SET severidad = ?, titulo = ?, umbral = ?, valor = ?, descripcion = ?,
+                       textos = ?,
                        ocurrencias = ocurrencias + CASE WHEN normalizada = 1 THEN 1 ELSE 0 END,
                        normalizada = 0, normalizada_en = NULL,
                        actualizada_en = SYSUTCDATETIME()
@@ -263,6 +274,7 @@ def disparar(
                 umbral,
                 c.valor,
                 c.descripcion,
+                json.dumps(textos, ensure_ascii=False) if textos else None,
                 alerta_id,
             )
         conexion.commit()
@@ -395,6 +407,7 @@ def _desestimada(f) -> Desestimada:
         hasta=f.hasta,
         creada_por=f.creada_por,
         creada_en=f.creada_en,
+        textos=json.loads(f.textos) if f.textos else None,
     )
 
 
@@ -431,8 +444,8 @@ def desestimar(base: str, tenant_id: str, alerta: Alerta, usuario: str, motivo: 
         )
         cursor.execute(
             """INSERT INTO dbo.alerta_desestimada (tenant_id, conexion_id, clave, titulo,
-                   conexion_alias, motivo, hasta, creada_por)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   conexion_alias, motivo, hasta, creada_por, textos)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             tenant_id,
             alerta.conexion_id,
             alerta.clave,
@@ -441,6 +454,9 @@ def desestimar(base: str, tenant_id: str, alerta: Alerta, usuario: str, motivo: 
             motivo,
             hasta,
             usuario,
+            json.dumps({"titulo": alerta.textos["titulo"]}, ensure_ascii=False)
+            if alerta.textos and "titulo" in alerta.textos
+            else None,
         )
         conexion.commit()
     return True
@@ -452,7 +468,7 @@ def listar_desestimadas(base: str, tenant_id: str) -> list[Desestimada]:
             conexion.cursor()
             .execute(
                 f"""SELECT id, conexion_id, clave, titulo, conexion_alias, motivo, hasta,
-                           creada_por, creada_en
+                           creada_por, creada_en, textos
                     FROM dbo.alerta_desestimada
                     WHERE tenant_id = ? AND {VIGENTE} ORDER BY creada_en DESC""",
                 tenant_id,

@@ -7,6 +7,7 @@ claves de cifrado); el servidor firma cada envío con su clave VAPID.
 import base64
 import json
 import logging
+from collections.abc import Callable
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -20,6 +21,7 @@ from app.identidad.entidades import Sesion
 from app.modulos.web_push import repositorios
 from app.modulos.web_push.repositorios import Suscripcion
 from app.tenants.entidades import Tenant
+from app.web.i18n import en_idioma
 
 log = logging.getLogger(__name__)
 
@@ -93,8 +95,10 @@ def _enviar_uno(s: Suscripcion, datos: str) -> int | None:
     return None
 
 
-async def enviar(tenant: Tenant, roles: tuple[str, ...], mensaje: dict) -> int:
+async def enviar(tenant: Tenant, roles: tuple[str, ...], mensaje: dict | Callable[[], dict]) -> int:
     """Envía ``mensaje`` a los dispositivos de los usuarios con esos roles.
+
+    Si ``mensaje`` es una función, se arma en el idioma de cada destinatario.
 
     Devuelve cuántos envíos se aceptaron. Las fallas se registran (NTF_PSH_000) sin
     interrumpir al llamador: una alerta no debe perderse porque falle el push.
@@ -104,9 +108,13 @@ async def enviar(tenant: Tenant, roles: tuple[str, ...], mensaje: dict) -> int:
     suscripciones = await run_in_threadpool(
         repositorios.listar_por_roles, tenant.base_sqlserver, str(tenant.id), roles
     )
-    datos = json.dumps(mensaje)
+    armados: dict[str, str] = {}
     aceptados = 0
     for s in suscripciones:
+        with en_idioma(s.idioma) as idioma:
+            if idioma not in armados:
+                armados[idioma] = json.dumps(mensaje() if callable(mensaje) else mensaje)
+        datos = armados[idioma]
         try:
             codigo = await run_in_threadpool(_enviar_uno, s, datos)
         except Exception as error:

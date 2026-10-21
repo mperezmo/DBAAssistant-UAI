@@ -43,7 +43,7 @@ document.addEventListener("alpine:init", () => {
   const recordar = (clave, valor) => {
     try { localStorage.setItem(clave, valor); } catch { /* sin almacenamiento local */ }
   };
-  const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString() : "—");
+  const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString(window.DBA.locale) : "—");
   const numero = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
 
   Alpine.data("monitor", () => ({
@@ -129,7 +129,7 @@ document.addEventListener("alpine:init", () => {
     },
     formato(v) {
       if (v === null || v === undefined) return "—";
-      return Number.isInteger(v) ? v.toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+      return Number.isInteger(v) ? v.toLocaleString(window.DBA.locale) : v.toLocaleString(window.DBA.locale, { maximumFractionDigits: 1 });
     },
 
     color(metrica, porDefecto) {

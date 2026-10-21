@@ -10,6 +10,7 @@ class Suscripcion:
     endpoint: str
     p256dh: str
     auth: str
+    idioma: str | None = None  # el del usuario dueño del dispositivo
 
 
 def guardar(base: str, tenant_id: str, usuario_id: str, s: Suscripcion, agente: str | None) -> None:
@@ -50,7 +51,7 @@ def listar_por_roles(base: str, tenant_id: str, roles: tuple[str, ...]) -> list[
         filas = (
             conexion.cursor()
             .execute(
-                f"""SELECT s.endpoint, s.p256dh, s.auth
+                f"""SELECT s.endpoint, s.p256dh, s.auth, u.idioma
                     FROM dbo.suscripcion_push AS s
                     JOIN dbo.usuario AS u ON u.id = s.usuario_id
                     WHERE s.tenant_id = ? AND u.estado IN ('invitado', 'activo')
@@ -60,7 +61,7 @@ def listar_por_roles(base: str, tenant_id: str, roles: tuple[str, ...]) -> list[
             )
             .fetchall()
         )
-    return [Suscripcion(f.endpoint, f.p256dh, f.auth) for f in filas]
+    return [Suscripcion(f.endpoint, f.p256dh, f.auth, f.idioma) for f in filas]
 
 
 def contar_del_usuario(base: str, tenant_id: str, usuario_id: str) -> int:

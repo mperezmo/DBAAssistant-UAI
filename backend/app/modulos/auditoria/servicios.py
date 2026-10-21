@@ -24,6 +24,7 @@ from app.modulos.auditoria import reporte_pdf, repositorios
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.conexiones.entidades import ZONA_HORARIA_POR_DEFECTO
 from app.tenants.entidades import Tenant
+from app.web.i18n import formatear, traducir
 
 ZONA = ZoneInfo(ZONA_HORARIA_POR_DEFECTO)
 TAMANO_PAGINA = 25
@@ -33,7 +34,7 @@ TAMANO_PAGINA = 25
 class Bitacora:
     coleccion: str
     roles: frozenset[str]
-    # Columnas de las exportaciones: (título, campo de la fila normalizada).
+    # Columnas de las exportaciones: (clave de traducción del título, campo de la fila).
     columnas: tuple[tuple[str, str], ...]
 
 
@@ -42,15 +43,15 @@ BITACORAS = {
         "bitacora_transacciones",
         frozenset({"ADMINISTRADOR", "DBA"}),
         (
-            ("Fecha", "fecha"),
-            ("Usuario", "usuario"),
-            ("IP", "ip"),
-            ("Acción", "accion"),
-            ("Ambiente", "ambiente"),
-            ("Entidad", "entidad"),
-            ("Filas", "filas"),
-            ("Resultado", "resultado"),
-            ("T-SQL", "sql"),
+            ("auditoria.col.fecha", "fecha"),
+            ("auditoria.col.usuario", "usuario"),
+            ("auditoria.col.ip", "ip"),
+            ("auditoria.col.accion", "accion"),
+            ("auditoria.col.ambiente", "ambiente"),
+            ("auditoria.col.entidad", "entidad"),
+            ("auditoria.col.filas", "filas"),
+            ("auditoria.col.resultado", "resultado_texto"),
+            ("auditoria.col.sql", "sql"),
         ),
     ),
     # CU-000-009-B: solo el Administrador.
@@ -58,23 +59,23 @@ BITACORAS = {
         "bitacora_auditoria",
         frozenset({"ADMINISTRADOR"}),
         (
-            ("Fecha", "fecha"),
-            ("Usuario", "usuario"),
-            ("IP", "ip"),
-            ("Acción", "accion"),
-            ("Detalle", "resumen"),
+            ("auditoria.col.fecha", "fecha"),
+            ("auditoria.col.usuario", "usuario"),
+            ("auditoria.col.ip", "ip"),
+            ("auditoria.col.accion", "accion"),
+            ("auditoria.col.detalle", "resumen"),
         ),
     ),
     "excepciones": Bitacora(
         excepciones.COLECCION,
         frozenset({"ADMINISTRADOR", "DBA"}),
         (
-            ("Fecha", "fecha"),
-            ("Nivel", "nivel"),
-            ("Módulo", "modulo"),
-            ("Código", "codigo"),
-            ("Usuario", "usuario"),
-            ("Mensaje", "mensaje"),
+            ("auditoria.col.fecha", "fecha"),
+            ("auditoria.col.nivel", "nivel"),
+            ("auditoria.col.modulo", "modulo"),
+            ("auditoria.col.codigo", "codigo"),
+            ("auditoria.col.usuario", "usuario"),
+            ("auditoria.col.mensaje", "mensaje"),
         ),
     ),
 }
@@ -190,10 +191,17 @@ def _accion_transaccion(d: dict) -> str:
     etiquetas = {
         "chat.consulta_ejecutada": f"{detalle.get('tipo', 'SQL')} (chat)",
         "chat.exportado": f"EXPORT {str(detalle.get('formato', 'csv')).upper()}",
-        "sandbox.promovido": "PROMOVIDA (Sandbox)",
+        "sandbox.promovido": traducir("auditoria.accion.promovida"),
         "workaround.ejecutado": f"WORKAROUND {detalle.get('workaround', '')}".strip(),
     }
     return etiquetas.get(d["accion"], d["accion"])
+
+
+def _resultado(codigo: str) -> str:
+    """Estado de la operación en el idioma de quien lo ve (el código queda para el color)."""
+    clave = f"auditoria.resultado.{codigo}"
+    texto = traducir(clave)
+    return codigo if texto == clave else texto
 
 
 def fila(nombre: str, d: dict) -> dict:
@@ -222,6 +230,7 @@ def fila(nombre: str, d: dict) -> dict:
         (detalle[k] for k in ("filas_afectadas", "filas", "total") if detalle.get(k) is not None),
         None,
     )
+    resultado = detalle.get("estado") or "exitosa"
     return {
         **base,
         "usuario": d.get("usuario"),
@@ -230,7 +239,8 @@ def fila(nombre: str, d: dict) -> dict:
         "ambiente": detalle.get("ambiente"),
         "entidad": entidad,
         "filas": filas,
-        "resultado": detalle.get("estado") or "exitosa",
+        "resultado": resultado,
+        "resultado_texto": _resultado(resultado),
         "sql": detalle.get("sql"),
         "promocion": bool(detalle.get("promocion")),
         "mobile": bool(detalle.get("mobile")),
@@ -340,7 +350,7 @@ async def exportar_csv(
         salida = io.StringIO()
         escritor = csv.writer(salida)
         salida.write("﻿")
-        escritor.writerow([titulo for titulo, _ in bitacora.columnas])
+        escritor.writerow([traducir(titulo) for titulo, _ in bitacora.columnas])
         exportadas = 0
         async for documento in repositorios.iterar(tenant.base_mongodb, bitacora.coleccion, filtro):
             registro = fila(nombre, documento)
@@ -363,11 +373,11 @@ async def exportar_pdf(tenant: Tenant, sesion: Sesion, nombre: str, filtros: Fil
         async for d in repositorios.iterar(tenant.base_mongodb, bitacora.coleccion, filtro)
     ]
     contenido = reporte_pdf.generar(
-        titulo=f"Bitácora de {nombre}",
+        titulo=formatear("auditoria.pdf.titulo", bitacora=traducir(f"auditoria.bitacora.{nombre}")),
         empresa=tenant.nombre,
         generado_por=sesion.email,
         filtros={k: str(v) for k, v in filtros.__dict__.items() if v},
-        columnas=bitacora.columnas,
+        columnas=tuple((traducir(titulo), campo) for titulo, campo in bitacora.columnas),
         filas=filas,
     )
     await _auditar_exportacion(tenant, sesion, nombre, filtros, "pdf", len(filas))

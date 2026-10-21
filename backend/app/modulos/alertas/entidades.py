@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.web.i18n import formatear
+
 SEVERIDADES = ("info", "warning", "critical")
 OPERADORES = (">", ">=", "<", "<=")
 ACCIONES_ATENCION = ("manual", "falsa_alarma")
@@ -61,6 +63,22 @@ class Condicion:
     umbral: float | None = None
     unidad: str | None = None
     regla_id: str | None = None
+    # Título y descripción como (clave de traducción, parámetros); los de una regla propia
+    # son el nombre que le puso el usuario y no se traducen.
+    textos: dict | None = None
+
+
+def texto_visible(guardado: str, textos: dict | None, campo: str) -> str:
+    """Texto de una alerta en el idioma de quien la ve.
+
+    Las alertas guardan su título y descripción como clave de traducción y parámetros;
+    las anteriores a ese cambio y las de reglas propias muestran el texto guardado.
+    """
+    referencia = (textos or {}).get(campo)
+    if not referencia:
+        return guardado
+    clave, parametros = referencia
+    return formatear(clave, **parametros)
 
 
 @dataclass(frozen=True)
@@ -91,6 +109,15 @@ class Alerta:
     atendida_por: str | None = None
     accion: str | None = None
     comentario: str | None = None
+    textos: dict | None = None
+
+    @property
+    def titulo_visible(self) -> str:
+        return texto_visible(self.titulo, self.textos, "titulo")
+
+    @property
+    def descripcion_visible(self) -> str:
+        return texto_visible(self.descripcion, self.textos, "descripcion")
 
 
 @dataclass(frozen=True)
@@ -106,6 +133,11 @@ class Desestimada:
     hasta: datetime | None
     creada_por: str
     creada_en: datetime
+    textos: dict | None = None
+
+    @property
+    def titulo_visible(self) -> str:
+        return texto_visible(self.titulo, self.textos, "titulo")
 
 
 @dataclass(frozen=True)

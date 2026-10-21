@@ -16,6 +16,7 @@ import pyodbc
 from app.core.errores import ErrorDominio
 from app.identidad.entidades import AMBIENTES, ROLES_OPERATIVOS
 from app.modulos.workarounds.entidades import Paso
+from app.web.i18n import traducir
 
 TODOS = ROLES_OPERATIVOS
 
@@ -24,8 +25,6 @@ TODOS = ROLES_OPERATIVOS
 class Integrado:
     id: str
     codigo: str
-    nombre: str
-    descripcion: str
     categoria: str
     criticidad: str
     roles: tuple[str, ...]
@@ -37,6 +36,15 @@ class Integrado:
     ambientes: tuple[str, ...] = AMBIENTES
     transaccional: bool = False
 
+    # Nombre y descripción en el idioma de quien los ve (workarounds.integrado.<id>.*).
+    @property
+    def nombre(self) -> str:
+        return traducir(f"workarounds.integrado.{self.id}.nombre")
+
+    @property
+    def descripcion(self) -> str:
+        return traducir(f"workarounds.integrado.{self.id}.descripcion")
+
 
 CATALOGO: dict[str, Integrado] = {
     i.id: i
@@ -44,8 +52,6 @@ CATALOGO: dict[str, Integrado] = {
         Integrado(
             "kill_bloqueos",
             "WK-01",
-            "Liberar sesiones bloqueantes",
-            "Lista las sesiones que bloquean a otras y termina con KILL las que se elijan.",
             "performance",
             "critical",
             TODOS,
@@ -54,8 +60,6 @@ CATALOGO: dict[str, Integrado] = {
         Integrado(
             "shrink_log",
             "WK-02",
-            "Shrink del log de transacciones",
-            "Hace CHECKPOINT y reduce el log de la base al espacio en uso más un margen.",
             "espacio",
             "warning",
             TODOS,
@@ -65,8 +69,6 @@ CATALOGO: dict[str, Integrado] = {
         Integrado(
             "rebuild_indices",
             "WK-03",
-            "Reconstruir índices fragmentados",
-            "REBUILD de los índices con fragmentación mayor al 30% y al menos 1000 páginas.",
             "performance",
             "warning",
             TODOS,
@@ -76,8 +78,6 @@ CATALOGO: dict[str, Integrado] = {
         Integrado(
             "update_statistics",
             "WK-04",
-            "Actualizar estadísticas desactualizadas",
-            "UPDATE STATISTICS sobre las estadísticas con más del 20% de filas modificadas.",
             "mantenimiento",
             "info",
             TODOS,
@@ -87,8 +87,6 @@ CATALOGO: dict[str, Integrado] = {
         Integrado(
             "limpiar_plan_cache",
             "WK-05",
-            "Limpiar plan cache de la base",
-            "Elimina los planes en caché de la base elegida (no afecta a las demás).",
             "performance",
             "warning",
             TODOS,
@@ -97,8 +95,6 @@ CATALOGO: dict[str, Integrado] = {
         Integrado(
             "checkpoint",
             "WK-06",
-            "Forzar checkpoint",
-            "Ejecuta CHECKPOINT en la base elegida para escribir a disco las páginas modificadas.",
             "mantenimiento",
             "info",
             TODOS,
@@ -108,8 +104,6 @@ CATALOGO: dict[str, Integrado] = {
         Integrado(
             "iniciar_servicio",
             "WK-07",
-            "Iniciar el servicio de SQL Server",
-            "Inicia por WinRM el servicio del motor en el servidor Windows cuando está detenido.",
             "servicio",
             "critical",
             TODOS,
@@ -119,8 +113,6 @@ CATALOGO: dict[str, Integrado] = {
         Integrado(
             "base_online",
             "WK-08",
-            "Poner online una base",
-            "Lista las bases que no están disponibles y pone ONLINE la elegida, si está OFFLINE.",
             "servicio",
             "critical",
             TODOS,

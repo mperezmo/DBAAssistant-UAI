@@ -222,7 +222,7 @@ document.addEventListener("alpine:init", () => {
       if (mod.operacion === "INSERT" && mod.desde_consulta) return TEXTOS.mod.INSERT_CONSULTA.replace("{tabla}", mod.tabla);
       const n = mod.operacion === "INSERT" ? mod.filas : mod.filas_estimadas;
       const registros = n == null ? TEXTOS.mod.sin_cantidad
-        : (n === 1 ? TEXTOS.mod.registro : TEXTOS.mod.registros).replace("{n}", n.toLocaleString());
+        : (n === 1 ? TEXTOS.mod.registro : TEXTOS.mod.registros).replace("{n}", n.toLocaleString(window.DBA.locale));
       return TEXTOS.mod[mod.operacion].replace("{registros}", registros).replace("{tabla}", mod.tabla);
     },
     tituloCambios(mod) {
@@ -235,10 +235,10 @@ document.addEventListener("alpine:init", () => {
       const e = m.ejecucion;
       if (!e) return "";
       if (e.tipo === "SELECT") {
-        return TEXTOS.ejecutada.replace("{filas}", e.filas.toLocaleString())
-          .replace("{total}", e.total.toLocaleString()).replace("{ms}", e.duracion_ms);
+        return TEXTOS.ejecutada.replace("{filas}", e.filas.toLocaleString(window.DBA.locale))
+          .replace("{total}", e.total.toLocaleString(window.DBA.locale)).replace("{ms}", e.duracion_ms);
       }
-      return TEXTOS.afectadas.replace("{filas}", e.filas_afectadas.toLocaleString()).replace("{ms}", e.duracion_ms);
+      return TEXTOS.afectadas.replace("{filas}", e.filas_afectadas.toLocaleString(window.DBA.locale)).replace("{ms}", e.duracion_ms);
     },
     resumenSandbox(m) {
       const s = m.sandbox;
@@ -248,7 +248,7 @@ document.addEventListener("alpine:init", () => {
         : `${TEXTOS.sandboxError} ${s.error || ""}`;
     },
     hora(iso) {
-      return iso ? new Date(iso).toLocaleTimeString() : "";
+      return iso ? new Date(iso).toLocaleTimeString(window.DBA.locale) : "";
     },
 
     // --- Resultados: orden, filtros por columna y paginado local (sin re-ejecutar) ---
@@ -260,8 +260,8 @@ document.addEventListener("alpine:init", () => {
     },
     tituloResultado() {
       const d = this.resultado.datos;
-      return TEXTOS.mostrando.replace("{filas}", d.filas.length.toLocaleString())
-        .replace("{total}", d.total.toLocaleString());
+      return TEXTOS.mostrando.replace("{filas}", d.filas.length.toLocaleString(window.DBA.locale))
+        .replace("{total}", d.total.toLocaleString(window.DBA.locale));
     },
     ordenar(i) {
       this.orden = { columna: i, ascendente: this.orden.columna === i ? !this.orden.ascendente : true };
@@ -292,7 +292,7 @@ document.addEventListener("alpine:init", () => {
       const total = this.filtradas().length;
       const desde = total ? this.pagina * POR_PAGINA + 1 : 0;
       return TEXTOS.paginacion.replace("{desde}", desde)
-        .replace("{hasta}", Math.min((this.pagina + 1) * POR_PAGINA, total)).replace("{total}", total.toLocaleString());
+        .replace("{hasta}", Math.min((this.pagina + 1) * POR_PAGINA, total)).replace("{total}", total.toLocaleString(window.DBA.locale));
     },
   }));
 });

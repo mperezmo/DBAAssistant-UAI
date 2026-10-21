@@ -94,7 +94,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     fecha(iso) {
-      return iso ? new Date(iso + "Z").toLocaleString("es-AR") : TEXTOS.nunca;
+      return iso ? new Date(iso + "Z").toLocaleString(window.DBA.locale) : TEXTOS.nunca;
     },
   }));
 });

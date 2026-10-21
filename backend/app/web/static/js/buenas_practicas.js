@@ -130,7 +130,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString() : "—";
+      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—";
     },
     claseEstado(estado) {
       return { listo: "tag-green", en_curso: "tag-yellow", error: "tag-red", interrumpido: "tag-red" }[estado] || "";

@@ -5,7 +5,7 @@ from app.identidad.entidades import DIAS_GRACIA_BAJA, Usuario
 
 COLUMNAS = (
     "u.id, u.tenant_id, u.email, u.nombre, u.rol, u.estado, u.auth0_usuario_id,"
-    " u.fecha_baja, u.ultimo_ingreso,"
+    " u.fecha_baja, u.ultimo_ingreso, u.idioma,"
     " (SELECT STRING_AGG(a.ambiente, ',') FROM dbo.usuario_ambiente a"
     "  WHERE a.usuario_id = u.id) AS ambientes"
 )
@@ -27,6 +27,7 @@ def _a_entidad(fila) -> Usuario:
         ambientes=tuple(ambientes),
         fecha_baja=fila.fecha_baja,
         ultimo_ingreso=fila.ultimo_ingreso,
+        idioma=fila.idioma,
     )
 
 
@@ -60,6 +61,17 @@ def activar(base: str, usuario_id: str, auth0_id: str, nombre: str | None) -> No
                WHERE id = ? AND estado = 'invitado'""",
             auth0_id,
             nombre,
+            usuario_id,
+        )
+        conexion.commit()
+
+
+def guardar_idioma(base: str, tenant_id: str, usuario_id: str, idioma: str) -> None:
+    with sqlserver.conectar(base) as conexion:
+        conexion.cursor().execute(
+            "UPDATE dbo.usuario SET idioma = ? WHERE tenant_id = ? AND id = ?",
+            idioma,
+            tenant_id,
             usuario_id,
         )
         conexion.commit()
@@ -221,8 +233,10 @@ def contar_administradores_vigentes(base: str, tenant_id: str) -> int:
         )
 
 
-def emails_por_roles(base: str, tenant_id: str, roles: tuple[str, ...]) -> list[str]:
-    """Emails de los usuarios habilitados con alguno de los roles (destinatarios de avisos)."""
+def emails_por_roles(
+    base: str, tenant_id: str, roles: tuple[str, ...]
+) -> list[tuple[str, str | None]]:
+    """Email e idioma de los usuarios habilitados con alguno de los roles (avisos)."""
     if not roles:
         return []
     marcadores = ", ".join("?" for _ in roles)
@@ -230,7 +244,7 @@ def emails_por_roles(base: str, tenant_id: str, roles: tuple[str, ...]) -> list[
         filas = (
             conexion.cursor()
             .execute(
-                f"""SELECT email FROM dbo.usuario
+                f"""SELECT email, idioma FROM dbo.usuario
                     WHERE tenant_id = ? AND estado IN ('invitado', 'activo')
                       AND rol IN ({marcadores})
                     ORDER BY email""",
@@ -239,4 +253,4 @@ def emails_por_roles(base: str, tenant_id: str, roles: tuple[str, ...]) -> list[
             )
             .fetchall()
         )
-    return [f.email for f in filas]
+    return [(f.email, f.idioma) for f in filas]

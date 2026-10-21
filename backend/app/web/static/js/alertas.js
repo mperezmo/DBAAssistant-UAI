@@ -5,8 +5,8 @@ document.addEventListener("alpine:init", () => {
   const REFRESCO_MS = 10000;
   const ORDEN = { critical: 0, warning: 1, info: 2 };
 
-  const fecha = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
-  const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
+  const fecha = (iso) => (iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—");
+  const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString(window.DBA.locale, { hour: "2-digit", minute: "2-digit" }) : "");
 
   // La clave pública VAPID viaja en base64url; PushManager la necesita en bytes.
   const bytesDeClave = (base64url) => {

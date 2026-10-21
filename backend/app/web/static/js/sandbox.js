@@ -89,7 +89,7 @@ document.addEventListener("alpine:init", () => {
       return TEXTOS.hace.replace("{tiempo}", texto);
     },
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString() : "—";
+      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—";
     },
     puedeEjecutar() {
       return !this.ejecutando && this.base && this.sql.trim();

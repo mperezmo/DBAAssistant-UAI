@@ -140,7 +140,7 @@ def sbx(entorno, monkeypatch):  # noqa: F811
         }
 
     async def avisar(tenant, roles, titulo, cuerpo, ruta):
-        avisos.append(cuerpo)
+        avisos.append(cuerpo())
 
     async def registrar_transaccion(base, evento):
         transacciones.append(evento)

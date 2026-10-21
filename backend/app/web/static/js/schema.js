@@ -117,7 +117,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString() : "—";
+      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—";
     },
     pieVersion() {
       const v = this.vista.version;

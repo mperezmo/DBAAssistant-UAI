@@ -14,6 +14,9 @@ from app.identidad.entidades import DIAS_GRACIA_BAJA, Usuario
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 contexto = Depends(requerir_modulo("admin"))
+# Preferencias del propio usuario: cualquier rol (todos ven el Inicio).
+router_perfil = APIRouter(prefix="/api/perfil", tags=["perfil"])
+contexto_propio = Depends(requerir_modulo("inicio"))
 
 Rol = Literal["ADMINISTRADOR", "DBA", "CONSULTA"]
 Ambiente = Literal["DEV", "TESTING", "PROD"]
@@ -93,3 +96,13 @@ async def dar_baja(usuario_id: str, ctx=contexto) -> None:
 async def rehabilitar(usuario_id: str, ctx=contexto) -> dict:
     tenant, sesion = ctx
     return _a_json(await usuarios.rehabilitar(tenant, sesion, usuario_id))
+
+
+class Idioma(BaseModel):
+    idioma: Literal["es", "en"]
+
+
+@router_perfil.put("/idioma", status_code=204)
+async def cambiar_idioma(datos: Idioma, ctx=contexto_propio) -> None:
+    tenant, sesion = ctx
+    await usuarios.cambiar_idioma(tenant, sesion, datos.idioma)

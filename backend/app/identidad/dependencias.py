@@ -42,6 +42,8 @@ async def sesion_actual(request: Request, tenant: Tenant | None) -> Sesion | Non
     if usuario is None or not usuario.puede_ingresar:
         return None
     contexto.usuario.set(usuario.email)
+    if usuario.idioma:
+        contexto.idioma.set(usuario.idioma)
     return replace(sesion, rol=usuario.rol, nombre=usuario.nombre or sesion.nombre)
 
 

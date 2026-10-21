@@ -37,3 +37,15 @@ if ("serviceWorker" in navigator) {
     });
   });
 }
+
+// Idioma de la interfaz: se guarda en el perfil del usuario y se recarga la página.
+document.addEventListener("change", async (evento) => {
+  const selector = evento.target.closest("[data-elegir-idioma]");
+  if (!selector) return;
+  try {
+    await window.DBA.api("PUT", "/api/perfil/idioma", { idioma: selector.value });
+    window.location.reload();
+  } catch (error) {
+    window.alert(error.message);
+  }
+});

@@ -25,7 +25,7 @@ from app.modulos.contexto_negocio import servicios as contexto
 from app.modulos.historico_schema import servicios as historico
 from app.modulos.sandbox import cliente, repositorios
 from app.tenants.entidades import Tenant
-from app.web.i18n import traducir
+from app.web.i18n import formatear, traducir
 
 log = logging.getLogger(__name__)
 
@@ -209,6 +209,10 @@ async def ejecutar(
             avisos.append("SBX_SNP_000")
 
     resultado = await cliente.ejecutar(clave, base, lotes, solo_sintaxis)
+    if resultado.get("lote"):
+        resultado["error"] = formatear(
+            "sandbox.error_lote", n=resultado.pop("lote"), error=resultado.get("error")
+        )
     if solo_sintaxis:
         return {**resultado, "avisos": avisos}
 
@@ -441,8 +445,8 @@ async def promover(tenant: Tenant, actor: Sesion, registro_id: str) -> dict:
     await notificaciones.avisar(
         tenant,
         ROLES_OPERATIVOS,
-        traducir("sandbox.aviso.titulo").format(conexion=conexion.alias),
-        traducir(f"sandbox.aviso.{estado_promocion}").format(
+        lambda: traducir("sandbox.aviso.titulo").format(conexion=conexion.alias),
+        lambda: traducir(f"sandbox.aviso.{estado_promocion}").format(
             usuario=actor.email, base=registro["base"], filas=filas, error=error or ""
         ),
         f"/sandbox?registro={registro_id}",

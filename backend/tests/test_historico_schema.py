@@ -247,7 +247,7 @@ async def test_registro_de_versiones_y_comparacion(historia):
     comparacion = await servicios.comparar(TENANT, conexion.id, "Ventas", 1, servicios.ACTUAL)
     assert comparacion["resumen"] == {"agregado": 0, "eliminado": 1, "modificado": 1}
     script = servicios.como_script(comparacion)
-    assert "-- MODIFICADO: tabla dbo.t" in script and "v3" in script
+    assert "-- MODIFICADO: TABLA dbo.t" in script and "v3" in script
     for desde, hasta in ((1, 1), (1, 2)):
         with pytest.raises(ErrorDominio):
             await servicios.comparar(TENANT, conexion.id, "Ventas", desde, hasta)

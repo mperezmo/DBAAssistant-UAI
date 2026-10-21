@@ -8,7 +8,7 @@ devuelven las condiciones que se cumplen en ese momento.
 from app.identidad.entidades import ROLES_OPERATIVOS
 from app.modulos.alertas.entidades import Condicion, Regla
 from app.modulos.monitor.entidades import METRICAS, Lectura, Umbral
-from app.web.i18n import traducir
+from app.web.i18n import IDIOMA_PREDETERMINADO, formatear
 
 # Destinatarios de las alertas que no vienen de una regla propia.
 DESTINATARIOS_SISTEMA = ROLES_OPERATIVOS
@@ -22,8 +22,21 @@ LOG_LLENO_PORCENTAJE = 90
 SOSTENIDA_UMBRAL_SEGUNDOS = 60
 
 
-def _t(clave: str, **datos) -> str:
-    return traducir(clave).format(**datos)
+def _ref(clave: str, **parametros) -> list:
+    """Texto traducible: clave y parámetros (los que empiezan con @ son otra clave)."""
+    return [clave, parametros]
+
+
+def _textos(titulo: list | None, descripcion: list) -> dict:
+    """Texto guardado (español, para búsquedas) y referencias para cada idioma."""
+    textos = {"descripcion": descripcion}
+    if titulo:
+        textos["titulo"] = titulo
+    return {
+        "titulo": formatear(titulo[0], IDIOMA_PREDETERMINADO, **titulo[1]) if titulo else None,
+        "descripcion": formatear(descripcion[0], IDIOMA_PREDETERMINADO, **descripcion[1]),
+        "textos": textos,
+    }
 
 
 def _num(valor: float | None) -> str:
@@ -37,8 +50,10 @@ def instancia_caida(servidor: str) -> Condicion:
         clave=CLAVE_INSTANCIA,
         origen="evento",
         severidad="critical",
-        titulo=_t("alertas.evento.instancia.titulo"),
-        descripcion=_t("alertas.evento.instancia.descripcion", servidor=servidor),
+        **_textos(
+            _ref("alertas.evento.instancia.titulo"),
+            _ref("alertas.evento.instancia.descripcion", servidor=servidor),
+        ),
         sostenida_segundos=CONFIRMACION_CAIDA_SEGUNDOS,
         destinatarios=DESTINATARIOS_SISTEMA,
         push=True,
@@ -56,19 +71,21 @@ def por_umbrales(lectura: Lectura, umbrales: dict[str, Umbral]) -> list[Condicio
         severidad, umbral = (
             ("critical", u.critical) if valor >= u.critical else ("warning", u.warning)
         )
-        nombre = traducir(f"monitor.metrica.{metrica}")
+        nombre = f"@monitor.metrica.{metrica}"
         condiciones.append(
             Condicion(
                 clave=f"umbral:{metrica}",
                 origen="umbral",
                 severidad=severidad,
-                titulo=_t("alertas.umbral.titulo", metrica=nombre, severidad=severidad),
-                descripcion=_t(
-                    "alertas.umbral.descripcion",
-                    metrica=nombre,
-                    valor=_num(valor),
-                    umbral=_num(umbral),
-                    unidad=definicion.unidad,
+                **_textos(
+                    _ref("alertas.umbral.titulo", metrica=nombre, severidad=severidad),
+                    _ref(
+                        "alertas.umbral.descripcion",
+                        metrica=nombre,
+                        valor=_num(valor),
+                        umbral=_num(umbral),
+                        unidad=definicion.unidad,
+                    ),
                 ),
                 sostenida_segundos=SOSTENIDA_UMBRAL_SEGUNDOS,
                 destinatarios=DESTINATARIOS_SISTEMA,
@@ -90,8 +107,10 @@ def por_eventos(lectura: Lectura) -> list[Condicion]:
             clave=f"evento:base:{b['base']}",
             origen="evento",
             severidad="critical",
-            titulo=_t("alertas.evento.base.titulo", base=b["base"]),
-            descripcion=_t("alertas.evento.base.descripcion", base=b["base"], estado=b["estado"]),
+            **_textos(
+                _ref("alertas.evento.base.titulo", base=b["base"]),
+                _ref("alertas.evento.base.descripcion", base=b["base"], estado=b["estado"]),
+            ),
             sostenida_segundos=CONFIRMACION_CAIDA_SEGUNDOS,
             destinatarios=DESTINATARIOS_SISTEMA,
             push=True,
@@ -108,14 +127,16 @@ def por_eventos(lectura: Lectura) -> list[Condicion]:
                 clave="evento:bloqueo",
                 origen="evento",
                 severidad="warning",
-                titulo=_t("alertas.evento.bloqueo.titulo", segundos=BLOQUEO_SOSTENIDO_SEGUNDOS),
-                descripcion=_t(
-                    "alertas.evento.bloqueo.descripcion",
-                    sid=peor["sid"],
-                    bloqueador=peor["bloqueador"],
-                    espera=_num(peor["espera_s"]),
-                    recurso=f"{peor['base'] or ''} {peor['recurso'] or ''}".strip(),
-                    cantidad=len(largos),
+                **_textos(
+                    _ref("alertas.evento.bloqueo.titulo", segundos=BLOQUEO_SOSTENIDO_SEGUNDOS),
+                    _ref(
+                        "alertas.evento.bloqueo.descripcion",
+                        sid=peor["sid"],
+                        bloqueador=peor["bloqueador"],
+                        espera=_num(peor["espera_s"]),
+                        recurso=f"{peor['base'] or ''} {peor['recurso'] or ''}".strip(),
+                        cantidad=len(largos),
+                    ),
                 ),
                 sostenida_segundos=0,
                 destinatarios=DESTINATARIOS_SISTEMA,
@@ -131,9 +152,9 @@ def por_eventos(lectura: Lectura) -> list[Condicion]:
             clave=f"evento:log:{log['base']}",
             origen="evento",
             severidad="warning",
-            titulo=_t("alertas.evento.log.titulo", base=log["base"]),
-            descripcion=_t(
-                "alertas.evento.log.descripcion", base=log["base"], uso=_num(log["uso"])
+            **_textos(
+                _ref("alertas.evento.log.titulo", base=log["base"]),
+                _ref("alertas.evento.log.descripcion", base=log["base"], uso=_num(log["uso"])),
             ),
             sostenida_segundos=SOSTENIDA_UMBRAL_SEGUNDOS,
             destinatarios=DESTINATARIOS_SISTEMA,
@@ -162,15 +183,20 @@ def por_reglas(lectura: Lectura, reglas: list[Regla], conexion_id: str) -> list[
                 clave=f"regla:{r.id}",
                 origen="regla",
                 severidad=r.severidad,
-                titulo=r.nombre,
-                descripcion=_t(
-                    "alertas.regla.descripcion",
-                    metrica=traducir(f"monitor.metrica.{r.metrica}"),
-                    operador=r.operador,
-                    umbral=_num(r.valor),
-                    valor=_num(valor),
-                    unidad=unidad,
-                ),
+                **{
+                    **_textos(
+                        None,
+                        _ref(
+                            "alertas.regla.descripcion",
+                            metrica=f"@monitor.metrica.{r.metrica}",
+                            operador=r.operador,
+                            umbral=_num(r.valor),
+                            valor=_num(valor),
+                            unidad=unidad,
+                        ),
+                    ),
+                    "titulo": r.nombre,
+                },
                 sostenida_segundos=r.sostenida_segundos,
                 destinatarios=r.destinatarios,
                 push=r.push,

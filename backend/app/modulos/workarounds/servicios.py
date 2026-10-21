@@ -37,7 +37,7 @@ from app.modulos.workarounds.entidades import (
     Propio,
 )
 from app.tenants.entidades import Tenant
-from app.web.i18n import traducir
+from app.web.i18n import formatear, traducir
 
 log = logging.getLogger(__name__)
 
@@ -406,7 +406,9 @@ async def diagnostico(
     conexion, workaround = await _preparar(tenant, actor.rol, workaround_id, conexion_id, base)
     if isinstance(workaround, Propio):
         version, pasos_sql = await _version_a_ejecutar(tenant, workaround, conexion)
-        pasos = [Paso(f"Paso {n}", sql=p) for n, p in enumerate(pasos_sql, 1)]
+        pasos = [
+            Paso(formatear("workarounds.paso", n=n), sql=p) for n, p in enumerate(pasos_sql, 1)
+        ]
         return {
             "diagnostico": {"version": version},
             "pasos": ejecutor.pasos_iniciales(pasos),
@@ -489,7 +491,9 @@ async def ejecutar(
     autorizada_por = None
     if isinstance(workaround, Propio):
         version, pasos_sql = await _version_a_ejecutar(tenant, workaround, conexion)
-        pasos = [Paso(f"Paso {n}", sql=p) for n, p in enumerate(pasos_sql, 1)]
+        pasos = [
+            Paso(formatear("workarounds.paso", n=n), sql=p) for n, p in enumerate(pasos_sql, 1)
+        ]
         transaccional = workaround.transaccional
     else:
         version = None
@@ -587,17 +591,27 @@ async def _correr(
         await notificaciones.avisar(
             tenant,
             ROLES_OPERATIVOS,
-            f"{registro.workaround_nombre} · {conexion.alias}",
-            traducir(f"workarounds.aviso.{clave}").format(
+            lambda: (
+                f"{_nombre_vigente(registro.workaround, registro.workaround_nombre)}"
+                f" · {conexion.alias}"
+            ),
+            lambda: traducir(f"workarounds.aviso.{clave}").format(
                 estado=traducir(f"workarounds.estado.{estado}"), error=error or "—"
             ),
             f"/workarounds?ejecucion={registro.id}",
         )
 
 
+def _nombre_vigente(workaround: str, guardado: str) -> str:
+    """Los integrados se muestran en el idioma de quien los ve; los propios, como se llaman."""
+    integrado = integrados.CATALOGO.get(workaround)
+    return integrado.nombre if integrado else guardado
+
+
 def ejecucion_a_dict(e: Ejecucion) -> dict:
     return {
         **{k: v for k, v in e.__dict__.items() if not k.endswith("_en")},
+        "workaround_nombre": _nombre_vigente(e.workaround, e.workaround_nombre),
         "iniciada_en": e.iniciada_en.isoformat() + "Z" if e.iniciada_en else None,
         "finalizada_en": e.finalizada_en.isoformat() + "Z" if e.finalizada_en else None,
     }
@@ -682,8 +696,10 @@ async def solicitar_autorizacion(
     await notificaciones.avisar(
         tenant,
         tuple(ROLES_AUTORIZAN),
-        traducir("workarounds.aviso.autorizacion_titulo").format(workaround=workaround.nombre),
-        traducir("workarounds.aviso.autorizacion").format(
+        lambda: traducir("workarounds.aviso.autorizacion_titulo").format(
+            workaround=workaround.nombre
+        ),
+        lambda: traducir("workarounds.aviso.autorizacion").format(
             usuario=actor.email,
             workaround=workaround.nombre,
             conexion=conexion.alias,
@@ -700,6 +716,7 @@ async def autorizaciones(tenant: Tenant) -> list[dict]:
     return [
         {
             **{k: v for k, v in a.__dict__.items() if not k.endswith("_en")},
+            "workaround_nombre": _nombre_vigente(a.workaround, a.workaround_nombre),
             "solicitada_en": a.solicitada_en.isoformat() + "Z",
             "resuelta_en": a.resuelta_en.isoformat() + "Z" if a.resuelta_en else None,
             "vence_en": a.vence_en.isoformat() + "Z",
@@ -858,11 +875,13 @@ class Automatizador:
                 await notificaciones.avisar(
                     tenant,
                     ROLES_OPERATIVOS,
-                    traducir("workarounds.aviso.no_realizada_titulo").format(
+                    lambda: traducir("workarounds.aviso.no_realizada_titulo").format(
                         conexion=conexion.alias
                     ),
-                    traducir("workarounds.aviso.no_realizada").format(
-                        workaround=a.workaround, alerta=alerta.id, error=error.definicion.mensaje
+                    lambda error=error, a=a: traducir("workarounds.aviso.no_realizada").format(
+                        workaround=_nombre_vigente(a.workaround, a.workaround),
+                        alerta=alerta.id,
+                        error=error.definicion.mensaje,
                     ),
                     f"/alertas?id={alerta.id}",
                 )

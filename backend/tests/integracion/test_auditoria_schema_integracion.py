@@ -3,7 +3,8 @@
 import asyncio
 import logging
 import os
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 from cryptography.fernet import Fernet
@@ -18,7 +19,7 @@ from app.modulos.auditoria import servicios as auditoria_servicios
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.auditoria.servicios import Filtros
 from app.modulos.conexiones import servicios as conexiones
-from app.modulos.conexiones.entidades import DatosConexion
+from app.modulos.conexiones.entidades import ZONA_HORARIA_POR_DEFECTO, DatosConexion
 from app.modulos.historico_schema import servicios as historico
 from app.tenants import servicios as tenants
 
@@ -116,7 +117,8 @@ async def test_bitacoras_y_exportacion(prefijo_aislado, entorno):
         tenant, admin, "transacciones", Filtros(ambiente="PROD"), 1
     )
     assert prod["total"] == 2 and prod["registros"][0]["ip"] == "192.168.10.42"
-    hoy = date.today()
+    # Los filtros usan días de Buenos Aires: "hoy" es el de allá, no el UTC del servidor.
+    hoy = datetime.now(ZoneInfo(ZONA_HORARIA_POR_DEFECTO)).date()
     texto = await auditoria_servicios.listar(
         tenant,
         admin,

@@ -61,7 +61,8 @@ def ejecutar(
                     pass
             except pyodbc.Error as error:
                 cursor.execute("SET NOEXEC OFF")
-                return {"estado": "sintaxis", "error": f"Lote {numero}: {error}", "duracion_ms": 0}
+                # El número de lote va aparte: el backend lo arma en el idioma del usuario.
+                return {"estado": "sintaxis", "error": str(error), "lote": numero, "duracion_ms": 0}
         cursor.execute("SET NOEXEC OFF")
         if solo_sintaxis:
             return {"estado": "ok", "error": None, "duracion_ms": 0}
