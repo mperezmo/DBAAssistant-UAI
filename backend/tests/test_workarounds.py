@@ -684,7 +684,8 @@ async def test_ventana_y_autorizaciones(wk):
     [pedido] = await servicios.autorizaciones(TENANT)
 
     for actor, autorizacion_id, codigo in (
-        (dba, pedido["id"], "WKR_AUT_001"),
+        # Autorizar el pedido propio exige segundo factor reciente.
+        (dba, pedido["id"], "AMB_VAL_000"),
         (otro, "no-uuid", "WKR_AUT_000"),
         (otro, "00000000-0000-0000-0000-000000009999", "WKR_AUT_000"),
         (_actor("CONSULTA"), pedido["id"], "USR_PER_000"),
@@ -700,6 +701,17 @@ async def test_ventana_y_autorizaciones(wk):
     await _terminar()
     ejecucion = (await servicios.ejecuciones(TENANT))[-1]
     assert ejecucion["autorizada_por"] == otro.email
+
+    # Equipo de una sola persona: se autoriza a sí misma con segundo factor.
+    await servicios.solicitar_autorizacion(TENANT, dba, "update_statistics", conexion.id, "Solo")
+    propio = next(a for a in await servicios.autorizaciones(TENANT) if a["estado"] == "pendiente")
+    con_factor = replace(dba, segundo_factor_en=time.time())
+    await servicios.resolver_autorizacion(TENANT, con_factor, propio["id"], True)
+    accion, detalle = wk["eventos"][-1]
+    assert accion == "workaround.autorizacion_aprobada" and detalle["propia"] is True
+    await servicios.ejecutar(TENANT, dba, "update_statistics", conexion.id, "ERP", {}, "web")
+    await _terminar()
+    assert (await servicios.ejecuciones(TENANT))[-1]["autorizada_por"] == dba.email
 
 
 async def test_automatizaciones_y_automatizador(wk, monkeypatch):
@@ -817,13 +829,14 @@ async def test_api_workarounds(wk, monkeypatch):
         == 204
     )
     [pedido] = navegador.get("/api/workarounds/autorizaciones").json()["autorizaciones"]
+    # Con el segundo factor confirmado, quien pidió puede autorizar su propio pedido.
     assert (
         navegador.post(
             f"/api/workarounds/autorizaciones/{pedido['id']}",
             json={"aprobar": True},
             headers=CABECERA,
-        ).json()["codigo"]
-        == "WKR_AUT_001"
+        ).status_code
+        == 204
     )
 
     automatizacion = navegador.post(

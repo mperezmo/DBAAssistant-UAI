@@ -233,7 +233,7 @@ Los códigos de error marcados con *(nuevo)* no existen en el catálogo del TFI.
 
 ---
 
-## CU-001-001-C · Cambiar contraseña
+## CU-001-001-C · Cambiar contraseña (implementado en el sprint 10)
 
 | Campo | Valor |
 |---|---|

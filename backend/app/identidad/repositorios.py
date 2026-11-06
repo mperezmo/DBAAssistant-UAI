@@ -66,6 +66,18 @@ def activar(base: str, usuario_id: str, auth0_id: str, nombre: str | None) -> No
         conexion.commit()
 
 
+def guardar_nombre(base: str, tenant_id: str, usuario_id: str, nombre: str | None) -> None:
+    with sqlserver.conectar(base) as conexion:
+        conexion.cursor().execute(
+            """UPDATE dbo.usuario SET nombre = ?, actualizado_en = SYSUTCDATETIME()
+               WHERE tenant_id = ? AND id = ?""",
+            nombre,
+            tenant_id,
+            usuario_id,
+        )
+        conexion.commit()
+
+
 def guardar_idioma(base: str, tenant_id: str, usuario_id: str, idioma: str) -> None:
     with sqlserver.conectar(base) as conexion:
         conexion.cursor().execute(

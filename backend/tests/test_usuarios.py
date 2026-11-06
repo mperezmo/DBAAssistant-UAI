@@ -1,12 +1,17 @@
+import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from uuid import uuid4
 
+import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
-from app.identidad import sesiones, usuarios
+from app.identidad import invitaciones, perfil, sesiones, usuarios
+from app.identidad.auth0 import ClienteAuth0
 from app.identidad.entidades import Sesion
 from app.main import app
 from app.tenants import resolucion
@@ -274,3 +279,192 @@ async def test_estado_de_servicios_para_el_panel(entorno, monkeypatch):
         "Redis": ("online", "Sesiones y caché"),
         "Auth0": ("online", "dba-test.us.auth0.com"),
     }
+
+
+# --- Aviso de acceso por correo -----------------------------------------------------
+
+
+@pytest.fixture
+def smtp(monkeypatch):
+    enviados = []
+    monkeypatch.setattr(invitaciones.correo, "configurado", lambda: True)
+    monkeypatch.setattr(
+        invitaciones.correo,
+        "enviar",
+        lambda para, asunto, texto: enviados.append((para, asunto, texto)),
+    )
+    return enviados
+
+
+async def test_alta_envia_el_aviso_y_se_puede_reenviar(entorno, smtp):
+    navegador = await _navegador_con_sesion(entorno["admin"])
+
+    creado = navegador.post(
+        "/api/usuarios",
+        json={"email": "ana@acme.com", "nombre": "Ana", "rol": "DBA", "ambientes": ["DEV"]},
+        headers=CABECERA,
+    ).json()
+    assert creado["invitacion"] == "enviada"
+    [(para, asunto, texto)] = smtp
+    assert para == ["ana@acme.com"] and "ACME S.A." in asunto
+    assert "https://acme.localhost" in texto and "DEV" in texto and "Admin" in texto
+    assert entorno["eventos"][-1] == (
+        "usuario.invitacion",
+        {"email": "ana@acme.com", "estado": "enviada"},
+    )
+
+    reenvio = navegador.post(f"/api/usuarios/{creado['id']}/invitacion", headers=CABECERA)
+    assert reenvio.status_code == 204 and len(smtp) == 2
+    # Quien ya ingresó no necesita invitación.
+    activo = entorno["repo"].agregar("ya@acme.com", "DBA", "activo")
+    respuesta = navegador.post(f"/api/usuarios/{activo.id}/invitacion", headers=CABECERA)
+    assert respuesta.json()["codigo"] == "USR_VAL_007"
+
+
+async def test_aviso_sin_correo_o_con_falla(entorno, monkeypatch):
+    admin = _sesion(entorno["admin"])
+    usuario = await usuarios.crear(TENANT, admin, _datos())
+    monkeypatch.setattr(invitaciones.correo, "configurado", lambda: False)
+    # Al crear se informa; al reenviar es un error.
+    assert await usuarios.invitar(TENANT, admin, usuario.id, al_crear=True) == "sin_correo"
+    with pytest.raises(ErrorDominio) as error:
+        await usuarios.invitar(TENANT, admin, usuario.id)
+    assert error.value.codigo == "NTF_EML_001"
+
+    def fallar(*argumentos):
+        raise OSError("SMTP caído")
+
+    monkeypatch.setattr(invitaciones.correo, "configurado", lambda: True)
+    monkeypatch.setattr(invitaciones.correo, "enviar", fallar)
+    assert await usuarios.invitar(TENANT, admin, usuario.id, al_crear=True) == "fallida"
+    with pytest.raises(ErrorDominio) as error:
+        await usuarios.invitar(TENANT, admin, usuario.id)
+    assert error.value.codigo == "NTF_EML_000"
+
+
+def test_aviso_en_el_idioma_del_usuario(entorno):
+    usuario = entorno["repo"].agregar("bob@acme.com", "CONSULTA", "invitado", ambientes=())
+    asunto, texto = invitaciones.armar(TENANT, usuario, None)
+    assert asunto == "Tenés acceso a DBA Assistant · ACME S.A." and "ninguno por ahora" in texto
+    ingles = replace(usuario, idioma="en")
+    asunto, texto = invitaciones.armar(TENANT, ingles, "Ana")
+    assert asunto.startswith("You have access") and "Ana gave you access" in texto
+
+
+# --- Mi perfil ----------------------------------------------------------------------
+
+
+@pytest.fixture
+def dispositivos(monkeypatch):
+    lista = {
+        "d1": {
+            "id": "d1",
+            "agente": "Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile Safari/537.36",
+            "creada_en": datetime(2026, 11, 1, 12, 0),
+        }
+    }
+    monkeypatch.setattr(
+        perfil.dispositivos, "listar_del_usuario", lambda base, t, u: list(lista.values())
+    )
+    monkeypatch.setattr(
+        perfil.dispositivos,
+        "eliminar_del_usuario",
+        lambda base, t, u, d: lista.pop(d, None) is not None,
+    )
+    return lista
+
+
+async def test_mi_perfil_datos_nombre_y_dispositivos(entorno, dispositivos):
+    usuario = entorno["repo"].agregar(
+        "lu@acme.com", "CONSULTA", "activo", "auth0|lu", "Lu", ambientes=("DEV",)
+    )
+    navegador = await _navegador_con_sesion(usuario)
+
+    datos = navegador.get("/api/perfil").json()
+    assert (datos["email"], datos["rol"], datos["ambientes"], datos["metodo"]) == (
+        "lu@acme.com",
+        "CONSULTA",
+        ["DEV"],
+        "contrasena",
+    )
+    assert datos["dispositivos"] == [
+        {"id": "d1", "descripcion": "Chrome · Android", "creada_en": "2026-11-01T12:00:00Z"}
+    ]
+
+    assert (
+        navegador.patch("/api/perfil", json={"nombre": " Luz "}, headers=CABECERA).status_code
+        == 204
+    )
+    assert entorno["repo"].usuarios[usuario.id].nombre == "Luz"
+    assert entorno["eventos"][-1] == ("usuario.perfil", {"nombre": "Luz"})
+
+    assert navegador.delete("/api/perfil/dispositivos/d1", headers=CABECERA).status_code == 204
+    assert dispositivos == {}
+    assert navegador.delete("/api/perfil/dispositivos/d1", headers=CABECERA).status_code == 422
+    # El rol Consulta también tiene su perfil, pero no el Panel Admin.
+    assert navegador.get("/api/usuarios").json()["codigo"] == "USR_PER_000"
+
+
+async def test_cambiar_contrasena_solo_con_cuenta_propia(entorno, monkeypatch):
+    pedidos = []
+
+    async def cambiar(self, email, organizacion):
+        pedidos.append((email, organizacion))
+
+    monkeypatch.setattr(perfil.ClienteAuth0, "cambiar_contrasena", cambiar)
+    con_clave = entorno["repo"].agregar("lu@acme.com", "DBA", "activo", "auth0|lu")
+    con_google = entorno["repo"].agregar("go@acme.com", "DBA", "activo", "google-oauth2|go")
+
+    await perfil.cambiar_contrasena(TENANT, _sesion(con_clave))
+    assert pedidos == [("lu@acme.com", "org_acme")]
+    assert entorno["eventos"][-1] == ("usuario.cambio_contrasena", {})
+    with pytest.raises(ErrorDominio) as error:
+        await perfil.cambiar_contrasena(TENANT, _sesion(con_google))
+    assert error.value.codigo == "USR_VAL_008"
+
+
+def test_metodo_y_descripcion_del_dispositivo():
+    assert perfil.metodo_de_ingreso("google-oauth2|1") == "google"
+    assert perfil.metodo_de_ingreso("auth0|1") == "contrasena"
+    assert perfil.metodo_de_ingreso("samlp|1") == "otro"
+    assert perfil.metodo_de_ingreso(None) is None
+    edge = "Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36 Edg/130.0"
+    assert perfil.describir_agente(edge) == "Edge · Windows"
+    assert (
+        perfil.describir_agente("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Safari/604.1")
+        == "Safari · iOS"
+    )
+    assert perfil.describir_agente(None) == "—"
+
+
+async def test_auth0_pide_el_correo_de_cambio_de_contrasena():
+    recibidos = []
+
+    def responder(request):
+        recibidos.append((request.url.path, json.loads(request.content)))
+        return httpx2.Response(200, text="We've just sent you an email to reset your password.")
+
+    cliente = ClienteAuth0(
+        SimpleNamespace(auth0_domain="dba-test.us.auth0.com", auth0_client_id="cliente-web"),
+        transporte=httpx2.MockTransport(responder),
+    )
+    await cliente.cambiar_contrasena("lu@acme.com", "org_acme")
+    assert recibidos == [
+        (
+            "/dbconnections/change_password",
+            {
+                "client_id": "cliente-web",
+                "email": "lu@acme.com",
+                "connection": "Username-Password-Authentication",
+                "organization": "org_acme",
+            },
+        )
+    ]
+
+    def fallar(request):
+        return httpx2.Response(429)
+
+    cliente = ClienteAuth0(cliente.cfg, transporte=httpx2.MockTransport(fallar))
+    with pytest.raises(ErrorDominio) as error:
+        await cliente.cambiar_contrasena("lu@acme.com", None)
+    assert error.value.codigo == "AUT_API_000"

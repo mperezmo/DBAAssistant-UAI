@@ -738,9 +738,11 @@ async def resolver_autorizacion(
     )
     if pedido is None:
         raise ErrorDominio("WKR_AUT_000", autorizacion_id)
-    # La autorización la da otra persona: nadie aprueba su propio pedido.
-    if pedido.solicitada_por == actor.email:
-        raise ErrorDominio("WKR_AUT_001")
+    # Quien pidió la autorización también puede darla (equipos de una sola persona), pero
+    # confirmando con el segundo factor; queda marcada como propia en la bitácora.
+    propia = pedido.solicitada_por == actor.email
+    if propia and aprobar:
+        reautenticacion.exigir_segundo_factor_reciente(actor)
     if not await run_in_threadpool(
         repositorios.resolver_autorizacion,
         tenant.base_sqlserver,
@@ -759,6 +761,7 @@ async def resolver_autorizacion(
             "autorizacion_id": autorizacion_id,
             "workaround": pedido.workaround,
             "solicitante": pedido.solicitada_por,
+            "propia": propia,
         },
     )
 

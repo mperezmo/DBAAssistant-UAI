@@ -75,6 +75,7 @@
           <td class="text-right whitespace-nowrap">
             <template x-if="!bajas">
               <span>
+                <button class="btn btn-ghost btn-sm" x-show="u.estado === 'invitado'" @click="reenviar(u)">{{ t("usuarios.reenviar") }}</button>
                 <button class="btn btn-ghost btn-sm" @click="abrirEdicion(u)">{{ t("usuarios.editar") }}</button>
                 <button class="btn btn-ghost btn-sm" @click="darBaja(u)">{{ t("usuarios.baja") }}</button>
               </span>
@@ -142,7 +143,12 @@
     estados: {{ textos_estados | tojson }},
     estadosServicio: {{ textos_servicios | tojson }},
     nunca: {{ t("usuarios.nunca") | tojson }},
-    creado: {{ t("usuarios.creado") | tojson }},
+    creado: {
+      enviada: {{ t("usuarios.creado_enviada") | tojson }},
+      sin_correo: {{ t("usuarios.creado_sin_correo") | tojson }},
+      fallida: {{ t("usuarios.creado_fallida") | tojson }},
+    },
+    reenviada: {{ t("usuarios.reenviada") | tojson }},
     confirmarBaja: {{ t("usuarios.confirmar_baja") | tojson }},
   };
 </script>

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("perfil.titulo_menu") }}{% endblock %}
+
+{% block contenido %}
+<div class="max-w-[880px]" x-data="miPerfil()" x-init="cargar()">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("perfil.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("perfil.titulo") }} <em>{{ t("perfil.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle">{{ t("perfil.subtitulo") }}</p>
+  </div>
+
+  <p class="mb-4 text-sm" :class="aviso?.error ? 'text-danger' : 'text-ok'" x-show="aviso" x-text="aviso?.texto" x-cloak></p>
+
+  <template x-if="datos">
+    <div class="flex flex-col gap-[18px]">
+      <!-- Datos -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">{{ t("perfil.datos") }}</h3></div>
+        <form class="card-body grid gap-3 sm:grid-cols-2" @submit.prevent="guardarNombre()">
+          <div class="field">
+            <label for="p-nombre">{{ t("usuarios.form.nombre") }}</label>
+            <input id="p-nombre" type="text" maxlength="150" x-model="nombre">
+          </div>
+          <div class="field">
+            <label>{{ t("usuarios.form.email") }}</label>
+            <input type="email" :value="datos.email" disabled>
+          </div>
+          <div class="text-sm">
+            <div class="text-xs text-fg-muted">{{ t("usuarios.form.rol") }}</div>
+            <span class="tag" x-text="TEXTOS.roles[datos.rol]"></span>
+          </div>
+          <div class="text-sm">
+            <div class="text-xs text-fg-muted">{{ t("usuarios.form.ambientes") }}</div>
+            <span class="metric-mono" x-text="datos.ambientes.join(', ') || '—'"></span>
+          </div>
+          <div class="text-sm">
+            <div class="text-xs text-fg-muted">{{ t("usuarios.col.ultimo_ingreso") }}</div>
+            <span class="metric-mono" x-text="fecha(datos.ultimo_ingreso)"></span>
+          </div>
+          <div class="flex items-end justify-end">
+            <button type="submit" class="btn btn-primary btn-sm" :disabled="ocupado || nombre === (datos.nombre || '')">{{ t("usuarios.form.guardar") }}</button>
+          </div>
+          <p class="text-xs text-fg-faint sm:col-span-2">{{ t("perfil.rol_admin") }}</p>
+        </form>
+      </section>
+
+      <!-- Idioma -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">{{ t("idioma.elegir") }}</h3></div>
+        <div class="card-body flex flex-wrap items-center gap-3 text-sm">
+          <select class="rounded border border-line px-3 py-2 text-sm" data-elegir-idioma aria-label="{{ t('idioma.elegir') }}">
+            {% for codigo in idiomas %}<option value="{{ codigo }}" {% if codigo == idioma_actual() %}selected{% endif %}>{{ t("idioma." ~ codigo) }}</option>{% endfor %}
+          </select>
+          <span class="text-fg-muted">{{ t("perfil.idioma_ayuda") }}</span>
+        </div>
+      </section>
+
+      <!-- Seguridad -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">{{ t("perfil.seguridad") }}</h3></div>
+        <div class="card-body flex flex-wrap items-center gap-3 text-sm">
+          <template x-if="datos.metodo === 'contrasena'">
+            <div class="flex flex-wrap items-center gap-3">
+              <button class="btn btn-ghost btn-sm" :disabled="ocupado" @click="cambiarContrasena()">{{ t("perfil.cambiar_contrasena") }}</button>
+              <span class="text-fg-muted">{{ t("perfil.contrasena_ayuda") }}</span>
+            </div>
+          </template>
+          <span class="text-fg-muted" x-show="datos.metodo === 'google'">{{ t("perfil.con_google") }}</span>
+          <span class="text-fg-muted" x-show="datos.metodo !== 'google' && datos.metodo !== 'contrasena'">{{ t("perfil.sin_contrasena") }}</span>
+        </div>
+      </section>
+
+      <!-- Dispositivos con notificaciones -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow" x-text="`${TEXTOS.dispositivos} · ${datos.dispositivos.length}`"></div>
+            <h3 class="card-title">{{ t("perfil.notificaciones") }}</h3>
+          </div>
+          <a class="btn btn-ghost btn-sm" href="/alertas">{{ t("perfil.activar_aca") }}</a>
+        </div>
+        <p class="card-body text-sm text-fg-muted" x-show="!datos.dispositivos.length">{{ t("perfil.sin_dispositivos") }}</p>
+        <table class="data-table" x-show="datos.dispositivos.length">
+          <tbody>
+            <template x-for="d in datos.dispositivos" :key="d.id">
+              <tr>
+                <td x-text="d.descripcion"></td>
+                <td class="metric-mono text-[11.5px] text-fg-faint" x-text="fecha(d.creada_en)"></td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" :disabled="ocupado" @click="quitar(d)">{{ t("perfil.quitar") }}</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </template>
+</div>
+
+<script>
+  window.TEXTOS_PERFIL = {
+    roles: { {% for r in ["ADMINISTRADOR", "DBA", "CONSULTA"] %}{{ r | tojson }}: {{ t("rol." ~ r) | tojson }},{% endfor %} },
+    nunca: {{ t("usuarios.nunca") | tojson }},
+    guardado: {{ t("perfil.guardado") | tojson }},
+    correoEnviado: {{ t("perfil.correo_enviado") | tojson }},
+    confirmarQuitar: {{ t("perfil.confirmar_quitar") | tojson }},
+    dispositivos: {{ t("perfil.dispositivos") | tojson }},
+  };
+</script>
+<script src="/static/js/perfil.js?v={{ version_estaticos }}"></script>
+{% endblock %}

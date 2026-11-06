@@ -17,7 +17,8 @@ from app.core.errores import ErrorDominio
 from app.core.secretos import proveedor_secretos
 
 # Conexiones habilitadas en cada organización: Google y email + contraseña.
-CONEXIONES_TENANT = ("google-oauth2", "Username-Password-Authentication")
+CONEXION_CONTRASENA = "Username-Password-Authentication"
+CONEXIONES_TENANT = ("google-oauth2", CONEXION_CONTRASENA)
 JWKS_VIGENCIA_SEGUNDOS = 3600
 
 
@@ -163,6 +164,22 @@ class ClienteAuth0:
         }
         if cambios:
             await self._solicitar("PATCH", ruta, headers=cabeceras, json=cambios)
+
+    async def cambiar_contrasena(self, email: str, organizacion: str | None) -> None:
+        """Pide a Auth0 el correo de cambio de contraseña (la app nunca maneja contraseñas)."""
+        cuerpo = {
+            "client_id": self.cfg.auth0_client_id,
+            "email": email,
+            "connection": CONEXION_CONTRASENA,
+        }
+        if organizacion:
+            cuerpo["organization"] = organizacion
+        try:
+            async with self._http() as http:
+                # Responde texto plano ("We've just sent you an email…"), no JSON.
+                (await http.post("/dbconnections/change_password", json=cuerpo)).raise_for_status()
+        except httpx2.HTTPError as error:
+            raise ErrorDominio("AUT_API_000", f"change_password: {error}") from error
 
     async def quitar_de_organizacion(self, organizacion: str, usuario: str) -> None:
         cabeceras = {"Authorization": f"Bearer {await self._token_administracion()}"}

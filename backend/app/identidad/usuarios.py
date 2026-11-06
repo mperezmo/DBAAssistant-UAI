@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
-from app.identidad import repositorios
+from app.identidad import invitaciones, repositorios
 from app.identidad.auth0 import ClienteAuth0
 from app.identidad.entidades import AMBIENTES, ROLES, Sesion, Usuario
 from app.modulos.auditoria import repositorios as auditoria
@@ -186,3 +186,25 @@ async def cambiar_idioma(tenant: Tenant, actor: Sesion, idioma: str) -> None:
         repositorios.guardar_idioma, tenant.base_sqlserver, str(tenant.id), actor.usuario_id, idioma
     )
     await _auditar(tenant, actor, "usuario.idioma", {"idioma": idioma})
+
+
+async def invitar(tenant: Tenant, actor: Sesion, usuario_id: str, al_crear: bool = False) -> str:
+    """Envía el aviso de acceso. Al crear, informa el resultado; al reenviar, falla si no sale."""
+    usuario = await _obtener(tenant, usuario_id)
+    if usuario.estado != "invitado":
+        raise ErrorDominio("USR_VAL_007")
+    estado = await invitaciones.enviar(tenant, usuario, actor.nombre or actor.email)
+    await _auditar(tenant, actor, "usuario.invitacion", {"email": usuario.email, "estado": estado})
+    if not al_crear and estado == invitaciones.SIN_CORREO:
+        raise ErrorDominio("NTF_EML_001")
+    if not al_crear and estado == invitaciones.FALLIDA:
+        raise ErrorDominio("NTF_EML_000", usuario.email)
+    return estado
+
+
+async def obtener_propio(tenant: Tenant, actor: Sesion) -> Usuario:
+    return await _obtener(tenant, actor.usuario_id)
+
+
+async def auditar_propio(tenant: Tenant, actor: Sesion, accion: str, detalle: dict) -> None:
+    await _auditar(tenant, actor, accion, detalle)

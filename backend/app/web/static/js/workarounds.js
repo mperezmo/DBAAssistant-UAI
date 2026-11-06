@@ -213,6 +213,11 @@ document.addEventListener("alpine:init", () => {
         await api("POST", `/api/workarounds/autorizaciones/${a.id}`, { aprobar });
         await this.cargarAutorizaciones();
       } catch (error) {
+        // Autorizar el propio pedido pide confirmar con el segundo factor.
+        if (error.codigo === "AMB_VAL_000" && window.confirm(TEXTOS.confirmarMfaAutorizacion)) {
+          window.location.href = `/auth/confirmar?volver=${encodeURIComponent("/workarounds")}`;
+          return;
+        }
         this.mensajePanel = error.message;
       }
     },

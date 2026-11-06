@@ -150,8 +150,19 @@ async def test_suscripciones_push_por_rol(prefijo_aislado, monkeypatch):
 
     assert suscripciones.listar_por_roles(base, tenant_id, ("DBA",)) == [s_dba]
     assert suscripciones.contar_del_usuario(base, tenant_id, dba_id) == 1
+    # Mi perfil: cada usuario ve y quita solo sus dispositivos.
+    [propio] = suscripciones.listar_del_usuario(base, tenant_id, admin.id)
+    assert propio["agente"] == "Edge" and propio["creada_en"] is not None
+    assert not suscripciones.eliminar_del_usuario(base, tenant_id, dba_id, propio["id"])
+    assert suscripciones.eliminar_del_usuario(base, tenant_id, admin.id, propio["id"])
+    assert suscripciones.listar_del_usuario(base, tenant_id, admin.id) == []
+    suscripciones.guardar(base, tenant_id, admin.id, s_admin, "Edge")
+    usuarios.guardar_nombre(base, tenant_id, admin.id, "Ana")
+    usuarios.guardar_idioma(base, tenant_id, admin.id, "en")
+    admin = usuarios.obtener(base, tenant_id, admin.id)
+    assert (admin.nombre, admin.idioma) == ("Ana", "en")
     assert usuarios.emails_por_roles(base, tenant_id, ("DBA", "ADMINISTRADOR")) == [
-        ("admin@acme.com", None),
+        ("admin@acme.com", "en"),
         ("dba@acme.com", None),
     ]
     assert usuarios.emails_por_roles(base, tenant_id, ()) == []

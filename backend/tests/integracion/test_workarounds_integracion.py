@@ -250,7 +250,8 @@ async def test_workarounds_de_punta_a_punta(prefijo_aislado, entorno):
     [pedido] = await servicios.autorizaciones(tenant)
     with pytest.raises(ErrorDominio) as error:
         await servicios.resolver_autorizacion(tenant, dba, pedido["id"], True)
-    assert error.value.codigo == "WKR_AUT_001"
+    # El pedido propio se puede autorizar, pero con segundo factor reciente.
+    assert error.value.codigo == "AMB_VAL_000"
     await servicios.resolver_autorizacion(tenant, otro, pedido["id"], True)
     with pytest.raises(ErrorDominio) as error:
         # Sin estadísticas desactualizadas no hay pasos, pero la autorización se usó.

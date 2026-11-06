@@ -2,6 +2,7 @@ import pytest
 
 from app import cli
 from app.core.errores import ErrorDominio
+from app.identidad.entidades import Usuario
 
 
 def test_error_de_dominio_expone_mensaje_y_estado():
@@ -28,12 +29,22 @@ def test_cli_crear_tenant(monkeypatch, capsys):
         return Tenant(uuid4(), slug, nombre, "DB_T_acme", "db_t_acme", "activo")
 
     monkeypatch.setattr(cli.servicios, "aprovisionar", aprovisionar)
+    administrador = Usuario("u", "t", "a@b.com", None, "ADMINISTRADOR", "invitado", None)
+    monkeypatch.setattr(
+        cli.repositorios_usuarios, "obtener_por_email", lambda base, t, email: administrador
+    )
+
+    async def enviar(tenant, usuario, invitante):
+        return "enviada" if usuario is administrador and invitante is None else "?"
+
+    monkeypatch.setattr(cli.invitaciones, "enviar", enviar)
 
     codigo = cli.main(["crear-tenant", "--slug", "acme", "--nombre", "ACME", "--admin", "a@b.com"])
 
     assert codigo == 0
     assert recibido == {"slug": "acme", "nombre": "ACME", "admin": "a@b.com"}
-    assert "DB_T_acme" in capsys.readouterr().out
+    salida = capsys.readouterr().out
+    assert "DB_T_acme" in salida and "aviso de acceso: enviada" in salida
 
 
 def test_cli_informa_errores_de_dominio(monkeypatch, capsys):

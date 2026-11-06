@@ -197,6 +197,14 @@ async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)
     )
 
 
+@router.get("/perfil", response_class=HTMLResponse)
+async def perfil(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    # Todos los roles tienen su perfil (todos ven el Inicio).
+    return await _pagina_de_modulo(
+        request, tenant, "inicio", "paginas/perfil.html", {"activo": "perfil"}
+    )
+
+
 # Manifest de la PWA en el idioma del usuario (descripción y lang).
 MANIFEST = json.loads((DIRECTORIO_ESTATICOS / "manifest.webmanifest").read_text(encoding="utf-8"))
 

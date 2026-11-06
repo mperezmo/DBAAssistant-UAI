@@ -42,6 +42,39 @@ def eliminar(base: str, tenant_id: str, endpoint: str) -> None:
         conexion.commit()
 
 
+def listar_del_usuario(base: str, tenant_id: str, usuario_id: str) -> list[dict]:
+    """Dispositivos del usuario (para que los vea y quite desde su perfil)."""
+    with sqlserver.conectar(base) as conexion:
+        filas = (
+            conexion.cursor()
+            .execute(
+                """SELECT id, agente, creada_en FROM dbo.suscripcion_push
+                   WHERE tenant_id = ? AND usuario_id = ? ORDER BY creada_en DESC""",
+                tenant_id,
+                usuario_id,
+            )
+            .fetchall()
+        )
+    return [{"id": str(f.id), "agente": f.agente, "creada_en": f.creada_en} for f in filas]
+
+
+def eliminar_del_usuario(base: str, tenant_id: str, usuario_id: str, suscripcion_id: str) -> bool:
+    with sqlserver.conectar(base) as conexion:
+        borradas = (
+            conexion.cursor()
+            .execute(
+                """DELETE FROM dbo.suscripcion_push
+                   WHERE tenant_id = ? AND usuario_id = ? AND id = ?""",
+                tenant_id,
+                usuario_id,
+                suscripcion_id,
+            )
+            .rowcount
+        )
+        conexion.commit()
+    return borradas == 1
+
+
 def listar_por_roles(base: str, tenant_id: str, roles: tuple[str, ...]) -> list[Suscripcion]:
     """Dispositivos de los usuarios habilitados que tienen alguno de los roles."""
     if not roles:

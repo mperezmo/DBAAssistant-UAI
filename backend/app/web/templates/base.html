@@ -60,13 +60,13 @@
         <strong>{% block miga %}{% endblock %}</strong>
       </div>
       <div class="topbar-spacer"></div>
-      <div class="user-card">
+      <a class="user-card" href="/perfil" title="{{ t('perfil.titulo_menu') }}">
         <div class="user-avatar">{{ sesion.iniciales }}</div>
         <div class="user-info">
           <div class="user-name">{{ sesion.nombre }}</div>
           <div class="user-role">{{ t("rol." ~ sesion.rol) }} · {{ tenant.nombre }}</div>
         </div>
-      </div>
+      </a>
       <select class="selector-idioma" aria-label="{{ t('idioma.elegir') }}" data-elegir-idioma>
         {% for codigo in idiomas %}<option value="{{ codigo }}" {% if codigo == idioma_actual() %}selected{% endif %}>{{ t("idioma." ~ codigo) }}</option>{% endfor %}
       </select>

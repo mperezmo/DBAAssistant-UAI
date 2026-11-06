@@ -69,8 +69,13 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
     en palabras de las modificaciones;
   - workaround WK-08 para poner online una base OFFLINE;
   - multi idioma español e inglés, elegido por usuario.
-- **Sprint 10 (en curso):** gestión de usuarios: aviso de acceso al nuevo usuario y
-  "Mi perfil".
+- **Sprint 10 (en `dev`, pendiente de QA):** gestión de usuarios:
+  - aviso de acceso por correo (SMTP) al nuevo usuario, con reenvío desde el Panel Admin y
+    al primer Administrador de `crear-tenant`;
+  - "Mi perfil" (CU-001-001-C): datos, idioma, cambio de contraseña por Auth0 y
+    dispositivos con notificaciones;
+  - quien pide autorizar un workaround fuera de la ventana puede autorizarlo él mismo,
+    con segundo factor.
 - **Pendiente:** biometría en la PWA, push en el celular (dominio + túnel) y despliegue en
   Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en

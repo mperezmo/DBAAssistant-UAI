@@ -45,6 +45,7 @@ class RepositorioUsuariosFalso:
             "activar",
             "registrar_ingreso",
             "guardar_idioma",
+            "guardar_nombre",
             "obtener",
             "obtener_por_email",
             "listar",
@@ -72,6 +73,9 @@ class RepositorioUsuariosFalso:
         self.usuarios[usuario_id] = replace(
             u, auth0_usuario_id=auth0_id, nombre=u.nombre or nombre, estado="activo"
         )
+
+    def guardar_nombre(self, base, tenant_id, usuario_id, nombre):
+        self.usuarios[usuario_id] = replace(self.usuarios[usuario_id], nombre=nombre)
 
     def guardar_idioma(self, base, tenant_id, usuario_id, idioma):
         self.usuarios[usuario_id] = replace(self.usuarios[usuario_id], idioma=idioma)

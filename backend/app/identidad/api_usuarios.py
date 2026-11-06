@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.core.config import obtener_configuracion
-from app.identidad import usuarios
+from app.identidad import perfil, usuarios
 from app.identidad.dependencias import requerir_modulo
 from app.identidad.entidades import DIAS_GRACIA_BAJA, Usuario
 
@@ -71,7 +71,15 @@ async def crear(datos: UsuarioNuevo, ctx=contexto) -> dict:
         sesion,
         usuarios.DatosUsuario(datos.email, datos.nombre, datos.rol, tuple(datos.ambientes)),
     )
-    return _a_json(usuario)
+    # El alta no depende del correo: se informa si el aviso de acceso salió o no.
+    invitacion = await usuarios.invitar(tenant, sesion, usuario.id, al_crear=True)
+    return {**_a_json(usuario), "invitacion": invitacion}
+
+
+@router.post("/{usuario_id}/invitacion", status_code=204)
+async def reenviar_invitacion(usuario_id: str, ctx=contexto) -> None:
+    tenant, sesion = ctx
+    await usuarios.invitar(tenant, sesion, usuario_id)
 
 
 @router.patch("/{usuario_id}")
@@ -96,6 +104,34 @@ async def dar_baja(usuario_id: str, ctx=contexto) -> None:
 async def rehabilitar(usuario_id: str, ctx=contexto) -> dict:
     tenant, sesion = ctx
     return _a_json(await usuarios.rehabilitar(tenant, sesion, usuario_id))
+
+
+class DatosPerfil(BaseModel):
+    nombre: str | None = None
+
+
+@router_perfil.get("")
+async def perfil_propio(ctx=contexto_propio) -> dict:
+    tenant, sesion = ctx
+    return await perfil.datos(tenant, sesion)
+
+
+@router_perfil.patch("", status_code=204)
+async def cambiar_nombre(datos: DatosPerfil, ctx=contexto_propio) -> None:
+    tenant, sesion = ctx
+    await perfil.cambiar_nombre(tenant, sesion, datos.nombre)
+
+
+@router_perfil.post("/contrasena", status_code=204)
+async def cambiar_contrasena(ctx=contexto_propio) -> None:
+    tenant, sesion = ctx
+    await perfil.cambiar_contrasena(tenant, sesion)
+
+
+@router_perfil.delete("/dispositivos/{dispositivo_id}", status_code=204)
+async def quitar_dispositivo(dispositivo_id: str, ctx=contexto_propio) -> None:
+    tenant, sesion = ctx
+    await perfil.quitar_dispositivo(tenant, sesion, dispositivo_id)
 
 
 class Idioma(BaseModel):

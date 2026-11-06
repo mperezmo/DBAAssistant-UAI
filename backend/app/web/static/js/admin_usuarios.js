@@ -60,13 +60,28 @@ document.addEventListener("alpine:init", () => {
         if (id) {
           await api("PATCH", `/api/usuarios/${id}`, { nombre, rol, ambientes });
         } else {
-          await api("POST", "/api/usuarios", { email, nombre, rol, ambientes });
-          this.aviso = { error: false, texto: TEXTOS.creado, direccion: this.direccion };
+          const creado = await api("POST", "/api/usuarios", { email, nombre, rol, ambientes });
+          // Si el correo salió se muestra a quién; si no, la dirección para pasársela a mano.
+          this.aviso = {
+            error: creado.invitacion === "fallida",
+            texto: TEXTOS.creado[creado.invitacion],
+            direccion: creado.invitacion === "enviada" ? creado.email : this.direccion,
+          };
         }
         this.formulario = null;
         await this.cargar();
       } catch (error) {
         this.formulario.error = error.message;
+      }
+    },
+
+    async reenviar(usuario) {
+      this.aviso = null;
+      try {
+        await api("POST", `/api/usuarios/${usuario.id}/invitacion`);
+        this.aviso = { error: false, texto: TEXTOS.reenviada, direccion: usuario.email };
+      } catch (error) {
+        this.aviso = { error: true, texto: error.message };
       }
     },
 

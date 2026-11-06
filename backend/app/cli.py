@@ -17,7 +17,16 @@ from app.core import cifrado
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.core.registro import configurar_registro
+from app.identidad import invitaciones
+from app.identidad import repositorios as repositorios_usuarios
 from app.tenants import servicios
+
+
+def _avisar_administrador(tenant, email: str) -> str:
+    usuario = repositorios_usuarios.obtener_por_email(tenant.base_sqlserver, str(tenant.id), email)
+    if usuario is None or usuario.estado != "invitado":
+        return "no corresponde (ya ingresó)"
+    return asyncio.run(invitaciones.enviar(tenant, usuario, None))
 
 
 def _crear_tenant(args: argparse.Namespace) -> None:
@@ -25,7 +34,8 @@ def _crear_tenant(args: argparse.Namespace) -> None:
     print(f"Tenant '{tenant.slug}' listo.")
     print(f"  SQL Server: {tenant.base_sqlserver}")
     print(f"  MongoDB:    {tenant.base_mongodb}")
-    print(f"  Administrador invitado: {args.admin}")
+    aviso = _avisar_administrador(tenant, args.admin)
+    print(f"  Administrador: {args.admin} · aviso de acceso: {aviso}")
     if tenant.auth0_organizacion_id:
         print(f"  Organización Auth0: {tenant.auth0_organizacion_id}")
         print(f"  Acceso: https://{tenant.slug}.{obtener_configuracion().dominio_base}")
