@@ -54,15 +54,25 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
   métricas por DMVs, histórico en MongoDB y umbrales por conexión.
 - **Sprint 4 ✅ (`v0.4.0`):** alertas (CU-000-004): motor de umbrales, eventos y reglas,
   desestimar condiciones esperadas, Web Push con VAPID y correo SMTP.
-- **Sprints 5 y 6 (en `dev`, pendientes de QA):** Workarounds (CU-000-005) y Sandbox
-  (CU-000-002), con validación de workarounds propios en Sandbox para PROD.
-- **Sprint 7 (en `dev`, pendiente de QA):** Contexto de Negocio (CU-000-006) y Chat IA
-  (CU-000-001); panel de Inicio.
-- **Sprint 8 (en `dev`, pendiente de QA):** Auditoría (CU-000-009), bitácora de
-  excepciones e Histórico de Schema (CU-000-008 A y B).
-- **Sprint 9 (en `dev`, pendiente de QA):** Buenas Prácticas (CU-000-007 A y B).
-- **Pendiente:** biometría en la PWA, push en el celular
-  (dominio + túnel) y despliegue en Azure.
+- **Sprint 5 ✅ (`v0.5.0`):** Workarounds (CU-000-005): integrados y propios con versiones,
+  ejecución paso a paso, ventana de mantenimiento con autorización y ejecución automática.
+- **Sprint 6 ✅ (`v0.6.0`):** Sandbox (CU-000-002): contenedores con la estructura del
+  origen, validación con rollback, historial y promoción; workarounds propios validados en
+  Sandbox para PROD.
+- **Sprint 7 ✅ (`v0.7.0`):** Contexto de Negocio (CU-000-006), Chat IA (CU-000-001) y
+  panel de Inicio.
+- **Sprint 8 ✅ (`v0.8.0`):** Auditoría (CU-000-009), bitácora de excepciones e Histórico
+  de Schema (CU-000-008 A y B).
+- **Sprint 9 ✅ (`v0.9.0`):** Buenas Prácticas (CU-000-007 A y B), más:
+  - el Administrador con las facultades operativas del DBA;
+  - Chat IA con el resultado primero (la consulta en el apartado "Query") y confirmación
+    en palabras de las modificaciones;
+  - workaround WK-08 para poner online una base OFFLINE;
+  - multi idioma español e inglés, elegido por usuario.
+- **Sprint 10 (en curso):** gestión de usuarios: aviso de acceso al nuevo usuario y
+  "Mi perfil".
+- **Pendiente:** biometría en la PWA, push en el celular (dominio + túnel) y despliegue en
+  Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.

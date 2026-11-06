@@ -10,7 +10,8 @@ Los nombres de los menús pueden variar levemente según la versión del panel d
 
 - Auth0 verifica la **identidad** (Google o email y contraseña) y el **doble factor**.
 - Cada empresa cliente es una **Organization** de Auth0. La app la crea sola al dar de
-  alta el tenant (`crear-tenant`) e invita al primer Administrador por mail.
+  alta el tenant (`crear-tenant`) y registra al primer Administrador en la base del tenant;
+  entra por la dirección de su empresa.
 - Cada empresa entra por su propia dirección: `https://<cliente>.localhost` en desarrollo.
 - El **rol** y los permisos de cada usuario se guardan en la base del tenant, no en Auth0.
 
