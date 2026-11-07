@@ -115,12 +115,12 @@ document.addEventListener("alpine:init", () => {
         await this.seguir(r.ejecucion_id);
       } catch (error) {
         if (error.codigo === "AMB_VAL_000" && window.confirm(this.TEXTOS_EJ.confirmarMfa)) {
-          sessionStorage.setItem(CLAVE_PENDIENTE, JSON.stringify({
+          const guardar = () => sessionStorage.setItem(CLAVE_PENDIENTE, JSON.stringify({
             workaround: this.w.id, conexion_id: this.conexionId, base: this.base,
             alerta_id: this.alertaId, sids: this.sids, servicio: this.servicio, base_offline: this.baseOffline,
           }));
-          const volver = location.pathname + location.search;
-          window.location.href = `/auth/confirmar?volver=${encodeURIComponent(volver)}`;
+          this.enviando = false;
+          if (await window.DBA.segundoFactor(location.pathname + location.search, guardar)) await this.ejecutar();
           return;
         }
         this.mensaje = error.message;

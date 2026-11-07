@@ -128,3 +128,74 @@ a.user-card {
   color: inherit;
   text-decoration: none;
 }
+
+/* Barra inferior del celular (accesos directos y "Más", que abre el menú lateral). */
+.nav-inferior {
+  display: none;
+}
+@media (max-width: 767px) {
+  .nav-inferior {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--bg-elev);
+    box-shadow: 0 -2px 10px rgba(16, 24, 40, 0.06);
+  }
+  .nav-inferior a,
+  .nav-inferior button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 2px;
+    border: 0;
+    background: none;
+    color: var(--fg-muted);
+    font-size: 10.5px;
+    text-decoration: none;
+  }
+  .nav-inferior a.activo {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .nav-inferior-contador {
+    position: absolute;
+    top: -4px;
+    right: -9px;
+    min-width: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--terracotta);
+    color: #fff;
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+  /* Lugar para la barra: que no tape el final de la página. */
+  .page {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+  /* El botón de menú de la barra superior lo reemplaza "Más". */
+  .topbar .boton-menu {
+    display: none;
+  }
+  /* Barra superior compacta: el idioma se cambia desde Mi perfil. */
+  .topbar .selector-idioma {
+    display: none;
+  }
+  .topbar .crumbs {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .topbar .crumbs > span {
+    display: none;
+  }
+}

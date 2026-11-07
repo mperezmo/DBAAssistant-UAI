@@ -215,7 +215,7 @@ document.addEventListener("alpine:init", () => {
       } catch (error) {
         // Autorizar el propio pedido pide confirmar con el segundo factor.
         if (error.codigo === "AMB_VAL_000" && window.confirm(TEXTOS.confirmarMfaAutorizacion)) {
-          window.location.href = `/auth/confirmar?volver=${encodeURIComponent("/workarounds")}`;
+          if (await window.DBA.segundoFactor("/workarounds")) await this.resolver(a, aprobar);
           return;
         }
         this.mensajePanel = error.message;
@@ -239,8 +239,8 @@ document.addEventListener("alpine:init", () => {
         await this.abrirPanel("automatizaciones");
       } catch (error) {
         if (error.codigo === "AMB_VAL_000" && window.confirm(TEXTOS.confirmarMfa)) {
-          sessionStorage.setItem(CLAVE_AUTOMATIZACION, JSON.stringify(this.nuevaAutomatizacion));
-          window.location.href = `/auth/confirmar?volver=${encodeURIComponent("/workarounds")}`;
+          const guardar = () => sessionStorage.setItem(CLAVE_AUTOMATIZACION, JSON.stringify(this.nuevaAutomatizacion));
+          if (await window.DBA.segundoFactor("/workarounds", guardar)) await this.crearAutomatizacion();
           return;
         }
         this.mensajePanel = error.message;

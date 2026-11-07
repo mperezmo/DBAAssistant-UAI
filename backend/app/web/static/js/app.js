@@ -14,10 +14,12 @@ async function actualizarContadorAlertas(contador) {
 }
 
 window.addEventListener("load", () => {
-  const contador = document.querySelector("[data-alertas-activas]");
-  if (!contador) return;
-  actualizarContadorAlertas(contador);
-  setInterval(() => !document.hidden && actualizarContadorAlertas(contador), REFRESCO_CONTADOR_ALERTAS_MS);
+  // Uno en el menú lateral y otro en la barra inferior del celular.
+  const contadores = document.querySelectorAll("[data-alertas-activas]");
+  if (!contadores.length) return;
+  const actualizar = () => contadores.forEach(actualizarContadorAlertas);
+  actualizar();
+  setInterval(() => !document.hidden && actualizar(), REFRESCO_CONTADOR_ALERTAS_MS);
 });
 
 // Menú lateral en pantallas chicas: se abre y cierra con el botón de la barra superior.

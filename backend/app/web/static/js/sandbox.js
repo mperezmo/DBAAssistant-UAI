@@ -167,8 +167,9 @@ document.addEventListener("alpine:init", () => {
         if (this.resultado?.id === p.id) this.resultado = await api("GET", `/api/sandbox/historial/${p.id}`);
       } catch (error) {
         if (error.codigo === "AMB_VAL_000" && window.confirm(TEXTOS.confirmarMfa)) {
-          sessionStorage.setItem(CLAVE_PROMOCION, p.id);
-          window.location.href = `/auth/confirmar?volver=${encodeURIComponent("/sandbox")}`;
+          if (await window.DBA.segundoFactor("/sandbox", () => sessionStorage.setItem(CLAVE_PROMOCION, p.id))) {
+            await this.promover();
+          }
           return;
         }
         p.mensaje = error.message;

@@ -366,6 +366,8 @@ def dispositivos(monkeypatch):
     monkeypatch.setattr(
         perfil.dispositivos, "listar_del_usuario", lambda base, t, u: list(lista.values())
     )
+    # Mi perfil también lista las passkeys del usuario.
+    monkeypatch.setattr(perfil.passkeys.repositorio, "listar", lambda base, t, u: [])
     monkeypatch.setattr(
         perfil.dispositivos,
         "eliminar_del_usuario",

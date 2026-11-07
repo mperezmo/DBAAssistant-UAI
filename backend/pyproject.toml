@@ -21,6 +21,7 @@ dependencies = [
     "anthropic>=1.15.0",
     "sqlglot>=30.23.0",
     "fpdf2>=2.8.9",
+    "webauthn>=2.5",
 ]
 
 [dependency-groups]

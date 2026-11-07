@@ -4,11 +4,11 @@ import math
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
 from app.core.config import obtener_configuracion
-from app.identidad import perfil, usuarios
+from app.identidad import passkeys, perfil, usuarios
 from app.identidad.dependencias import requerir_modulo
 from app.identidad.entidades import DIAS_GRACIA_BAJA, Usuario
 
@@ -132,6 +132,56 @@ async def cambiar_contrasena(ctx=contexto_propio) -> None:
 async def quitar_dispositivo(dispositivo_id: str, ctx=contexto_propio) -> None:
     tenant, sesion = ctx
     await perfil.quitar_dispositivo(tenant, sesion, dispositivo_id)
+
+
+class PasskeyNueva(BaseModel):
+    credencial: dict
+    nombre: str = ""
+
+
+class PasskeyConfirmacion(BaseModel):
+    credencial: dict
+
+
+@router_perfil.get("/passkeys")
+async def listar_passkeys(ctx=contexto_propio) -> dict:
+    tenant, sesion = ctx
+    return {"passkeys": await passkeys.listar(tenant, sesion)}
+
+
+@router_perfil.post("/passkeys/opciones")
+async def opciones_de_registro(request: Request, ctx=contexto_propio) -> Response:
+    tenant, sesion = ctx
+    opciones = await passkeys.opciones_de_registro(tenant, sesion, request)
+    return Response(opciones, media_type="application/json")
+
+
+@router_perfil.post("/passkeys", status_code=204)
+async def registrar_passkey(datos: PasskeyNueva, request: Request, ctx=contexto_propio) -> None:
+    tenant, sesion = ctx
+    await passkeys.registrar(tenant, sesion, request, datos.credencial, datos.nombre)
+
+
+@router_perfil.delete("/passkeys/{passkey_id}", status_code=204)
+async def eliminar_passkey(passkey_id: str, ctx=contexto_propio) -> None:
+    tenant, sesion = ctx
+    await passkeys.eliminar(tenant, sesion, passkey_id)
+
+
+# Confirmación biométrica de una acción sensible: cualquier módulo la usa.
+@router_perfil.post("/passkeys/desafio")
+async def desafio_de_confirmacion(request: Request, ctx=contexto_propio) -> Response:
+    tenant, sesion = ctx
+    opciones = await passkeys.opciones_de_confirmacion(tenant, sesion, request)
+    return Response(opciones or "null", media_type="application/json")
+
+
+@router_perfil.post("/passkeys/confirmar", status_code=204)
+async def confirmar_con_passkey(
+    datos: PasskeyConfirmacion, request: Request, ctx=contexto_propio
+) -> None:
+    tenant, sesion = ctx
+    await passkeys.confirmar(tenant, sesion, request, datos.credencial)
 
 
 class Idioma(BaseModel):

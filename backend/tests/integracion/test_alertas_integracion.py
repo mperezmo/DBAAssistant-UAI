@@ -8,6 +8,7 @@ from app.core import cifrado
 from app.core.errores import ErrorDominio
 from app.core.secretos import proveedor_secretos
 from app.identidad import repositorios as usuarios
+from app.identidad import repositorios_passkeys as passkeys
 from app.identidad.entidades import Sesion
 from app.modulos.alertas import motor as modulo_motor
 from app.modulos.alertas import servicios
@@ -161,6 +162,20 @@ async def test_suscripciones_push_por_rol(prefijo_aislado, monkeypatch):
     usuarios.guardar_idioma(base, tenant_id, admin.id, "en")
     admin = usuarios.obtener(base, tenant_id, admin.id)
     assert (admin.nombre, admin.idioma) == ("Ana", "en")
+    # Passkeys del usuario: alta, uso (contador) y baja solo por su dueño.
+    passkeys.crear(base, tenant_id, admin.id, "Y3JlZA", b"\x01\x02", 0, "Mi celular")
+    [clave] = passkeys.listar(base, tenant_id, admin.id)
+    assert (clave.clave_publica, clave.nombre, clave.ultimo_uso) == (
+        b"\x01\x02",
+        "Mi celular",
+        None,
+    )
+    passkeys.registrar_uso(base, tenant_id, clave.id, 7)
+    [clave] = passkeys.listar(base, tenant_id, admin.id)
+    assert clave.contador == 7 and clave.ultimo_uso is not None
+    assert passkeys.listar(base, tenant_id, dba_id) == []
+    assert not passkeys.eliminar(base, tenant_id, dba_id, clave.id)
+    assert passkeys.eliminar(base, tenant_id, admin.id, clave.id)
     assert usuarios.emails_por_roles(base, tenant_id, ("DBA", "ADMINISTRADOR")) == [
         ("admin@acme.com", "en"),
         ("dba@acme.com", None),

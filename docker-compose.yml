@@ -73,6 +73,19 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
 
+  # Túnel público (Cloudflare Tunnel) para usar la app desde el celular con un dominio
+  # propio: el push y las passkeys necesitan HTTPS con un certificado válido. Solo
+  # arranca con "docker compose --profile tunel up -d". Ver docs/tunel.md.
+  tunel:
+    image: cloudflare/cloudflared:2026.9.3
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${SECRETO_CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - nginx
+    profiles: ["tunel"]
+    restart: unless-stopped
+
 # Red con nombre fijo: los contenedores del Sandbox se suman a ella.
 networks:
   default:

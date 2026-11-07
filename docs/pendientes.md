@@ -20,9 +20,9 @@
 - **MongoDB sin autenticación en desarrollo:** el puerto 27017 queda publicado sin usuario.
   Antes de exponer el entorno hay que cerrarlo o activar la autenticación.
 
-- **Túnel público para probar push en el celular:** Cloudflare Tunnel con un dominio propio
-  (`*.<dominio>` con certificado válido hacia el NGINX local). Se configura cuando haya
-  dominio; es un desvío temporal del diagrama hasta el despliegue en Azure.
+- **Túnel público para probar push y biometría en el celular:** el servicio `tunel`
+  (Cloudflare Tunnel) ya está en `docker-compose.yml`; falta el dominio propio. Pasos en
+  `docs/tunel.md`. Es un desvío temporal del diagrama hasta el despliegue en Azure.
 
 ## Para investigar más adelante
 

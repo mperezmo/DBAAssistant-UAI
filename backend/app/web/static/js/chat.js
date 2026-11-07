@@ -177,8 +177,8 @@ document.addEventListener("alpine:init", () => {
 
     async manejarError(m, error, sql, confirmar) {
       if (CODIGOS_SEGUNDO_FACTOR.includes(error.codigo) && window.confirm(TEXTOS.confirmarMfa)) {
-        sessionStorage.setItem(CLAVE_PENDIENTE, JSON.stringify({ hilo: this.hiloId, mensaje: m.id, sql, confirmar }));
-        window.location.href = `/auth/confirmar?volver=${encodeURIComponent(`/chat?hilo=${this.hiloId}`)}`;
+        const guardar = () => sessionStorage.setItem(CLAVE_PENDIENTE, JSON.stringify({ hilo: this.hiloId, mensaje: m.id, sql, confirmar }));
+        if (await window.DBA.segundoFactor(`/chat?hilo=${this.hiloId}`, guardar)) await this.ejecutar(m, false, { sql, confirmar });
         return;
       }
       if (error.codigo === "CTX_REG_001") {

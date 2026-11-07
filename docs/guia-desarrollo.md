@@ -76,7 +76,11 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
     dispositivos con notificaciones;
   - quien pide autorizar un workaround fuera de la ventana puede autorizarlo él mismo,
     con segundo factor.
-- **Pendiente:** biometría en la PWA, push en el celular (dominio + túnel) y despliegue en
+- **Sprint 11 (en `dev`, pendiente de QA):** móvil:
+  - passkeys (WebAuthn) como segundo factor, registradas en "Mi perfil";
+  - barra inferior y flujo de incidentes en el celular;
+  - servicio `tunel` (Cloudflare) para usarla con dominio propio (`docs/tunel.md`).
+- **Pendiente:** dominio propio para el túnel (push real en el celular) y despliegue en
   Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.

@@ -71,6 +71,38 @@
         </div>
       </section>
 
+      <!-- Passkeys: biometría para confirmar acciones sensibles -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow" x-text="`${TEXTOS.passkeys} · ${datos.passkeys.length}`"></div>
+            <h3 class="card-title">{{ t("perfil.biometria") }}</h3>
+          </div>
+        </div>
+        <div class="card-body text-sm">
+          <p class="mb-3 text-fg-muted">{{ t("perfil.biometria_ayuda") }}</p>
+          <p class="text-warn" x-show="!soportaPasskeys">{{ t("perfil.biometria_sin_soporte") }}</p>
+          <form class="flex flex-wrap items-end gap-2" x-show="soportaPasskeys" @submit.prevent="agregarPasskey()">
+            <div class="field">
+              <label for="p-passkey">{{ t("perfil.passkey_nombre") }}</label>
+              <input id="p-passkey" type="text" maxlength="100" x-model="nombrePasskey" placeholder="{{ t('perfil.passkey_ejemplo') }}">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" :disabled="ocupado">{{ t("perfil.passkey_agregar") }}</button>
+          </form>
+        </div>
+        <table class="data-table" x-show="datos.passkeys.length">
+          <tbody>
+            <template x-for="k in datos.passkeys" :key="k.id">
+              <tr>
+                <td x-text="k.nombre"></td>
+                <td class="metric-mono text-[11.5px] text-fg-faint" x-text="`${TEXTOS.ultimoUso}: ${fecha(k.ultimo_uso)}`"></td>
+                <td class="text-right"><button class="btn btn-ghost btn-sm" :disabled="ocupado" @click="quitarPasskey(k)">{{ t("perfil.quitar") }}</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </section>
+
       <!-- Dispositivos con notificaciones -->
       <section class="card">
         <div class="card-head">
@@ -105,6 +137,11 @@
     correoEnviado: {{ t("perfil.correo_enviado") | tojson }},
     confirmarQuitar: {{ t("perfil.confirmar_quitar") | tojson }},
     dispositivos: {{ t("perfil.dispositivos") | tojson }},
+    passkeys: {{ t("perfil.passkeys") | tojson }},
+    ultimoUso: {{ t("perfil.passkey_ultimo_uso") | tojson }},
+    passkeyAgregada: {{ t("perfil.passkey_agregada") | tojson }},
+    confirmarQuitarPasskey: {{ t("perfil.passkey_confirmar_quitar") | tojson }},
+    confirmarMfaPasskey: {{ t("perfil.passkey_confirmar_mfa") | tojson }},
   };
 </script>
 <script src="/static/js/perfil.js?v={{ version_estaticos }}"></script>

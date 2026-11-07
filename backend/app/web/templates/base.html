@@ -78,6 +78,25 @@
     <main class="page">
       {% block contenido %}{% endblock %}
     </main>
+
+    <!-- Celular: accesos directos abajo, al alcance del pulgar; el resto, en "Más". -->
+    <nav class="nav-inferior" aria-label="{{ t('menu.accesos') }}">
+      {% for id, ruta, icono in [("inicio", "/", "home"), ("alertas", "/alertas", "bell"), ("chat", "/chat", "chat"), ("workarounds", "/workarounds", "play")] %}
+        {% if sesion.puede_ver(id) %}
+        <a href="{{ ruta }}" class="{% if activo == id %}activo{% endif %}">
+          <span class="relative">
+            {% with nombre=icono, tam=20 %}{% include "parciales/icono.html" %}{% endwith %}
+            {% if id == "alertas" %}<span class="nav-inferior-contador" data-alertas-activas hidden></span>{% endif %}
+          </span>
+          <span>{{ t("menu." ~ id) }}</span>
+        </a>
+        {% endif %}
+      {% endfor %}
+      <button type="button" data-alternar-menu aria-controls="menu-lateral">
+        <span>☰</span>
+        <span>{{ t("menu.mas") }}</span>
+      </button>
+    </nav>
   </div>
 </div>
 </body>

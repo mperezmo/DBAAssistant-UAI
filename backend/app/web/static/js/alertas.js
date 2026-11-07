@@ -93,9 +93,13 @@ document.addEventListener("alpine:init", () => {
       return TEXTOS.subtitulo.replace("{activas}", activas).replace("{criticas}", criticas);
     },
 
-    seleccionar(alerta) {
+    seleccionar(alerta, tocada = false) {
       this.seleccionada = alerta;
       this.atencion = { accion: "manual", comentario: "", duracion: "24h", hasta: "", mensaje: "", enviando: false };
+      // En el celular el detalle queda debajo de la lista: se lleva a la vista al tocarla.
+      if (tocada && window.matchMedia("(max-width: 1023px)").matches) {
+        this.$nextTick(() => this.$refs.detalle?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      }
     },
 
     claseSeveridad(s) {

@@ -151,16 +151,17 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    async eliminar(conexion) {
-      if (!window.confirm(TEXTOS.confirmarEliminar)) return;
+    async eliminar(conexion, confirmada = false) {
+      if (!confirmada && !window.confirm(TEXTOS.confirmarEliminar)) return;
       this.aviso = null;
       try {
         await api("DELETE", `/api/conexiones/${conexion.id}`);
         await this.cargar();
       } catch (error) {
         if (error.codigo === "AMB_VAL_000" && window.confirm(TEXTOS.confirmarMfa)) {
-          sessionStorage.setItem(CLAVE_PENDIENTE, conexion.id);
-          window.location.href = `/auth/confirmar?volver=${encodeURIComponent("/conexiones")}`;
+          if (await window.DBA.segundoFactor("/conexiones", () => sessionStorage.setItem(CLAVE_PENDIENTE, conexion.id))) {
+            await this.eliminar(conexion, true);
+          }
           return;
         }
         this.aviso = { error: true, texto: error.message };

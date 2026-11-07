@@ -9,7 +9,7 @@ import re
 from starlette.concurrency import run_in_threadpool
 
 from app.core.errores import ErrorDominio
-from app.identidad import repositorios, usuarios
+from app.identidad import passkeys, repositorios, usuarios
 from app.identidad.auth0 import ClienteAuth0
 from app.identidad.entidades import Sesion
 from app.modulos.web_push import repositorios as dispositivos
@@ -64,6 +64,7 @@ async def datos(tenant: Tenant, sesion: Sesion) -> dict:
         else None,
         "idioma": usuario.idioma,
         "metodo": metodo_de_ingreso(usuario.auth0_usuario_id),
+        "passkeys": await passkeys.listar(tenant, sesion),
         "dispositivos": [
             {
                 "id": d["id"],
