@@ -23,6 +23,12 @@
       <template x-for="b in bases()" :key="b"><option :value="b" x-text="b"></option></template>
     </select>
     <button class="btn btn-ghost btn-sm" @click="cargarEsquema(true)" :disabled="leyendoEsquema" x-text="leyendoEsquema ? TEXTOS.leyendo : TEXTOS.actualizarEsquema"></button>
+    <!-- Documentos de negocio: cualquier rol los carga para la base elegida -->
+    <input type="file" accept="application/pdf,.pdf" class="hidden" x-ref="archivo" @change="subir($event)">
+    <button class="btn btn-primary btn-sm" @click="$refs.archivo.click()" :disabled="subiendo || !base" :title="TEXTOS.notaCarga.replace('{base}', base)">
+      {% with nombre="plus", tam=13 %}{% include "parciales/icono.html" %}{% endwith %} <span x-text="subiendo ? TEXTOS.subiendo : TEXTOS.cargar"></span>
+    </button>
+    <p class="w-full text-sm text-danger" x-show="mensajeSubida" x-text="mensajeSubida"></p>
   </div>
 
   <div class="grid gap-5 lg:grid-cols-[auto_minmax(0,1fr)]" x-show="conexiones.length" x-cloak>
@@ -135,21 +141,17 @@
           <div class="card-eyebrow">{{ t("contexto.documentos.eyebrow") }}</div>
           <h3 class="card-title" x-text="`${TEXTOS.categorias.documentos} · ${datos.documentos.length}`"></h3>
         </div>
-        <button class="btn btn-primary btn-sm" x-show="puedeEditar" @click="nuevaSubida()">
-          {% with nombre="plus", tam=13 %}{% include "parciales/icono.html" %}{% endwith %} {{ t("contexto.documentos.cargar") }}
-        </button>
       </div>
-      <p class="px-5 pt-4 text-[13px] text-fg-muted">{{ t("contexto.documentos.ayuda") }}</p>
+      <p class="px-5 pt-4 text-[13px] text-fg-muted">{{ t("contexto.documentos.ayuda") }} <span class="text-fg-faint" x-text="TEXTOS.notaCarga.replace('{base}', base)"></span></p>
       <div class="grid gap-3.5 p-5 md:grid-cols-2">
         <template x-for="d in datos.documentos" :key="d.id">
           <button type="button" class="rounded-sm border border-line p-3.5 text-left hover:border-line-strong" @click="verDocumento(d)">
             <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
-              <span class="tag px-1.5 py-px text-[9.5px]" :class="d.clase === 'funcional' ? 'tag-blue' : ''" x-text="TEXTOS.clases[d.clase]"></span>
               <span class="tag px-1.5 py-px text-[9.5px]" :class="claseEstado(d)" x-text="TEXTOS.estados[d.estado]"></span>
+              <span class="tag tag-blue px-1.5 py-px text-[9.5px]" x-show="pendientes(d).length" x-text="TEXTOS.conPropuestas.replace('{n}', pendientes(d).length)"></span>
               <span class="tag px-1.5 py-px text-[9.5px]" x-show="d.editado" x-text="TEXTOS.editado"></span>
             </div>
             <div class="break-all font-serif text-[15px] font-medium" x-text="d.nombre"></div>
-            <div class="mt-1 text-[12px] text-fg-muted" x-show="d.descripcion" x-text="d.descripcion"></div>
             <div class="metric-mono mt-1.5 text-[11px] text-fg-faint" x-text="`${d.base || TEXTOS.todasBases} · ${detalleDocumento(d)}`"></div>
           </button>
         </template>
@@ -158,50 +160,6 @@
     </section>
   </div>
 
-  <!-- Carga de un documento -->
-  <template x-if="subida">
-  <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
-       @click.self="subida = null" @keydown.escape.window="subida = null">
-    <form class="card mx-2 w-full max-w-xl" @submit.prevent="subir()">
-      <div class="card-head">
-        <div>
-          <div class="card-eyebrow" x-text="`${conexionActual()?.alias || ''} · ${base}`"></div>
-          <h3 class="card-title">{{ t("contexto.documentos.form_titulo") }}</h3>
-        </div>
-      </div>
-      <div class="card-body grid gap-3.5 text-sm">
-        <div>
-          <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="d-archivo">{{ t("contexto.documentos.form.archivo") }}</label>
-          <input id="d-archivo" type="file" accept="application/pdf,.pdf" required class="w-full text-sm" @change="subida.archivo = $event.target.files[0] || null">
-          <p class="mt-1 text-xs text-fg-faint">{{ t("contexto.documentos.form.nota") }}</p>
-        </div>
-        <div class="grid gap-3.5 sm:grid-cols-2">
-          <div>
-            <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="d-clase">{{ t("contexto.documentos.form.clase") }}</label>
-            <select id="d-clase" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="subida.clase">
-              <option value="funcional">{{ t("contexto.documentos.clase.funcional") }}</option>
-              <option value="no_funcional">{{ t("contexto.documentos.clase.no_funcional") }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="mb-1.5 block text-xs font-medium text-fg-muted" for="d-alcance">{{ t("contexto.documentos.form.alcance") }}</label>
-            <select id="d-alcance" class="w-full rounded border border-line px-3 py-2 text-sm" x-model="subida.alcance">
-              <option value="base" x-text="TEXTOS.estaBase.replace('{base}', base)"></option>
-              <option value="todas">{{ t("contexto.documentos.form.todas") }}</option>
-            </select>
-          </div>
-        </div>
-        <div class="field"><label for="d-desc">{{ t("contexto.documentos.form.descripcion") }}</label><input id="d-desc" maxlength="500" x-model="subida.descripcion" placeholder="{{ t('contexto.documentos.form.descripcion_ejemplo') }}"></div>
-        <p class="text-sm text-danger" x-show="subida.mensaje" x-text="subida.mensaje"></p>
-      </div>
-      <div class="card-foot justify-end gap-2">
-        <button type="button" class="btn btn-ghost btn-sm" @click="subida = null">{{ t("contexto.cancelar") }}</button>
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="subida.enviando || !subida.archivo" x-text="subida.enviando ? TEXTOS.subiendo : TEXTOS.subir"></button>
-      </div>
-    </form>
-  </div>
-  </template>
-
   <!-- Detalle de un documento: resumen revisable -->
   <template x-if="documento">
   <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
@@ -209,7 +167,7 @@
     <div class="card mx-2 w-full max-w-3xl">
       <div class="card-head flex-wrap gap-3">
         <div class="min-w-0">
-          <div class="card-eyebrow" x-text="`${TEXTOS.clases[documento.clase]} · ${documento.base || TEXTOS.todasBases}`"></div>
+          <div class="card-eyebrow" x-text="documento.base || TEXTOS.todasBases"></div>
           <h3 class="card-title break-all" x-text="documento.nombre"></h3>
           <div class="metric-mono mt-1 text-[11px] text-fg-faint" x-text="`${detalleDocumento(documento)} · ${cargadoPor(documento)}`"></div>
         </div>
@@ -223,22 +181,48 @@
             <div>
               <label class="mb-1 block text-xs font-medium text-fg-muted" for="d-resumen">{{ t("contexto.documentos.resumen") }}</label>
               <p class="mb-1.5 text-xs text-fg-faint">{{ t("contexto.documentos.resumen_ayuda") }}</p>
-              <textarea id="d-resumen" rows="16" maxlength="20000" class="w-full rounded border border-line px-3 py-2 text-[13px] leading-relaxed" x-model="documento.borrador" :readonly="!puedeEditar"></textarea>
+              <textarea id="d-resumen" rows="16" maxlength="20000" class="w-full rounded border border-line px-3 py-2 text-[13px] leading-relaxed" x-model="documento.borrador" :readonly="!documento.puede_gestionar"></textarea>
             </div>
             <div x-show="documento.tablas.length">
               <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("contexto.documentos.tablas") }}</div>
               <div class="flex flex-wrap gap-1.5"><template x-for="tb in documento.tablas" :key="tb"><span class="tag metric-mono px-1.5 py-px text-[10.5px]" x-text="tb"></span></template></div>
+            </div>
+            <!-- Propuestas de la IA: al aceptarlas pasan al Glosario o a las Reglas -->
+            <div x-show="documento.propuestas?.length">
+              <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("contexto.documentos.propuestas") }}</div>
+              <p class="mb-2 text-xs text-fg-faint">{{ t("contexto.documentos.propuestas_ayuda") }} <span x-show="!puedeEditar">{{ t("contexto.documentos.propuestas_solo_admin") }}</span></p>
+              <div class="grid gap-2">
+                <template x-for="p in pendientes(documento)" :key="p.id">
+                  <div class="flex flex-wrap items-start justify-between gap-2 rounded-sm border border-line p-3">
+                    <div class="min-w-0 flex-1">
+                      <div class="mb-1 flex flex-wrap items-center gap-1.5">
+                        <span class="tag px-1.5 py-px text-[9.5px]" :class="claseUnaPropuesta(p)" x-text="tipoPropuesta(p)"></span>
+                        <span class="metric-mono break-all text-[11px] text-fg-faint" x-text="alcancePropuesta(p)"></span>
+                      </div>
+                      <div class="text-[13.5px] font-medium" x-text="p.tipo === 'termino' ? p.datos.termino : p.datos.descripcion"></div>
+                      <div class="mt-0.5 text-[12.5px] text-fg-muted" x-show="p.tipo === 'termino' && p.datos.descripcion" x-text="p.datos.descripcion"></div>
+                      <div class="mt-0.5 text-[12px] text-fg-faint" x-show="p.tipo === 'termino' && p.datos.sinonimos?.length" x-text="`${TEXTOS.propuesta.sinonimos}: ${(p.datos.sinonimos || []).join(', ')}`"></div>
+                    </div>
+                    <div class="flex gap-1.5">
+                      <button type="button" class="btn btn-ghost btn-sm" x-show="documento.puede_gestionar" :disabled="!!p.enviando" @click="resolverPropuesta(p, 'descartar')">{{ t("contexto.documentos.propuesta.descartar") }}</button>
+                      <button type="button" class="btn btn-primary btn-sm" x-show="puedeEditar" :disabled="!!p.enviando" @click="resolverPropuesta(p, 'aceptar')">{{ t("contexto.documentos.propuesta.aceptar") }}</button>
+                    </div>
+                  </div>
+                </template>
+                <p class="text-xs text-fg-faint" x-show="!pendientes(documento).length">{{ t("contexto.documentos.propuestas_sin_pendientes") }}</p>
+                <p class="metric-mono text-[11px] text-fg-faint" x-show="resueltas(documento)" x-text="resueltas(documento)"></p>
+              </div>
             </div>
           </div>
         </template>
         <p class="text-sm" :class="documento.exito ? 'text-ok' : 'text-danger'" x-show="documento.mensaje" x-text="documento.mensaje"></p>
       </div>
       <div class="card-foot flex-wrap justify-between gap-2">
-        <button type="button" class="btn btn-ghost btn-sm" x-show="puedeEditar" @click="eliminarDocumento()">{{ t("contexto.eliminar") }}</button>
-        <button type="button" class="btn btn-ghost btn-sm" x-show="puedeEditar && documento.estado !== 'procesando'" @click="regenerar()">{{ t("contexto.documentos.regenerar") }}</button>
+        <button type="button" class="btn btn-ghost btn-sm" x-show="documento.puede_gestionar" @click="eliminarDocumento()">{{ t("contexto.eliminar") }}</button>
+        <button type="button" class="btn btn-ghost btn-sm" x-show="documento.puede_gestionar && documento.estado !== 'procesando'" @click="regenerar()">{{ t("contexto.documentos.regenerar") }}</button>
         <span class="flex-1"></span>
         <button type="button" class="btn btn-ghost btn-sm" @click="cerrarDocumento()">{{ t("contexto.documentos.cerrar") }}</button>
-        <button type="button" class="btn btn-primary btn-sm" x-show="puedeEditar && documento.estado !== 'procesando'" :disabled="documento.guardando || !documento.borrador?.trim()" @click="guardarResumen()">{{ t("contexto.documentos.guardar_resumen") }}</button>
+        <button type="button" class="btn btn-primary btn-sm" x-show="documento.puede_gestionar && documento.estado !== 'procesando'" :disabled="documento.guardando || !documento.borrador?.trim()" @click="guardarResumen()">{{ t("contexto.documentos.guardar_resumen") }}</button>
       </div>
     </div>
   </div>
@@ -377,15 +361,17 @@
     todas: {{ t("contexto.todas") | tojson }},
     confirmarEliminar: {{ t("contexto.confirmar_eliminar") | tojson }},
     categorias: { sensibles: {{ t("contexto.categoria.sensibles") | tojson }}, terminos: {{ t("contexto.categoria.terminos") | tojson }}, reglas: {{ t("contexto.categoria.reglas") | tojson }}, documentos: {{ t("contexto.categoria.documentos") | tojson }} },
-    clases: { funcional: {{ t("contexto.documentos.clase.funcional") | tojson }}, no_funcional: {{ t("contexto.documentos.clase.no_funcional") | tojson }} },
     estados: { procesando: {{ t("contexto.documentos.estado.procesando") | tojson }}, listo: {{ t("contexto.documentos.estado.listo") | tojson }}, error: {{ t("contexto.documentos.estado.error") | tojson }} },
     editado: {{ t("contexto.documentos.editado") | tojson }},
     todasBases: {{ t("contexto.documentos.todas_bases") | tojson }},
     detalleDocumento: {{ t("contexto.documentos.detalle") | tojson }},
     cargado: {{ t("contexto.documentos.cargado") | tojson }},
-    estaBase: {{ t("contexto.documentos.form.esta_base") | tojson }},
-    subir: {{ t("contexto.documentos.subir") | tojson }},
+    cargar: {{ t("contexto.documentos.cargar") | tojson }},
     subiendo: {{ t("contexto.documentos.subiendo") | tojson }},
+    notaCarga: {{ t("contexto.documentos.nota") | tojson }},
+    conPropuestas: {{ t("contexto.documentos.con_propuestas") | tojson }},
+    resueltas: {{ t("contexto.documentos.propuestas_resueltas") | tojson }},
+    propuesta: { termino: {{ t("contexto.documentos.propuesta.termino") | tojson }}, regla: {{ t("contexto.documentos.propuesta.regla") | tojson }}, sinonimos: {{ t("contexto.documentos.propuesta.sinonimos") | tojson }}, aceptada: {{ t("contexto.documentos.propuesta.aceptada") | tojson }} },
     guardado: {{ t("contexto.documentos.guardado") | tojson }},
     confirmarRegenerar: {{ t("contexto.documentos.confirmar_regenerar") | tojson }},
     errorResumen: {{ t("contexto.documentos.error_resumen") | tojson }},

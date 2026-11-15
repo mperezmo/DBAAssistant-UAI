@@ -1,4 +1,8 @@
-"""API REST de Contexto de Negocio (edita Administrador y DBA; Consulta, solo lectura)."""
+"""API REST de Contexto de Negocio.
+
+Edita Administrador y DBA; Consulta, solo lectura. Los documentos de negocio los carga
+cualquier rol y los gestiona quien los cargó, el Administrador o el DBA.
+"""
 
 from datetime import time
 from typing import Annotated, Literal
@@ -81,8 +85,8 @@ async def ver_esquema(conexion_id: str, refrescar: bool = False, ctx=contexto) -
 
 @router.get("/conexiones/{conexion_id}")
 async def listar(conexion_id: str, base: str | None = None, ctx=contexto) -> dict:
-    tenant, _ = ctx
-    return await servicios.listar(tenant, conexion_id, base)
+    tenant, sesion = ctx
+    return await servicios.listar(tenant, conexion_id, base, sesion)
 
 
 @router.post("/sensibles", status_code=201)
@@ -121,9 +125,7 @@ async def guardar_regla(datos: ReglaEntrada, elemento_id: str | None = None, ctx
 async def cargar_documento(
     archivo: Annotated[UploadFile, File()],
     conexion_id: Annotated[str, Form()],
-    clase: Annotated[Literal["funcional", "no_funcional"], Form()],
-    base: Annotated[str | None, Form(max_length=128)] = None,
-    descripcion: Annotated[str, Form(max_length=500)] = "",
+    base: Annotated[str, Form(max_length=128)],
     ctx=contexto,
 ) -> dict:
     tenant, sesion = ctx
@@ -131,7 +133,7 @@ async def cargar_documento(
     contenido = await archivo.read(MAXIMO_BYTES_DOCUMENTO + 1)
     if len(contenido) > MAXIMO_BYTES_DOCUMENTO:
         raise ErrorDominio("CTX_DOC_002")
-    datos = Documento(conexion_id, base, clase, archivo.filename or "", descripcion)
+    datos = Documento(conexion_id, base, archivo.filename or "")
     return await servicios.cargar_documento(tenant, sesion, datos, contenido)
 
 
@@ -145,6 +147,20 @@ async def guardar_resumen(documento_id: str, datos: ResumenEntrada, ctx=contexto
 async def regenerar_resumen(documento_id: str, ctx=contexto) -> dict:
     tenant, sesion = ctx
     return await servicios.regenerar_resumen(tenant, sesion, documento_id)
+
+
+@router.post("/documentos/{documento_id}/propuestas/{propuesta_id}/{decision}")
+async def resolver_propuesta(
+    documento_id: str,
+    propuesta_id: str,
+    decision: Literal["aceptar", "descartar"],
+    ctx=contexto,
+) -> dict:
+    tenant, sesion = ctx
+    resolver = (
+        servicios.aceptar_propuesta if decision == "aceptar" else servicios.descartar_propuesta
+    )
+    return await resolver(tenant, sesion, documento_id, propuesta_id)
 
 
 @router.get("/documentos/{documento_id}/archivo")

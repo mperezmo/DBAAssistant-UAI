@@ -24,6 +24,7 @@ dependencies = [
     "webauthn>=2.5",
     "pypdf>=6.21.4",
     "python-multipart>=0.0.33",
+    "markitdown[pdf]>=0.1.9",
 ]
 
 [dependency-groups]

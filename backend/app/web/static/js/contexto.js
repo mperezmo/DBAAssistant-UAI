@@ -20,7 +20,7 @@ document.addEventListener("alpine:init", () => {
     conexiones: [], conexionId: "", base: "", esquema: {}, puedeEditar: false, cargado: false,
     leyendoEsquema: false, categoria: "sensibles", busqueda: "", error: null, formulario: null,
     datos: { sensibles: [], terminos: [], reglas: [], documentos: [] },
-    subida: null, documento: null,
+    subiendo: false, mensajeSubida: "", documento: null,
 
     async iniciar() {
       try {
@@ -185,29 +185,26 @@ document.addEventListener("alpine:init", () => {
       return d.error === "interrumpido" ? TEXTOS.interrumpido : TEXTOS.errorResumen.replace("{codigo}", d.error || "—");
     },
 
-    nuevaSubida() {
-      this.subida = { archivo: null, clase: "funcional", alcance: "base", descripcion: "", mensaje: "", enviando: false };
-    },
-
-    async subir() {
-      const s = this.subida;
-      s.enviando = true;
-      s.mensaje = "";
+    // Cargar es solo elegir el archivo: se asocia a la base elegida y la IA lo interpreta.
+    async subir(evento) {
+      const archivo = evento.target.files[0];
+      evento.target.value = "";  // permite volver a elegir el mismo archivo
+      if (!archivo || !this.base) return;
+      this.subiendo = true;
+      this.mensajeSubida = "";
       const datos = new FormData();
-      datos.append("archivo", s.archivo);
+      datos.append("archivo", archivo);
       datos.append("conexion_id", this.conexionId);
-      datos.append("clase", s.clase);
-      if (s.alcance === "base") datos.append("base", this.base);
-      datos.append("descripcion", s.descripcion);
+      datos.append("base", this.base);
       try {
         const nuevo = await api("POST", "/api/contexto/documentos", datos);
-        this.subida = null;
+        this.categoria = "documentos";
         await this.cargar();
         this.verDocumento(this.vigente(nuevo));
       } catch (error) {
-        s.mensaje = error.message;
-        s.enviando = false;
+        this.mensajeSubida = error.message;
       }
+      this.subiendo = false;
     },
 
     // El estado más reciente del documento (el resumen corre en segundo plano).
@@ -227,6 +224,49 @@ document.addEventListener("alpine:init", () => {
       const actual = this.datos.documentos.find((d) => d.id === abierto.id);
       if (!actual || actual.estado === abierto.estado) return;
       this.verDocumento(actual);
+    },
+
+    // --- Propuestas de la IA para el glosario y las reglas ---
+
+    pendientes(d) {
+      return (d.propuestas || []).filter((p) => p.estado === "pendiente");
+    },
+    resueltas(d) {
+      const propuestas = d.propuestas || [];
+      const aceptadas = propuestas.filter((p) => p.estado === "aceptada").length;
+      const descartadas = propuestas.filter((p) => p.estado === "descartada").length;
+      if (!aceptadas && !descartadas) return "";
+      return TEXTOS.resueltas.replace("{aceptadas}", aceptadas).replace("{descartadas}", descartadas);
+    },
+    tipoPropuesta(p) {
+      return p.tipo === "termino" ? TEXTOS.propuesta.termino : `${TEXTOS.propuesta.regla} · ${TEXTOS.efectos[p.datos.efecto]}`;
+    },
+    claseUnaPropuesta(p) {
+      if (p.tipo === "termino") return "tag-blue";
+      return p.datos.efecto === "bloquear" ? "tag-red" : "tag-yellow";
+    },
+    alcancePropuesta(p) {
+      if (p.tipo === "termino") return p.datos.entidad;
+      return [p.datos.acciones.join(", "), ...p.datos.tablas].join(" · ");
+    },
+
+    async resolverPropuesta(p, decision) {
+      const d = this.documento;
+      p.enviando = true;
+      d.mensaje = "";
+      try {
+        const actualizado = await api("POST", `/api/contexto/documentos/${d.id}/propuestas/${p.id}/${decision}`);
+        // Solo las propuestas: si había una corrección del resumen sin guardar, se conserva.
+        d.propuestas = actualizado.propuestas;
+        if (decision === "aceptar") {
+          const categoria = TEXTOS.categorias[p.tipo === "termino" ? "terminos" : "reglas"];
+          Object.assign(d, { mensaje: TEXTOS.propuesta.aceptada.replace("{categoria}", categoria), exito: true });
+        }
+        await this.cargar();
+      } catch (error) {
+        Object.assign(d, { mensaje: error.message, exito: false });
+        p.enviando = false;
+      }
     },
 
     async guardarResumen() {

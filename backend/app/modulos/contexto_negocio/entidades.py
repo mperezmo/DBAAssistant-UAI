@@ -8,12 +8,14 @@ ACCIONES = ("SELECT", "INSERT", "UPDATE", "DELETE", "DDL")
 EFECTOS = ("bloquear", "advertir")
 PRIORIDADES = (1, 2, 3)  # alta, media, baja
 
-# Documentos de negocio (PDF): funcionales (procesos, casos de uso, reglas) o no funcionales
-# (volúmenes, retención, disponibilidad, seguridad).
-CLASES_DOCUMENTO = ("funcional", "no_funcional")
+# Documentos de negocio (PDF): la IA los interpreta en segundo plano.
 PROCESANDO, LISTO, ERROR = "procesando", "listo", "error"
 MAXIMO_BYTES_DOCUMENTO = 10 * 1024 * 1024
 LARGO_MAXIMO_RESUMEN = 20_000
+# Propuestas de la IA para el glosario y las reglas: se aceptan o descartan de a una.
+PENDIENTE, ACEPTADA, DESCARTADA = "pendiente", "aceptada", "descartada"
+MAXIMO_TERMINOS_PROPUESTOS = 30
+MAXIMO_REGLAS_PROPUESTAS = 15
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,5 @@ class Regla:
 @dataclass(frozen=True)
 class Documento:
     conexion_id: str
-    base: str | None  # None: todas las bases de la instancia
-    clase: str  # funcional o no_funcional
+    base: str  # la base elegida en Contexto de Negocio al cargarlo
     nombre: str  # nombre del archivo
-    descripcion: str = ""

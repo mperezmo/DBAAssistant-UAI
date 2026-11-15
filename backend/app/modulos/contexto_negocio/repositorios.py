@@ -1,7 +1,8 @@
 """Persistencia del contexto de negocio en la base MongoDB del tenant.
 
 Un único documento por elemento, distinguido por ``tipo`` (sensible, termino, regla o
-documento). El archivo de cada documento de negocio va en GridFS (bucket ``documentos``).
+documento). El PDF de cada documento de negocio y su conversión a Markdown van en GridFS
+(bucket ``documentos``).
 """
 
 import contextlib
@@ -80,6 +81,31 @@ async def eliminar(base_mongodb: str, tenant_id: str, tipo: str, elemento_id: st
     return resultado.deleted_count == 1
 
 
+async def resolver_propuesta(
+    base_mongodb: str,
+    tenant_id: str,
+    documento_id: str,
+    propuesta_id: str,
+    desde: str,
+    campos: dict,
+) -> bool:
+    """Cambia una propuesta de un documento solo si sigue en el estado ``desde``: dos
+    usuarios que aceptan la misma propuesta a la vez no crean el elemento dos veces."""
+    oid = _id(documento_id)
+    if oid is None:
+        return False
+    resultado = await mongo.base(base_mongodb)[COLECCION].update_one(
+        {
+            "_id": oid,
+            "tenant_id": tenant_id,
+            "tipo": "documento",
+            "propuestas": {"$elemMatch": {"id": propuesta_id, "estado": desde}},
+        },
+        {"$set": {f"propuestas.$.{k}": v for k, v in campos.items()}},
+    )
+    return resultado.modified_count == 1
+
+
 async def actualizar(
     base_mongodb: str, tenant_id: str, tipo: str, elemento_id: str, campos: dict
 ) -> None:
@@ -95,9 +121,11 @@ async def actualizar(
 # --- Archivos de los documentos de negocio (GridFS) ---------------------------------
 
 
-async def guardar_archivo(base_mongodb: str, tenant_id: str, nombre: str, contenido: bytes) -> str:
+async def guardar_archivo(
+    base_mongodb: str, tenant_id: str, nombre: str, contenido: bytes, tipo: str
+) -> str:
     archivo_id = await mongo.archivos(base_mongodb).upload_from_stream(
-        nombre, contenido, metadata={"tenant_id": tenant_id, "tipo": "application/pdf"}
+        nombre, contenido, metadata={"tenant_id": tenant_id, "tipo": tipo}
     )
     return str(archivo_id)
 

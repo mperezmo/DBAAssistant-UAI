@@ -65,7 +65,17 @@ def instalar(monkeypatch) -> dict:
 
     archivos: dict[str, tuple[str, bytes]] = {}
 
-    async def guardar_archivo(base, tenant_id, nombre, contenido):
+    async def resolver_propuesta(base, tenant_id, documento_id, propuesta_id, desde, campos):
+        d = almacen.get(documento_id)
+        if not d or d["tipo"] != "documento" or d["tenant_id"] != tenant_id:
+            return False
+        for propuesta in d.get("propuestas", []):
+            if propuesta["id"] == propuesta_id and propuesta["estado"] == desde:
+                propuesta.update(campos)
+                return True
+        return False
+
+    async def guardar_archivo(base, tenant_id, nombre, contenido, tipo):
         archivo_id = f"{next(secuencia):024x}"
         archivos[archivo_id] = (tenant_id, contenido)
         return archivo_id
@@ -86,6 +96,7 @@ def instalar(monkeypatch) -> dict:
         ("guardar", guardar),
         ("eliminar", eliminar),
         ("actualizar", actualizar),
+        ("resolver_propuesta", resolver_propuesta),
         ("guardar_archivo", guardar_archivo),
         ("leer_archivo", leer_archivo),
         ("eliminar_archivo", eliminar_archivo),
