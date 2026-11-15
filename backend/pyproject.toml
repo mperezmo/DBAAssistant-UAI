@@ -22,6 +22,8 @@ dependencies = [
     "sqlglot>=30.23.0",
     "fpdf2>=2.8.9",
     "webauthn>=2.5",
+    "pypdf>=6.21.4",
+    "python-multipart>=0.0.33",
 ]
 
 [dependency-groups]

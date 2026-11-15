@@ -1,15 +1,23 @@
 """API REST de Contexto de Negocio (edita Administrador y DBA; Consulta, solo lectura)."""
 
 from datetime import time
-from typing import Literal
+from typing import Annotated, Literal
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 from pydantic import BaseModel, Field
 
+from app.core.errores import ErrorDominio
 from app.identidad.dependencias import requerir_modulo
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.contexto_negocio import esquema, servicios
-from app.modulos.contexto_negocio.entidades import Regla, TablaSensible, Termino
+from app.modulos.contexto_negocio.entidades import (
+    MAXIMO_BYTES_DOCUMENTO,
+    Documento,
+    Regla,
+    TablaSensible,
+    Termino,
+)
 
 router = APIRouter(prefix="/api/contexto", tags=["contexto"])
 contexto = Depends(requerir_modulo("contexto"))
@@ -47,6 +55,10 @@ class ReglaEntrada(BaseModel):
     desde: time | None = None
     hasta: time | None = None
     activa: bool = True
+
+
+class ResumenEntrada(BaseModel):
+    resumen: str = Field(max_length=20_000)
 
 
 @router.get("/conexiones")
@@ -105,10 +117,56 @@ async def guardar_regla(datos: ReglaEntrada, elemento_id: str | None = None, ctx
     return await servicios.guardar_regla(tenant, sesion, elemento_id, Regla(**valores))
 
 
+@router.post("/documentos", status_code=201)
+async def cargar_documento(
+    archivo: Annotated[UploadFile, File()],
+    conexion_id: Annotated[str, Form()],
+    clase: Annotated[Literal["funcional", "no_funcional"], Form()],
+    base: Annotated[str | None, Form(max_length=128)] = None,
+    descripcion: Annotated[str, Form(max_length=500)] = "",
+    ctx=contexto,
+) -> dict:
+    tenant, sesion = ctx
+    # Se lee un byte de más para detectar el exceso sin cargar archivos enormes.
+    contenido = await archivo.read(MAXIMO_BYTES_DOCUMENTO + 1)
+    if len(contenido) > MAXIMO_BYTES_DOCUMENTO:
+        raise ErrorDominio("CTX_DOC_002")
+    datos = Documento(conexion_id, base, clase, archivo.filename or "", descripcion)
+    return await servicios.cargar_documento(tenant, sesion, datos, contenido)
+
+
+@router.put("/documentos/{documento_id}/resumen")
+async def guardar_resumen(documento_id: str, datos: ResumenEntrada, ctx=contexto) -> dict:
+    tenant, sesion = ctx
+    return await servicios.guardar_resumen(tenant, sesion, documento_id, datos.resumen)
+
+
+@router.post("/documentos/{documento_id}/resumen")
+async def regenerar_resumen(documento_id: str, ctx=contexto) -> dict:
+    tenant, sesion = ctx
+    return await servicios.regenerar_resumen(tenant, sesion, documento_id)
+
+
+@router.get("/documentos/{documento_id}/archivo")
+async def descargar_documento(documento_id: str, ctx=contexto) -> Response:
+    tenant, _ = ctx
+    nombre, contenido = await servicios.descargar_documento(tenant, documento_id)
+    return Response(
+        contenido,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(nombre)}"},
+    )
+
+
 @router.delete("/{tipo}/{elemento_id}", status_code=204)
 async def eliminar(
-    tipo: Literal["sensibles", "terminos", "reglas"], elemento_id: str, ctx=contexto
+    tipo: Literal["sensibles", "terminos", "reglas", "documentos"], elemento_id: str, ctx=contexto
 ) -> None:
     tenant, sesion = ctx
-    singular = {"sensibles": "sensible", "terminos": "termino", "reglas": "regla"}[tipo]
+    singular = {
+        "sensibles": "sensible",
+        "terminos": "termino",
+        "reglas": "regla",
+        "documentos": "documento",
+    }[tipo]
     await servicios.eliminar(tenant, sesion, singular, elemento_id)

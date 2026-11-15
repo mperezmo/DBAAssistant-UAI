@@ -4,6 +4,7 @@ document.addEventListener("alpine:init", () => {
   const api = window.DBA.api;
   const CLAVE_CONEXION = "dba.contexto.conexion";
   const RUTAS = { sensibles: "sensibles", terminos: "terminos", reglas: "reglas" };
+  const REFRESCO_DOCUMENTOS_MS = 5000;
   const ROLES = Object.keys(TEXTOS.roles);
 
   const leer = (clave) => {
@@ -18,7 +19,8 @@ document.addEventListener("alpine:init", () => {
     TEXTOS,
     conexiones: [], conexionId: "", base: "", esquema: {}, puedeEditar: false, cargado: false,
     leyendoEsquema: false, categoria: "sensibles", busqueda: "", error: null, formulario: null,
-    datos: { sensibles: [], terminos: [], reglas: [] },
+    datos: { sensibles: [], terminos: [], reglas: [], documentos: [] },
+    subida: null, documento: null,
 
     async iniciar() {
       try {
@@ -33,6 +35,10 @@ document.addEventListener("alpine:init", () => {
       const recordada = leer(CLAVE_CONEXION);
       this.conexionId = this.conexiones.some((c) => c.id === recordada) ? recordada : this.conexiones[0].id;
       await this.cambioConexion();
+      // Mientras la IA resume un documento, la lista se actualiza sola.
+      setInterval(() => {
+        if (!document.hidden && this.datos.documentos.some((d) => d.estado === "procesando")) this.cargar();
+      }, REFRESCO_DOCUMENTOS_MS);
     },
 
     conexionActual() {
@@ -68,6 +74,7 @@ document.addEventListener("alpine:init", () => {
       try {
         const params = new URLSearchParams({ base: this.base });
         this.datos = await api("GET", `/api/contexto/conexiones/${this.conexionId}?${params}`);
+        this.refrescarDocumentoAbierto();
       } catch (error) {
         this.error = error.message;
       }
@@ -155,6 +162,111 @@ document.addEventListener("alpine:init", () => {
       } catch (error) {
         f.mensaje = error.message;
         f.guardando = false;
+      }
+    },
+
+    // --- Documentos de negocio ---------------------------------------------------------
+
+    claseEstado(d) {
+      return { listo: "tag-green", procesando: "tag-yellow", error: "tag-red" }[d.estado] || "";
+    },
+    tamano(bytes) {
+      const formato = new Intl.NumberFormat(window.DBA.locale, { maximumFractionDigits: 1 });
+      return bytes >= 1048576 ? `${formato.format(bytes / 1048576)} MB` : `${formato.format(Math.max(1, Math.round(bytes / 1024)))} KB`;
+    },
+    detalleDocumento(d) {
+      return TEXTOS.detalleDocumento.replace("{paginas}", d.paginas).replace("{tamano}", this.tamano(d.bytes));
+    },
+    cargadoPor(d) {
+      const fecha = d.cargado_en ? new Date(d.cargado_en).toLocaleString(window.DBA.locale) : "—";
+      return TEXTOS.cargado.replace("{usuario}", d.cargado_por).replace("{fecha}", fecha);
+    },
+    mensajeError(d) {
+      return d.error === "interrumpido" ? TEXTOS.interrumpido : TEXTOS.errorResumen.replace("{codigo}", d.error || "—");
+    },
+
+    nuevaSubida() {
+      this.subida = { archivo: null, clase: "funcional", alcance: "base", descripcion: "", mensaje: "", enviando: false };
+    },
+
+    async subir() {
+      const s = this.subida;
+      s.enviando = true;
+      s.mensaje = "";
+      const datos = new FormData();
+      datos.append("archivo", s.archivo);
+      datos.append("conexion_id", this.conexionId);
+      datos.append("clase", s.clase);
+      if (s.alcance === "base") datos.append("base", this.base);
+      datos.append("descripcion", s.descripcion);
+      try {
+        const nuevo = await api("POST", "/api/contexto/documentos", datos);
+        this.subida = null;
+        await this.cargar();
+        this.verDocumento(this.vigente(nuevo));
+      } catch (error) {
+        s.mensaje = error.message;
+        s.enviando = false;
+      }
+    },
+
+    // El estado más reciente del documento (el resumen corre en segundo plano).
+    vigente(d) {
+      return this.datos.documentos.find((x) => x.id === d.id) || d;
+    },
+    verDocumento(d) {
+      this.documento = { ...d, borrador: d.resumen, mensaje: "", exito: false, guardando: false };
+    },
+    cerrarDocumento() {
+      this.documento = null;
+    },
+    refrescarDocumentoAbierto() {
+      // El resumen que llega de la IA reemplaza al del modal solo si no se estaba editando.
+      const abierto = this.documento;
+      if (!abierto) return;
+      const actual = this.datos.documentos.find((d) => d.id === abierto.id);
+      if (!actual || actual.estado === abierto.estado) return;
+      this.verDocumento(actual);
+    },
+
+    async guardarResumen() {
+      const d = this.documento;
+      d.guardando = true;
+      d.mensaje = "";
+      try {
+        const guardado = await api("PUT", `/api/contexto/documentos/${d.id}/resumen`, { resumen: d.borrador });
+        Object.assign(d, guardado, { borrador: guardado.resumen, mensaje: TEXTOS.guardado, exito: true });
+        await this.cargar();
+      } catch (error) {
+        d.mensaje = error.message;
+        d.exito = false;
+      }
+      d.guardando = false;
+    },
+
+    async regenerar() {
+      const d = this.documento;
+      if (d.resumen && !window.confirm(TEXTOS.confirmarRegenerar)) return;
+      try {
+        const regenerado = await api("POST", `/api/contexto/documentos/${d.id}/resumen`);
+        await this.cargar();
+        this.verDocumento(this.vigente(regenerado));
+      } catch (error) {
+        d.mensaje = error.message;
+        d.exito = false;
+      }
+    },
+
+    async eliminarDocumento() {
+      const d = this.documento;
+      if (!window.confirm(TEXTOS.confirmarEliminar)) return;
+      try {
+        await api("DELETE", `/api/contexto/documentos/${d.id}`);
+        this.documento = null;
+        await this.cargar();
+      } catch (error) {
+        d.mensaje = error.message;
+        d.exito = false;
       }
     },
 

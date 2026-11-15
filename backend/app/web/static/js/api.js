@@ -67,16 +67,28 @@ window.DBA = {
   },
 
   async api(metodo, ruta, cuerpo) {
+    // Un FormData (archivos) viaja como multipart: el navegador arma el Content-Type.
+    const formulario = cuerpo instanceof FormData;
     const respuesta = await fetch(ruta, {
       method: metodo,
-      headers: { "Content-Type": "application/json", "X-Solicitud": "dba" },
-      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+      headers: formulario
+        ? { "X-Solicitud": "dba" }
+        : { "Content-Type": "application/json", "X-Solicitud": "dba" },
+      body: formulario ? cuerpo : cuerpo ? JSON.stringify(cuerpo) : undefined,
     });
     if (respuesta.status === 401) {
       window.location.href = "/ingresar";
       return null;
     }
-    const datos = respuesta.status === 204 ? null : await respuesta.json();
+    let datos = null;
+    if (respuesta.status !== 204) {
+      try {
+        datos = await respuesta.json();
+      } catch {
+        // Respuesta sin JSON (por ejemplo, el proxy rechazó un archivo demasiado grande).
+        datos = { mensaje: respuesta.statusText || String(respuesta.status), codigo: respuesta.status };
+      }
+    }
     if (!respuesta.ok) {
       const error = new Error(`${datos.mensaje} (${datos.codigo})`);
       error.codigo = datos.codigo;

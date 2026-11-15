@@ -1,12 +1,15 @@
 """Persistencia del contexto de negocio en la base MongoDB del tenant.
 
-Un único documento por elemento, distinguido por ``tipo`` (sensible, termino o regla).
+Un único documento por elemento, distinguido por ``tipo`` (sensible, termino, regla o
+documento). El archivo de cada documento de negocio va en GridFS (bucket ``documentos``).
 """
 
+import contextlib
 from datetime import UTC, datetime
 
 from bson import ObjectId
 from bson.errors import InvalidId
+from gridfs.errors import NoFile
 from pymongo.errors import DuplicateKeyError
 
 from app.datos import mongo
@@ -75,3 +78,46 @@ async def eliminar(base_mongodb: str, tenant_id: str, tipo: str, elemento_id: st
         {"_id": oid, "tenant_id": tenant_id, "tipo": tipo}
     )
     return resultado.deleted_count == 1
+
+
+async def actualizar(
+    base_mongodb: str, tenant_id: str, tipo: str, elemento_id: str, campos: dict
+) -> None:
+    oid = _id(elemento_id)
+    if oid is None:
+        return
+    await mongo.base(base_mongodb)[COLECCION].update_one(
+        {"_id": oid, "tenant_id": tenant_id, "tipo": tipo},
+        {"$set": {**campos, "actualizado_en": datetime.now(UTC)}},
+    )
+
+
+# --- Archivos de los documentos de negocio (GridFS) ---------------------------------
+
+
+async def guardar_archivo(base_mongodb: str, tenant_id: str, nombre: str, contenido: bytes) -> str:
+    archivo_id = await mongo.archivos(base_mongodb).upload_from_stream(
+        nombre, contenido, metadata={"tenant_id": tenant_id, "tipo": "application/pdf"}
+    )
+    return str(archivo_id)
+
+
+async def leer_archivo(base_mongodb: str, tenant_id: str, archivo_id: str) -> bytes | None:
+    oid = _id(archivo_id)
+    if oid is None:
+        return None
+    try:
+        flujo = await mongo.archivos(base_mongodb).open_download_stream(oid)
+    except NoFile:
+        return None
+    if (flujo.metadata or {}).get("tenant_id") != tenant_id:
+        return None
+    return await flujo.read()
+
+
+async def eliminar_archivo(base_mongodb: str, archivo_id: str) -> None:
+    oid = _id(archivo_id)
+    if oid is None:
+        return
+    with contextlib.suppress(NoFile):  # ya no estaba: no hay nada que borrar
+        await mongo.archivos(base_mongodb).delete(oid)

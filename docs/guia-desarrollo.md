@@ -88,6 +88,8 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
     Administrador y DBA;
   - confirmación de acciones sensibles con solo el código del autenticador (sin volver a
     ingresar credenciales; requiere actualizar la Action de Auth0, ver `docs/auth0.md`).
+  - documentos de negocio (PDF funcionales y no funcionales) en Contexto de Negocio, con
+    resumen de la IA revisable que se suma al contexto del Chat IA y de Buenas Prácticas.
 - **Pendiente:** dominio propio para el túnel (push real en el celular) y despliegue en
   Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en

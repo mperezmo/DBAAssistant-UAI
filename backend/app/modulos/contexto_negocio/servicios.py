@@ -5,8 +5,12 @@ conviene evitar) y fija restricciones que el sistema verifica antes de ejecutar
 (roles por tabla, enmascaramiento, doble confirmación y reglas de bloqueo o advertencia).
 """
 
-from datetime import UTC, datetime, time
+import asyncio
+import logging
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
+
+from starlette.concurrency import run_in_threadpool
 
 from app.core.errores import ErrorDominio
 from app.identidad.entidades import AMBIENTES, ROLES, Sesion
@@ -15,19 +19,33 @@ from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.chat_ia.analizador import Analisis, Tabla
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
-from app.modulos.contexto_negocio import esquema, repositorios
+from app.modulos.contexto_negocio import documentos, esquema, repositorios
 from app.modulos.contexto_negocio.entidades import (
     ACCIONES,
+    CLASES_DOCUMENTO,
     EFECTOS,
+    ERROR,
+    LARGO_MAXIMO_RESUMEN,
+    LISTO,
+    MAXIMO_BYTES_DOCUMENTO,
     PRIORIDADES,
+    PROCESANDO,
+    Documento,
     Regla,
     TablaSensible,
     Termino,
 )
 from app.tenants.entidades import Tenant
 
+log = logging.getLogger(__name__)
+
 ROLES_EDITAN = frozenset({"ADMINISTRADOR", "DBA"})
-TIPOS = ("sensible", "termino", "regla")
+TIPOS = ("sensible", "termino", "regla", "documento")
+# Un resumen que sigue "procesando" pasado este tiempo quedó cortado (por ejemplo, por un
+# reinicio) y se puede volver a generar.
+VENCIMIENTO_PROCESANDO = timedelta(minutes=15)
+
+_tareas: set[asyncio.Task] = set()
 
 
 def puede_editar(sesion: Sesion) -> bool:
@@ -77,6 +95,18 @@ async def listar(tenant: Tenant, conexion_id: str, base: str | None) -> dict:
             tenant.base_mongodb, str(tenant.id), {"tipo": "termino", **por_base}
         ),
         "reglas": reglas,
+        "documentos": [
+            _documento_visible(d)
+            for d in await repositorios.listar(
+                tenant.base_mongodb,
+                str(tenant.id),
+                {
+                    "tipo": "documento",
+                    "conexion_id": conexion_id,
+                    **({"base": {"$in": [None, base]}} if base else {}),
+                },
+            )
+        ],
     }
 
 
@@ -226,6 +256,8 @@ async def eliminar(tenant: Tenant, actor: Sesion, tipo: str, elemento_id: str) -
         raise ErrorDominio("CTX_VAL_000", tipo)
     anterior = await _anterior(tenant, tipo, elemento_id)
     await repositorios.eliminar(tenant.base_mongodb, str(tenant.id), tipo, elemento_id)
+    if tipo == "documento":
+        await repositorios.eliminar_archivo(tenant.base_mongodb, anterior["archivo_id"])
     await _auditar(
         tenant,
         actor,
@@ -235,6 +267,185 @@ async def eliminar(tenant: Tenant, actor: Sesion, tipo: str, elemento_id: str) -
             "anterior": {k: v for k, v in anterior.items() if k != "actualizado_en"},
         },
     )
+
+
+# --- Documentos de negocio ------------------------------------------------------------
+
+
+def _documento_visible(documento: dict) -> dict:
+    """Un resumen que quedó a medias no sigue figurando como "procesando"."""
+    if documento.get("estado") == PROCESANDO:
+        desde = datetime.fromisoformat(documento["actualizado_en"])
+        if datetime.now(UTC) - desde > VENCIMIENTO_PROCESANDO:
+            return {**documento, "estado": ERROR, "error": "interrumpido"}
+    return documento
+
+
+async def _documento(tenant: Tenant, documento_id: str) -> dict:
+    documento = await repositorios.obtener(
+        tenant.base_mongodb, str(tenant.id), "documento", documento_id
+    )
+    if documento is None:
+        raise ErrorDominio("CTX_VAL_000", documento_id)
+    return documento
+
+
+async def cargar_documento(
+    tenant: Tenant, actor: Sesion, datos: Documento, contenido: bytes
+) -> dict:
+    """Guarda el PDF y arranca su resumen en segundo plano."""
+    _exigir_edicion(actor)
+    if datos.clase not in CLASES_DOCUMENTO:
+        raise ErrorDominio("USR_VAL_002", "Tipo de documento inválido.")
+    if len(contenido) > MAXIMO_BYTES_DOCUMENTO:
+        raise ErrorDominio("CTX_DOC_002")
+    conexion = await conexiones.obtener(tenant, datos.conexion_id)
+    base = _texto(datos.base) or None
+    if base is not None:
+        bases = await esquema.obtener(tenant, conexion.id)
+        base = next((b for b in bases if b.lower() == base.lower()), None)
+        if base is None:
+            raise ErrorDominio("USR_VAL_002", f"Base inexistente o sin acceso: {datos.base}")
+    nombre = _texto(datos.nombre)[:200] or "documento.pdf"
+    texto, paginas = await run_in_threadpool(documentos.extraer_texto, contenido)
+
+    archivo_id = await repositorios.guardar_archivo(
+        tenant.base_mongodb, str(tenant.id), nombre, contenido
+    )
+    documento_id = await repositorios.guardar(
+        tenant.base_mongodb,
+        str(tenant.id),
+        None,
+        {
+            "tipo": "documento",
+            "conexion_id": conexion.id,
+            "base": base,
+            "clase": datos.clase,
+            "nombre": nombre,
+            "descripcion": _texto(datos.descripcion)[:500],
+            "archivo_id": archivo_id,
+            "bytes": len(contenido),
+            "paginas": paginas,
+            "caracteres": len(texto),
+            "estado": PROCESANDO,
+            "resumen": "",
+            "tablas": [],
+            "editado": False,
+            "cargado_por": actor.email,
+            "cargado_en": datetime.now(UTC).isoformat(),
+        },
+    )
+    await _auditar(
+        tenant,
+        actor,
+        "contexto.documento_cargado",
+        {
+            "id": documento_id,
+            "conexion_id": conexion.id,
+            "base": base,
+            "clase": datos.clase,
+            "nombre": nombre,
+            "bytes": len(contenido),
+            "paginas": paginas,
+        },
+    )
+    _resumir_en_segundo_plano(tenant, conexion, documento_id, texto)
+    return await _documento(tenant, documento_id)
+
+
+def _resumir_en_segundo_plano(
+    tenant: Tenant, conexion: Conexion, documento_id: str, texto: str
+) -> None:
+    tarea = asyncio.create_task(_resumir(tenant, conexion, documento_id, texto))
+    _tareas.add(tarea)
+    tarea.add_done_callback(_tareas.discard)
+
+
+async def _resumir(tenant: Tenant, conexion: Conexion, documento_id: str, texto: str) -> None:
+    campos: dict
+    try:
+        documento = await _documento(tenant, documento_id)
+        resultado = await documentos.resumir(
+            await _texto_esquema(tenant, conexion, documento["base"]),
+            documento["nombre"],
+            documento["clase"],
+            documento["descripcion"],
+            texto,
+        )
+        campos = {
+            "estado": LISTO,
+            "resumen": resultado.resumen[:LARGO_MAXIMO_RESUMEN],
+            "tablas": resultado.tablas[:100],
+            "editado": False,
+            "error": None,
+        }
+    except ErrorDominio as error:
+        log.warning("%s resumen del documento %s: %s", error.codigo, documento_id, error.detalle)
+        campos = {"estado": ERROR, "error": error.codigo}
+    except Exception:
+        log.exception("Falló el resumen del documento %s", documento_id)
+        campos = {"estado": ERROR, "error": "IA_TRA_000"}
+    await repositorios.actualizar(
+        tenant.base_mongodb, str(tenant.id), "documento", documento_id, campos
+    )
+
+
+async def regenerar_resumen(tenant: Tenant, actor: Sesion, documento_id: str) -> dict:
+    """Vuelve a resumir el documento desde el PDF guardado (descarta la edición manual)."""
+    _exigir_edicion(actor)
+    documento = await _documento(tenant, documento_id)
+    contenido = await repositorios.leer_archivo(
+        tenant.base_mongodb, str(tenant.id), documento["archivo_id"]
+    )
+    if contenido is None:
+        raise ErrorDominio("CTX_VAL_000", documento_id)
+    texto, _ = await run_in_threadpool(documentos.extraer_texto, contenido)
+    conexion = await conexiones.obtener(tenant, documento["conexion_id"])
+    await repositorios.actualizar(
+        tenant.base_mongodb,
+        str(tenant.id),
+        "documento",
+        documento_id,
+        {"estado": PROCESANDO, "error": None},
+    )
+    await _auditar(tenant, actor, "contexto.documento_resumen_regenerado", {"id": documento_id})
+    _resumir_en_segundo_plano(tenant, conexion, documento_id, texto)
+    return await _documento(tenant, documento_id)
+
+
+async def guardar_resumen(tenant: Tenant, actor: Sesion, documento_id: str, resumen: str) -> dict:
+    """Corrección manual del resumen: es lo que recibe la IA."""
+    _exigir_edicion(actor)
+    documento = await _documento(tenant, documento_id)
+    resumen = _texto(resumen)
+    if not resumen:
+        raise ErrorDominio("USR_VAL_002", "El resumen no puede quedar vacío.")
+    if len(resumen) > LARGO_MAXIMO_RESUMEN:
+        raise ErrorDominio("USR_VAL_002", "El resumen es demasiado largo.")
+    await repositorios.actualizar(
+        tenant.base_mongodb,
+        str(tenant.id),
+        "documento",
+        documento_id,
+        {"resumen": resumen, "editado": True, "estado": LISTO, "error": None},
+    )
+    await _auditar(
+        tenant,
+        actor,
+        "contexto.documento_resumen_modificado",
+        {"id": documento_id, "anterior": documento["resumen"], "nuevo": resumen},
+    )
+    return await _documento(tenant, documento_id)
+
+
+async def descargar_documento(tenant: Tenant, documento_id: str) -> tuple[str, bytes]:
+    documento = await _documento(tenant, documento_id)
+    contenido = await repositorios.leer_archivo(
+        tenant.base_mongodb, str(tenant.id), documento["archivo_id"]
+    )
+    if contenido is None:
+        raise ErrorDominio("CTX_VAL_000", documento_id)
+    return documento["nombre"], contenido
 
 
 # --- Aplicación de las restricciones --------------------------------------------------
@@ -345,6 +556,17 @@ def _linea_tabla(tabla: dict) -> str:
     return linea
 
 
+async def _texto_esquema(tenant: Tenant, conexion: Conexion, base: str | None) -> str:
+    """Esquema de la instancia (o de una base) para que la IA relacione el documento."""
+    datos_esquema = await esquema.obtener(tenant, conexion.id)
+    partes = [f"# Instancia {conexion.alias} (ambiente {conexion.ambiente})"]
+    for nombre in sorted(datos_esquema):
+        if base is None or nombre == base:
+            partes.append(f"\n## Base {nombre}")
+            partes += [_linea_tabla(t) for t in datos_esquema[nombre]]
+    return "\n".join(partes)
+
+
 async def texto_para_ia(tenant: Tenant, conexion: Conexion) -> str:
     """Esquema y contexto de negocio de la instancia, en texto estable para la caché."""
     datos_esquema = await esquema.obtener(tenant, conexion.id)
@@ -379,4 +601,14 @@ async def texto_para_ia(tenant: Tenant, conexion: Conexion) -> str:
             + (f" columnas: {', '.join(s['columnas'])}" if s["columnas"] else "")
             for s in sensibles
         ]
+    # Resúmenes revisados de los documentos de negocio (no el documento entero).
+    documentos_listos = [
+        e for e in elementos if e["tipo"] == "documento" and e["estado"] == LISTO and e["resumen"]
+    ]
+    if documentos_listos:
+        partes.append("\n# Documentos de negocio (resúmenes)")
+        for d in documentos_listos:
+            clase = "funcional" if d["clase"] == "funcional" else "no funcional"
+            alcance = f"base {d['base']}" if d["base"] else "todas las bases"
+            partes.append(f"\n## {d['nombre']} (documento {clase}, {alcance})\n{d['resumen']}")
     return "\n".join(partes)

@@ -1,6 +1,7 @@
 """Contexto de negocio en memoria (reemplaza la colección de MongoDB en las pruebas)."""
 
 import itertools
+from datetime import UTC, datetime
 
 from app.modulos.contexto_negocio import repositorios
 
@@ -50,8 +51,31 @@ def instalar(monkeypatch) -> dict:
             ):
                 raise repositorios.Duplicado
         nuevo = elemento_id or f"{next(secuencia):024x}"
-        almacen[nuevo] = {**documento, "tenant_id": tenant_id}
+        almacen[nuevo] = {
+            **documento,
+            "tenant_id": tenant_id,
+            "actualizado_en": datetime.now(UTC).isoformat(),
+        }
         return nuevo
+
+    async def actualizar(base, tenant_id, tipo, elemento_id, campos):
+        d = almacen.get(elemento_id)
+        if d and d["tipo"] == tipo and d["tenant_id"] == tenant_id:
+            d.update(campos, actualizado_en=datetime.now(UTC).isoformat())
+
+    archivos: dict[str, tuple[str, bytes]] = {}
+
+    async def guardar_archivo(base, tenant_id, nombre, contenido):
+        archivo_id = f"{next(secuencia):024x}"
+        archivos[archivo_id] = (tenant_id, contenido)
+        return archivo_id
+
+    async def leer_archivo(base, tenant_id, archivo_id):
+        dueno, contenido = archivos.get(archivo_id, (None, None))
+        return contenido if dueno == tenant_id else None
+
+    async def eliminar_archivo(base, archivo_id):
+        archivos.pop(archivo_id, None)
 
     async def eliminar(base, tenant_id, tipo, elemento_id):
         return almacen.pop(elemento_id, None) is not None
@@ -61,6 +85,19 @@ def instalar(monkeypatch) -> dict:
         ("obtener", obtener),
         ("guardar", guardar),
         ("eliminar", eliminar),
+        ("actualizar", actualizar),
+        ("guardar_archivo", guardar_archivo),
+        ("leer_archivo", leer_archivo),
+        ("eliminar_archivo", eliminar_archivo),
     ):
         monkeypatch.setattr(repositorios, nombre, funcion)
+    # Los archivos (GridFS) quedan accesibles para las pruebas.
+    almacen_archivos[id(almacen)] = archivos
     return almacen
+
+
+almacen_archivos: dict[int, dict] = {}
+
+
+def archivos_de(almacen: dict) -> dict:
+    return almacen_archivos[id(almacen)]

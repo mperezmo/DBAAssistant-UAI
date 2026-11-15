@@ -1,4 +1,5 @@
-"""Entidades del contexto de negocio (CU-000-006): tablas sensibles, glosario y reglas."""
+"""Entidades del contexto de negocio (CU-000-006): tablas sensibles, glosario, reglas y
+documentos de negocio."""
 
 from dataclasses import dataclass
 from datetime import time
@@ -6,6 +7,13 @@ from datetime import time
 ACCIONES = ("SELECT", "INSERT", "UPDATE", "DELETE", "DDL")
 EFECTOS = ("bloquear", "advertir")
 PRIORIDADES = (1, 2, 3)  # alta, media, baja
+
+# Documentos de negocio (PDF): funcionales (procesos, casos de uso, reglas) o no funcionales
+# (volúmenes, retención, disponibilidad, seguridad).
+CLASES_DOCUMENTO = ("funcional", "no_funcional")
+PROCESANDO, LISTO, ERROR = "procesando", "listo", "error"
+MAXIMO_BYTES_DOCUMENTO = 10 * 1024 * 1024
+LARGO_MAXIMO_RESUMEN = 20_000
 
 
 @dataclass(frozen=True)
@@ -47,3 +55,12 @@ class Regla:
     hasta: time | None = None
     activa: bool = True
     id: str = ""
+
+
+@dataclass(frozen=True)
+class Documento:
+    conexion_id: str
+    base: str | None  # None: todas las bases de la instancia
+    clase: str  # funcional o no_funcional
+    nombre: str  # nombre del archivo
+    descripcion: str = ""

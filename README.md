@@ -133,8 +133,8 @@ varios minutos.
 El chat traduce los pedidos en lenguaje natural a T-SQL con la API de Claude. Completar
 `SECRETO_ANTHROPIC_API_KEY` en el `.env` (la clave se crea en console.anthropic.com). El
 modelo y el esfuerzo se ajustan con `IA_MODELO` e `IA_ESFUERZO`. Conviene cargar antes el
-**Contexto de Negocio** (glosario, reglas y tablas sensibles) de cada base: es lo que le
-indica a la IA dónde está cada dato.
+**Contexto de Negocio** (glosario, reglas, tablas sensibles y documentos funcionales o no
+funcionales en PDF) de cada base: es lo que le indica a la IA dónde está cada dato.
 
 Las consultas de lectura se ejecutan solas y muestran el resultado; la T-SQL queda en el
 apartado **Query**. Las modificaciones muestran qué van a cambiar y esperan la confirmación.

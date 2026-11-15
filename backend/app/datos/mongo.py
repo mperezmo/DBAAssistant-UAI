@@ -6,6 +6,7 @@ e índices de forma idempotente.
 
 from functools import lru_cache
 
+from gridfs import AsyncGridFSBucket
 from pymongo import ASCENDING, AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -23,6 +24,8 @@ BITACORAS = (
 )
 COLECCION_METRICAS = "metricas"
 COLECCION_CONTEXTO = "contexto_negocio"
+# Archivos de los documentos de negocio (GridFS: colecciones documentos.files y .chunks).
+BUCKET_DOCUMENTOS = "documentos"
 COLECCION_HILOS = "chat_hilos"
 COLECCION_SCHEMA = "schema_versiones"
 COLECCION_INFORMES = "informes_buenas_practicas"
@@ -39,6 +42,11 @@ def cliente() -> AsyncMongoClient:
 
 def base(nombre: str) -> AsyncDatabase:
     return cliente()[nombre]
+
+
+def archivos(nombre: str) -> AsyncGridFSBucket:
+    """Almacén de archivos (GridFS) de la base del tenant."""
+    return AsyncGridFSBucket(base(nombre), bucket_name=BUCKET_DOCUMENTOS)
 
 
 async def preparar_base_tenant(nombre: str) -> None:
