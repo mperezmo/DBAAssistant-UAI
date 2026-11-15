@@ -7,13 +7,15 @@ Uso (dentro del contenedor del backend):
     python -m app.cli generar-clave
     python -m app.cli generar-vapid
     python -m app.cli probar-correo --para dba@empresa.com
+    python -m app.cli certificado-interno
 """
 
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
-from app.core import cifrado
+from app.core import cifrado, tls_interno
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.core.registro import configurar_registro
@@ -56,6 +58,14 @@ def _sincronizar_auth0(args: argparse.Namespace) -> None:
 def _generar_clave(_: argparse.Namespace) -> None:
     print("Agregar al .env (no compartir ni versionar):")
     print(f"SECRETO_CLAVE_CIFRADO={cifrado.generar_clave()}")
+
+
+def _certificado_interno(_: argparse.Namespace) -> None:
+    cfg = obtener_configuracion()
+    if tls_interno.generar_si_falta(
+        Path(cfg.tls_interno_certificado), Path(cfg.tls_interno_clave), cfg.tls_interno_nombre
+    ):
+        print(f"Certificado interno generado en {cfg.tls_interno_certificado}")
 
 
 def _generar_vapid(_: argparse.Namespace) -> None:
@@ -117,6 +127,12 @@ def main(argumentos: list[str] | None = None) -> int:
     probar = comandos.add_parser("probar-correo", help="Envía un correo de prueba por SMTP.")
     probar.add_argument("--para", required=True, help="Email de destino")
     probar.set_defaults(funcion=_probar_correo)
+
+    interno = comandos.add_parser(
+        "certificado-interno",
+        help="Genera el certificado HTTPS del backend si falta o está por vencer.",
+    )
+    interno.set_defaults(funcion=_certificado_interno)
 
     args = parser.parse_args(argumentos)
     try:

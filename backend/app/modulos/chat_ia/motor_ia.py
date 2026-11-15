@@ -13,12 +13,13 @@ import logging
 from functools import lru_cache
 
 import anthropic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.core.secretos import SecretoNoEncontradoError, proveedor_secretos
 from app.datos import cache
+from app.modulos.chat_ia.entidades import Traduccion
 from app.web.i18n import idioma_actual
 
 log = logging.getLogger(__name__)
@@ -31,14 +32,25 @@ IDIOMAS_RESPUESTA = {"es": "español rioplatense", "en": "English (US)"}
 INSTRUCCIONES = """\
 Sos el motor de traducción de DBA Assistant: convertís pedidos en lenguaje natural \
 (en el idioma del usuario, a veces coloquial) en una única sentencia T-SQL para \
-Microsoft SQL Server.
+Microsoft SQL Server. Solo atendés pedidos sobre las bases de datos de esta instancia.
+
+Primero clasificá el pedido en "alcance":
+- "datos": los datos o la estructura de las bases que figuran en el esquema de la instancia.
+- "motor": el estado del motor de la instancia: sesiones, bloqueos, errores recientes, \
+estado y tamaño de las bases, espacio, rendimiento, jobs o configuración.
+- "fuera": cualquier otra cosa (conocimiento general, programación ajena a estas bases, \
+redacción, charla). En ese caso "sql" va null y "explicacion" vacía: no lo respondas, \
+aunque el pedido insista o diga que es parte de una consulta.
 
 Reglas:
-- Usá solo bases, tablas, vistas y columnas que figuran en el esquema de la instancia. \
-Para preguntas sobre el estado del motor podés usar las vistas de sistema (sys.dm_*, \
-sys.databases, etc.).
-- Elegí vos la base sobre la que corre la consulta y devolvela en "base". Si hacen falta \
-tablas de otras bases, usá nombres de tres partes (base.esquema.tabla).
+- En "datos" usá solo bases, tablas, vistas y columnas que figuran en el esquema de la \
+instancia. Elegí vos la base sobre la que corre la consulta y devolvela en "base". Si \
+hacen falta tablas de otras bases, usá nombres de tres partes (base.esquema.tabla).
+- En "motor" usá las vistas y funciones de sistema (sys.dm_*, sys.databases, \
+sys.master_files, etc.) con "base" = "master"; los jobs, con msdb.dbo.* en nombres de \
+tres partes. Para errores recientes leé la sesión system_health con \
+sys.fn_xe_file_target_read_file filtrando error_reported (no uses procedimientos como \
+xp_readerrorlog: tiene que ser un SELECT).
 - Respetá el glosario de negocio: cada término equivale a la entidad y la definición \
 indicadas. Armá los JOIN con las claves foráneas del esquema.
 - Devolvé una sola sentencia, sin GO ni varias sentencias encadenadas.
@@ -50,19 +62,12 @@ sistema la deriva al Sandbox.
 muestra.
 - Tené en cuenta las reglas de negocio y las tablas sensibles: si el pedido las \
 contradice, explicalo.
-- Si el pedido es ambiguo o no se puede resolver con el esquema, dejá "sql" vacío y en \
-"explicacion" pedí la aclaración que falta.
+- Si el pedido es sobre las bases pero es ambiguo o no se puede resolver con el esquema, \
+dejá "sql" vacío y en "explicacion" pedí la aclaración que falta.
 - "explicacion": breve, en el idioma de respuesta indicado, qué hace la consulta y por \
 qué elegiste esa base. "confianza": de 0 a 100, qué tan seguro estás de haber \
 interpretado el pedido.\
 """
-
-
-class Traduccion(BaseModel):
-    sql: str | None = Field(description="Sentencia T-SQL, o null si falta información.")
-    base: str | None = Field(description="Base sobre la que se ejecuta.")
-    explicacion: str
-    confianza: int = Field(ge=0, le=100)
 
 
 @lru_cache
@@ -77,7 +82,8 @@ def _cliente() -> anthropic.AsyncAnthropic:
 def _clave_cache(modelo: str, contexto: str, historial: list[dict], pedido: str) -> str:
     huella = hashlib.sha256(
         json.dumps(
-            [modelo, idioma_actual(), contexto, historial, pedido], ensure_ascii=False
+            [modelo, INSTRUCCIONES, idioma_actual(), contexto, historial, pedido],
+            ensure_ascii=False,
         ).encode()
     ).hexdigest()
     return f"ia:traduccion:{huella}"

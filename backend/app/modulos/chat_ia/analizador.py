@@ -7,48 +7,25 @@ Lo que no se puede analizar con certeza se trata como lo más restrictivo.
 """
 
 import re
-from dataclasses import dataclass
 
 import sqlglot
 from sqlglot import exp
 from sqlglot.errors import SqlglotError
 
-DIRECTAS = ("SELECT", "INSERT", "UPDATE", "DELETE")
-SANDBOX = "SANDBOX"
+from app.modulos.chat_ia.entidades import DIRECTAS, SANDBOX, Analisis, Tabla
+
 # Respaldo textual: si el parser no reconoce algo, igual se pide la doble confirmación.
 PATRON_DESTRUCTIVA = re.compile(r"\b(DELETE|TRUNCATE|DROP)\b", re.IGNORECASE)
 PATRON_COMENTARIOS = re.compile(r"--[^\n]*|/\*.*?\*/", re.DOTALL)
-
-
-@dataclass(frozen=True)
-class Tabla:
-    base: str
-    esquema: str
-    nombre: str
-
-    @property
-    def nombre_completo(self) -> str:
-        return f"{self.esquema}.{self.nombre}"
-
-
-@dataclass(frozen=True)
-class Analisis:
-    # SELECT, INSERT, UPDATE o DELETE (una sola sentencia que se puede ejecutar directo)
-    # o SANDBOX (DDL, MERGE, EXEC, varias sentencias o algo que no se pudo analizar).
-    tipo: str
-    acciones: frozenset[str]  # para las reglas de negocio: SELECT/INSERT/UPDATE/DELETE/DDL
-    tablas: tuple[Tabla, ...]
-    falta_where: bool
-    destructiva: bool
-    motivo: str | None = None
-
-    @property
-    def es_lectura(self) -> bool:
-        return self.tipo == "SELECT"
-
-    @property
-    def es_escritura(self) -> bool:
-        return self.tipo in ("INSERT", "UPDATE", "DELETE")
+# Objetos del motor (no de los datos de una base): DMVs y funciones de sistema, vistas de
+# servidor y las bases de sistema. Lo que menciona alguno es una consulta al motor.
+BASES_DE_SISTEMA = ("master", "msdb", "model", "tempdb")
+PATRON_MOTOR = re.compile(
+    r"\bsys\s*\.\s*(dm_|fn_|server|databases\b|master_files\b|configurations\b|"
+    r"sysprocesses\b|messages\b|traces\b|endpoints\b|availability_)"
+    r"|\b(master|msdb|model|tempdb)\s*\.|\bSERVERPROPERTY\b|\bxp_\w+",
+    re.IGNORECASE,
+)
 
 
 def _sin_comentarios(sql: str) -> str:
@@ -128,6 +105,14 @@ def analizar(sql: str, base: str) -> Analisis:
     tipo = tipos[0]
     motivo = None if tipo != SANDBOX else "tipo_de_sentencia"
     return Analisis(tipo, frozenset(acciones), unicas, falta_where, destructiva, motivo)
+
+
+def consulta_al_motor(sql: str, base: str | None) -> bool:
+    """Si la sentencia lee el estado del motor de la instancia en lugar de los datos de
+    una base registrada. Se decide sobre el texto, sin depender de la IA."""
+    if (base or "").strip().lower() in BASES_DE_SISTEMA:
+        return True
+    return bool(PATRON_MOTOR.search(_sin_comentarios(sql or "")))
 
 
 # --- Descripción de las modificaciones (para confirmarlas antes de ejecutar) ----------

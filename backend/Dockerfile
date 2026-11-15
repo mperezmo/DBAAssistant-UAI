@@ -32,9 +32,12 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 COPY app ./app
+COPY --chmod=755 arranque.sh ./
 
-RUN useradd --system --uid 1001 app
+# /srv/tls guarda el certificado interno (volumen compartido con NGINX, que solo lo lee).
+RUN useradd --system --uid 1001 app \
+ && mkdir -p /srv/tls && chown app /srv/tls
 USER app
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["./arranque.sh"]

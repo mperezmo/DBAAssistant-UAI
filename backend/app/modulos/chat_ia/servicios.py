@@ -9,6 +9,11 @@ Política de ejecución (definida con el usuario):
   Piden segundo factor en PROD, en DELETE y en tablas sensibles con doble confirmación.
 - Todo lo demás (DDL, MERGE, EXEC, varias sentencias): obligatoriamente por el Sandbox.
 - Consulta solo ejecuta SELECT. Siempre en conexiones de ambientes habilitados al usuario.
+
+Alcance: el chat solo atiende pedidos sobre las bases registradas. Lo ajeno no se responde
+(mensaje fijo, sin el texto de la IA, y no entra al historial que recibe la IA). Las
+consultas al motor de la instancia (DMVs, bases de sistema) son solo de Administrador y
+DBA; además de la clasificación de la IA, se controlan sobre el propio T-SQL.
 """
 
 import logging
@@ -22,22 +27,25 @@ from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad import reautenticacion
 from app.identidad import repositorios as usuarios
-from app.identidad.entidades import Sesion
+from app.identidad.entidades import ROLES_OPERATIVOS, Sesion
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.chat_ia import ejecucion, motor_ia, repositorios
 from app.modulos.chat_ia.analizador import (
     Analisis,
     analizar,
+    consulta_al_motor,
     consulta_de_conteo,
     describir,
 )
+from app.modulos.chat_ia.entidades import FUERA, MOTOR
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
 from app.modulos.contexto_negocio import esquema
 from app.modulos.contexto_negocio import servicios as contexto
 from app.modulos.sandbox import servicios as sandbox
 from app.tenants.entidades import Tenant
+from app.web.i18n import traducir
 
 log = logging.getLogger(__name__)
 
@@ -111,7 +119,17 @@ def _mensaje(hilo_actual: dict, mensaje_id: str) -> dict:
 def _historial(hilo_actual: dict) -> list[dict]:
     """Últimos turnos del hilo para que el motor IA entienda preguntas de seguimiento."""
     turnos = []
-    for mensaje in hilo_actual["mensajes"][-TURNOS_DE_HISTORIAL * 2 :]:
+    mensajes = hilo_actual["mensajes"]
+    # Los pedidos no atendidos (y su respuesta) no se le vuelven a mandar a la IA.
+    ignorados = {
+        i - 1 for i, m in enumerate(mensajes) if m["rol"] == "asistente" and m.get("no_atendido")
+    }
+    validos = [
+        m
+        for i, m in enumerate(mensajes)
+        if i not in ignorados and not (m["rol"] == "asistente" and m.get("no_atendido"))
+    ]
+    for mensaje in validos[-TURNOS_DE_HISTORIAL * 2 :]:
         if mensaje["rol"] == "usuario":
             turnos.append({"role": "user", "content": mensaje["texto"]})
         else:
@@ -135,7 +153,9 @@ async def revisar(tenant: Tenant, sesion: Sesion, conexion: Conexion, base: str,
     sensibles = await contexto.sensibles_de(tenant, conexion.id, analisis.tablas)
     bloqueos, advertencias = await contexto.evaluar_reglas(tenant, conexion, base, analisis)
     motivo = None
-    if analisis.tipo not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+    if not puede_consultar_motor(sesion) and consulta_al_motor(sql, base):
+        motivo = "motor"
+    elif analisis.tipo not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         motivo = "sandbox"
     elif sesion.rol == "CONSULTA" and not analisis.es_lectura:
         motivo = "solo_lectura"
@@ -163,6 +183,10 @@ async def revisar(tenant: Tenant, sesion: Sesion, conexion: Conexion, base: str,
         "puede_sandbox": sesion.puede_ver("sandbox"),
         "destructiva": analisis.destructiva,
     }
+
+
+def puede_consultar_motor(sesion: Sesion) -> bool:
+    return sesion.rol in ROLES_OPERATIVOS
 
 
 def _pide_segundo_factor(conexion: Conexion, analisis: Analisis, sensibles: list[dict]) -> bool:
@@ -207,11 +231,23 @@ async def enviar(
     traduccion = await motor_ia.traducir(
         await contexto.texto_para_ia(tenant, conexion), _historial(actual), texto
     )
+    sql = (traduccion.sql or "").strip() or None
+    # Lo ajeno a las bases no se responde; el motor, solo para Administrador y DBA.
+    no_atendido = None
+    if traduccion.alcance == FUERA:
+        no_atendido = "fuera"
+    elif not puede_consultar_motor(sesion) and (
+        traduccion.alcance == MOTOR or (sql and consulta_al_motor(sql, traduccion.base))
+    ):
+        no_atendido = "motor"
+    if no_atendido:
+        return await _no_atendido(tenant, sesion, hilo_id, texto, no_atendido)
+
     respuesta = {
         "id": uuid4().hex,
         "rol": "asistente",
         "ts": datetime.now(UTC).isoformat(),
-        "sql": (traduccion.sql or "").strip() or None,
+        "sql": sql,
         "base": traduccion.base,
         "explicacion": traduccion.explicacion,
         "confianza": traduccion.confianza,
@@ -259,6 +295,38 @@ async def enviar(
     return {"hilo_id": hilo_id, "pedido": pedido, "respuesta": respuesta, "resultado": resultado}
 
 
+async def _no_atendido(
+    tenant: Tenant, sesion: Sesion, hilo_id: str, texto: str, causa: str
+) -> dict:
+    """Respuesta fija a un pedido que el chat no atiende; queda en el hilo y en la bitácora."""
+    ahora = datetime.now(UTC).isoformat()
+    pedido = {"id": uuid4().hex, "rol": "usuario", "texto": texto, "ts": ahora}
+    respuesta = {
+        "id": uuid4().hex,
+        "rol": "asistente",
+        "ts": ahora,
+        "sql": None,
+        "base": None,
+        "explicacion": traducir(f"chat.no_atendido.{causa}"),
+        "confianza": None,
+        "no_atendido": causa,
+        "revision": None,
+        "ejecucion": None,
+        "sandbox": None,
+    }
+    await repositorios.agregar_mensajes(tenant.base_mongodb, hilo_id, [pedido, respuesta])
+    await auditoria.registrar(
+        tenant.base_mongodb,
+        EventoAuditoria(
+            accion="chat.pedido_no_atendido",
+            usuario=sesion.email,
+            tenant_id=str(tenant.id),
+            detalle={"causa": causa, "hilo_id": hilo_id, "pedido": texto[:200]},
+        ),
+    )
+    return {"hilo_id": hilo_id, "pedido": pedido, "respuesta": respuesta, "resultado": None}
+
+
 async def revisar_edicion(
     tenant: Tenant, sesion: Sesion, hilo_id: str, base: str, sql: str
 ) -> dict:
@@ -277,6 +345,8 @@ async def _validar_ejecucion(
     confirmar_advertencias: bool,
 ) -> tuple[Analisis, list[dict]]:
     """Verificaciones del flujo normal (paso 7) y alternativos del CU-000-001-A."""
+    if not puede_consultar_motor(sesion) and consulta_al_motor(sql, base):
+        raise ErrorDominio("USR_PER_000", "chat.motor")
     analisis = analizar(sql, base)
     if analisis.tipo not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         raise ErrorDominio("SQL_VAL_001", analisis.motivo)

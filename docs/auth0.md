@@ -67,17 +67,30 @@ Ese valor va en `AUTH0_DOMAIN`.
 2. Activar **One-time Password** (Google Authenticator, Microsoft Authenticator, etc.).
 3. En **Require Multi-factor Auth** elegir **Always**.
 4. Para que Auth0 no se saltee el código por "recordar este dispositivo" (la app exige
-   MFA en cada ingreso y en cada confirmación de acciones PROD), crear una Action:
+   MFA en cada ingreso y en cada confirmación de acciones sensibles), crear una Action:
    **Actions → Library → Create Action → Build from scratch**, nombre `Exigir MFA siempre`,
    trigger **Login / Post Login**, con el código:
 
    ```js
    exports.onExecutePostLogin = async (event, api) => {
      api.multifactor.enable("any", { allowRememberBrowser: false });
+     // Prueba para la app de que esta transacción exigió el código.
+     api.idToken.setCustomClaim("https://dbaassistant/mfa_exigido", true);
    };
    ```
 
    **Deploy** y luego **Actions → Triggers → post-login**: arrastrarla al flujo y **Apply**.
+
+   Si la Action ya existía, agregarle la línea de `setCustomClaim` y volver a hacer
+   **Deploy**: sin ese claim la app rechaza la confirmación de las acciones sensibles
+   (USR_AUT_001).
+
+   **Confirmación de acciones sensibles.** Mientras la sesión de Auth0 esté vigente, la
+   confirmación no vuelve a pedir email y contraseña (ni Google): Auth0 muestra solo la
+   pantalla del código del autenticador. La app acepta la confirmación si el token trae el
+   claim anterior, se emitió hace menos de 2 minutos y corresponde a ese mismo pedido. Si
+   la sesión de Auth0 venció (por inactividad prolongada), Auth0 pide las credenciales y
+   después el código.
 
 ## 6. Organizations
 

@@ -46,7 +46,7 @@
             <div class="flex gap-3">
               <div class="avatar-ia">AI</div>
               <div class="min-w-0 flex-1 text-[13.5px] leading-relaxed">
-                <p class="mb-3" x-text="m.explicacion"></p>
+                <p class="mb-3" :class="m.no_atendido && 'text-warn'" x-text="m.explicacion"></p>
                 <template x-if="m.sql">
                   <div>
                     <div class="mb-3 flex flex-wrap items-center gap-2">
@@ -215,7 +215,7 @@
     confirmarEn: {{ t("chat.confirmar_en") | tojson }},
     mod: { {% for k in ["UPDATE", "DELETE", "INSERT", "INSERT_CONSULTA", "registro", "registros", "sin_cantidad", "valores", "datos", "primer_registro", "columnas", "valor"] %}{{ k | tojson }}: {{ t("chat.mod." ~ k) | tojson }},{% endfor %} },
     tipos: { {% for tipo in ["SELECT", "INSERT", "UPDATE", "DELETE", "SANDBOX"] %}{{ tipo | tojson }}: {{ t("chat.tipo." ~ tipo) | tojson }},{% endfor %} },
-    motivos: { {% for m in ["sandbox", "solo_lectura", "falta_where", "tabla_restringida", "regla"] %}{{ m | tojson }}: {{ t("chat.motivo." ~ m) | tojson }},{% endfor %} },
+    motivos: { {% for m in ["motor", "sandbox", "solo_lectura", "falta_where", "tabla_restringida", "regla"] %}{{ m | tojson }}: {{ t("chat.motivo." ~ m) | tojson }},{% endfor %} },
     efectos: { bloquear: {{ t("contexto.efecto.bloquear") | tojson }}, advertir: {{ t("contexto.efecto.advertir") | tojson }} },
   };
 </script>

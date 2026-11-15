@@ -12,4 +12,5 @@ RUN tailwindcss -i tailwind/entrada.css -o app/web/static/css/app.css --minify
 FROM nginx:1.29
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx/certificado-desarrollo.sh /docker-entrypoint.d/40-certificado-desarrollo.sh
+COPY --chmod=755 nginx/esperar-certificado-interno.sh /docker-entrypoint.d/41-esperar-certificado-interno.sh
 COPY --from=estilos /src/backend/app/web/static /usr/share/nginx/static

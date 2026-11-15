@@ -138,6 +138,8 @@ indica a la IA dónde está cada dato.
 
 Las consultas de lectura se ejecutan solas y muestran el resultado; la T-SQL queda en el
 apartado **Query**. Las modificaciones muestran qué van a cambiar y esperan la confirmación.
+El chat solo responde sobre las bases de las instancias registradas; las consultas sobre el
+estado del motor (sesiones, errores, estado de las bases) son para Administrador y DBA.
 
 ### Desarrollo del backend sin Docker
 

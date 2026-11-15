@@ -5,8 +5,8 @@
 | # | Tema | Situación |
 |---|------|-----------|
 | 1 | **Casos de uso propuestos** | Aprobar los flujos de `docs/casos-de-uso-propuestos.md`. |
-| 2 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local. Al migrar a Azure: Atlas desplegado en Azure o Azure Cosmos DB for MongoDB. |
-| 3 | **Publicación de imágenes Docker** | Diferido hasta definir el registro (Azure Container Registry al migrar). |
+| 2 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local. El diagrama indica MongoDB Atlas para el despliegue en Azure; se confirma al arrancar ese sprint. |
+| 3 | **Publicación de imágenes Docker** | El diagrama indica Azure Container Registry; se arma con el pipeline del despliegue. |
 | 4 | **Roles** | Se usan 3 roles; se revisa más adelante frente a los 5 del TFI. |
 | 5 | **Retención de métricas** | Hoy 30 días (`MONITOR_RETENCION_DIAS`); a confirmar. |
 

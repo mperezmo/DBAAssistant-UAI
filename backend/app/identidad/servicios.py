@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad import reautenticacion, repositorios, sesiones
-from app.identidad.auth0 import ClienteAuth0
+from app.identidad.auth0 import CLAIM_MFA_EXIGIDO, ClienteAuth0
 from app.identidad.entidades import Sesion
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
@@ -162,10 +162,15 @@ async def _confirmar_segundo_factor(
     # La reautenticación debe hacerla la misma persona de la sesión, y recién.
     if usuario is None or usuario.auth0_usuario_id != identidad["sub"]:
         raise ErrorDominio("USR_AUT_000", "La identidad no coincide con la sesión.")
+    # Ya no se piden de nuevo las credenciales, así que auth_time es el del ingreso. Lo que
+    # prueba la confirmación es que el token se emitió recién (iat), para este pedido
+    # (nonce) y en una transacción en la que Auth0 exigió el código (claim de la Action).
+    if identidad.get(CLAIM_MFA_EXIGIDO) is not True:
+        raise ErrorDominio("USR_AUT_001", "Auth0 no exigió el código (revisar la Action).")
     tolerancia = obtener_configuracion().auth0_tolerancia_reloj_segundos
-    antiguedad = time.time() - identidad.get("auth_time", 0)
+    antiguedad = time.time() - identidad.get("iat", 0)
     if antiguedad > MAXIMA_ANTIGUEDAD_AUTENTICACION_SEGUNDOS + tolerancia:
-        raise ErrorDominio("USR_AUT_001", "La autenticación no es reciente.")
+        raise ErrorDominio("USR_AUT_001", "La confirmación no es reciente.")
     await sesiones.registrar_segundo_factor(sesion_id)
     await auditoria.registrar(
         tenant.base_mongodb,

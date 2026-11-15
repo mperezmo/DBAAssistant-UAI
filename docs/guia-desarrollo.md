@@ -27,7 +27,7 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
 ## Estructura
 
 - `backend/app/core/`: configuración, secretos (interfaz para Key Vault), logging, contexto
-  de la petición y bitácora de excepciones.
+  de la petición, bitácora de excepciones y certificado interno (HTTPS NGINX → Uvicorn).
 - `backend/app/core/errores.py`: catálogo de códigos de error (nomenclatura del TFI).
 - `backend/app/datos/`: SQL Server (pyodbc), MongoDB (PyMongo async), Redis, correo, WinRM y
   migraciones.
@@ -80,6 +80,14 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
   - passkeys (WebAuthn) como segundo factor, registradas en "Mi perfil";
   - barra inferior y flujo de incidentes en el celular;
   - servicio `tunel` (Cloudflare) para usarla con dominio propio (`docs/tunel.md`).
+- **Sprint 12 (en `dev`, pendiente de QA):** fidelidad a la arquitectura y ajustes:
+  - validación completa contra el diagrama; desvíos documentados en `docs/arquitectura.md`;
+  - HTTPS también entre NGINX y Uvicorn (certificado interno verificado por NGINX);
+  - `entidades.py` en todos los módulos y consultas fuera de la capa de servicios;
+  - Chat IA solo sobre las bases registradas; el motor de la instancia, solo para
+    Administrador y DBA;
+  - confirmación de acciones sensibles con solo el código del autenticador (sin volver a
+    ingresar credenciales; requiere actualizar la Action de Auth0, ver `docs/auth0.md`).
 - **Pendiente:** dominio propio para el túnel (push real en el celular) y despliegue en
   Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en

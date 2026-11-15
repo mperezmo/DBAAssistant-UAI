@@ -151,8 +151,10 @@ def chat(entorno, monkeypatch):  # noqa: F811
     }
 
 
-def _traduccion(sql, base="Ventas", confianza=90):
-    return Traduccion(sql=sql, base=base, explicacion="Listo.", confianza=confianza)
+def _traduccion(sql, base="Ventas", confianza=90, alcance="datos"):
+    return Traduccion(
+        alcance=alcance, sql=sql, base=base, explicacion="Listo.", confianza=confianza
+    )
 
 
 async def _hilo_con(chat, conexion, sql, actor=None):
@@ -181,7 +183,7 @@ async def test_enviar_y_seguimiento(chat):
 
     # Seguimiento: el motor IA recibe los turnos anteriores.
     chat["respuestas"].append(
-        Traduccion(sql=None, base=None, explicacion="¿Qué mes?", confianza=20)
+        Traduccion(alcance="datos", sql=None, base=None, explicacion="¿Qué mes?", confianza=20)
     )
     r2 = await servicios.enviar(TENANT, _actor(), r["hilo_id"], None, "y del mes pasado")
     assert r2["respuesta"]["sql"] is None and r2["respuesta"]["revision"] is None
@@ -216,6 +218,62 @@ async def test_ambiente_no_habilitado(chat):
     with pytest.raises(ErrorDominio) as error:
         await servicios.enviar(TENANT, _actor(), None, conexion.id, "x")
     assert error.value.codigo == "USR_PER_000"
+
+
+async def test_solo_atiende_pedidos_sobre_las_bases(chat):
+    conexion = await conexiones.crear(TENANT, _actor(), _datos(ambiente="DEV"))
+    # Pedido ajeno: respuesta fija (no el texto de la IA), sin ejecutar y auditado.
+    ajeno = _traduccion(None, base=None, alcance="fuera")
+    ajeno.explicacion = "Una receta de cocina..."
+    chat["respuestas"].append(ajeno)
+    r = await servicios.enviar(TENANT, _actor(), None, conexion.id, "pasame una receta")
+    respuesta = r["respuesta"]
+    assert respuesta["no_atendido"] == "fuera" and respuesta["sql"] is None
+    assert respuesta["explicacion"] == servicios.traducir("chat.no_atendido.fuera")
+    assert r["resultado"] is None and chat["lecturas"] == []
+    assert chat["eventos"][-1][0] == "chat.pedido_no_atendido"
+    assert chat["eventos"][-1][1]["causa"] == "fuera"
+
+    # Motor de la instancia: Administrador y DBA sí; Consulta no, aunque la IA lo
+    # clasifique como datos (se controla sobre el T-SQL).
+    motor = "SELECT name, state_desc FROM sys.databases"
+    chat["respuestas"].append(_traduccion(motor, base="master", alcance="motor"))
+    r2 = await servicios.enviar(TENANT, _actor("ADMINISTRADOR"), None, conexion.id, "estado")
+    assert r2["respuesta"]["revision"]["directo"] is True and r2["resultado"] is not None
+    consulta = _actor("CONSULTA")
+    chat["respuestas"].append(_traduccion(motor, base="Ventas", alcance="datos"))
+    r3 = await servicios.enviar(TENANT, consulta, None, conexion.id, "estado de las bases")
+    assert r3["respuesta"]["no_atendido"] == "motor" and r3["resultado"] is None
+    chat["respuestas"].append(_traduccion(None, base=None, alcance="motor"))
+    r4 = await servicios.enviar(TENANT, consulta, r3["hilo_id"], None, "últimos errores")
+    assert r4["respuesta"]["no_atendido"] == "motor"
+    # Tampoco editando el T-SQL a mano.
+    revision = await servicios.revisar(
+        TENANT, consulta, conexion, "Ventas", "SELECT * FROM sys.dm_exec_sessions"
+    )
+    assert revision["motivo"] == "motor" and revision["directo"] is False
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.ejecutar(
+            TENANT, consulta, r3["hilo_id"], r3["respuesta"]["id"], motor, "Ventas"
+        )
+    assert error.value.codigo == "USR_PER_000"
+
+    # Los pedidos no atendidos no se le vuelven a mandar a la IA.
+    chat["respuestas"].append(_traduccion("SELECT id FROM dbo.clientes"))
+    await servicios.enviar(TENANT, consulta, r3["hilo_id"], None, "clientes")
+    assert chat["pedidos"][-1][1] == []
+
+
+def test_consultas_al_motor():
+    assert analizador.consulta_al_motor("SELECT * FROM sys.dm_exec_requests", "Ventas")
+    assert analizador.consulta_al_motor("SELECT * FROM msdb.dbo.sysjobhistory", "Ventas")
+    assert analizador.consulta_al_motor("SELECT SERVERPROPERTY('Edition')", "Ventas")
+    assert analizador.consulta_al_motor("SELECT 1", "master")
+    assert analizador.consulta_al_motor("select * from SYS . DATABASES", "Ventas")
+    # Catálogo de la propia base y datos: no son del motor.
+    assert not analizador.consulta_al_motor("SELECT name FROM sys.tables", "Ventas")
+    assert not analizador.consulta_al_motor("SELECT * FROM dbo.pedidos -- sys.dm_x", "Ventas")
+    assert not analizador.consulta_al_motor("SELECT * FROM dbo.databases_log", "Ventas")
 
 
 async def test_revision_segun_rol_y_sentencia(chat):

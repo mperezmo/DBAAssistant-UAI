@@ -62,6 +62,12 @@ class Configuracion(BaseSettings):
     sandbox_url: str = "http://sandbox:8100"
     sandbox_programador_activo: bool = True
 
+    # HTTPS entre NGINX y Uvicorn. Si no se monta un certificado propio, el backend
+    # genera uno autofirmado al arrancar y NGINX lo usa para verificar al backend.
+    tls_interno_certificado: str = "/srv/tls/backend.crt"
+    tls_interno_clave: str = "/srv/tls/backend.key"
+    tls_interno_nombre: str = "backend"
+
     # Identidad (Auth0). Cada tenant es una Organization y entra por su subdominio
     # (<slug>.<dominio_base>).
     dominio_base: str = "localhost"

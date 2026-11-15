@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import obtener_configuracion
 from app.identidad import reautenticacion, servicios, sesiones
-from app.identidad.auth0 import ClienteAuth0
+from app.identidad.auth0 import ACR_MULTIFACTOR, CLAIM_MFA_EXIGIDO, ClienteAuth0
 from app.main import app
 from app.tenants import resolucion
 from app.tenants.entidades import Tenant
@@ -70,19 +70,23 @@ def _confirmar(navegador, auth0, **identidad):
         "nonce": parametros["nonce"],
         "org_id": ORGANIZACION,
         "amr": ["mfa"],
-        "auth_time": int(time.time()),
+        "auth_time": int(time.time()) - 3 * 3600,  # el del ingreso: no se vuelve a loguear
+        "iat": int(time.time()),
+        CLAIM_MFA_EXIGIDO: True,
         **identidad,
     }
     return parametros, navegador.get(f"/auth/callback?code=c&state={parametros['state']}")
 
 
-async def test_confirmacion_fuerza_login_y_registra_el_segundo_factor(entorno):
+async def test_confirmacion_pide_solo_el_codigo_y_registra_el_segundo_factor(entorno):
     navegador, sesion = await _navegador_con_sesion(entorno["usuario"])
     assert (await sesiones.obtener(sesion.id)).segundo_factor_en is None
 
     parametros, respuesta = _confirmar(navegador, entorno["auth0"], sub="google|dba")
 
-    assert parametros["prompt"] == "login" and parametros["max_age"] == "0"
+    # Sin forzar el login: con la sesión de Auth0 vigente solo se pide el código.
+    assert "prompt" not in parametros and "max_age" not in parametros
+    assert parametros["acr_values"] == ACR_MULTIFACTOR
     assert respuesta.headers["location"] == "/conexiones"
     assert "set-cookie" not in respuesta.headers  # no se abre una sesión nueva
     assert reautenticacion.segundo_factor_vigente(await sesiones.obtener(sesion.id))
@@ -97,14 +101,12 @@ async def test_confirmacion_de_otra_persona_se_rechaza(entorno):
     assert "USR_AUT_000" in respuesta.text
 
 
-async def test_confirmacion_sin_autenticacion_reciente_se_rechaza(entorno):
-    navegador, _ = await _navegador_con_sesion(entorno["usuario"])
-
-    _, respuesta = _confirmar(
-        navegador, entorno["auth0"], sub="google|dba", auth_time=int(time.time()) - 3600
-    )
-
-    assert "USR_AUT_001" in respuesta.text
+async def test_confirmacion_sin_codigo_reciente_se_rechaza(entorno):
+    for vieja in ({"iat": int(time.time()) - 3600}, {CLAIM_MFA_EXIGIDO: None}):
+        navegador, sesion = await _navegador_con_sesion(entorno["usuario"])
+        _, respuesta = _confirmar(navegador, entorno["auth0"], sub="google|dba", **vieja)
+        assert "USR_AUT_001" in respuesta.text
+        assert (await sesiones.obtener(sesion.id)).segundo_factor_en is None
 
 
 async def test_confirmar_sin_sesion_va_al_ingreso(entorno):

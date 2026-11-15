@@ -19,6 +19,11 @@ from app.core.secretos import proveedor_secretos
 # Conexiones habilitadas en cada organización: Google y email + contraseña.
 CONEXION_CONTRASENA = "Username-Password-Authentication"
 CONEXIONES_TENANT = ("google-oauth2", CONEXION_CONTRASENA)
+# Política OIDC que pide autenticación multifactor (step-up).
+ACR_MULTIFACTOR = "http://schemas.openid.net/pape/policies/2007/06/multi-factor"
+# Claim que agrega la Action de Auth0 en la misma transacción en que exige el código: prueba
+# que ese token pasó por el segundo factor recién, aunque no se hayan pedido credenciales.
+CLAIM_MFA_EXIGIDO = "https://dbaassistant/mfa_exigido"
 JWKS_VIGENCIA_SEGUNDOS = 3600
 
 
@@ -79,9 +84,10 @@ class ClienteAuth0:
             # Pantalla de Auth0 (Universal Login) en el idioma del usuario.
             parametros["ui_locales"] = idioma
         if reautenticar:
-            # Obliga a Auth0 a autenticar de nuevo (y, con la política "Always", a pedir
-            # el segundo factor) aunque exista una sesión de Auth0 vigente.
-            parametros.update(prompt="login", max_age="0")
+            # Confirmación de una acción sensible: con la sesión de Auth0 vigente no se
+            # vuelven a pedir las credenciales, solo el código del autenticador (la Action
+            # "Exigir MFA siempre" lo pide en cada transacción, ver docs/auth0.md).
+            parametros["acr_values"] = ACR_MULTIFACTOR
         return f"{self.emisor}authorize?{urlencode(parametros)}"
 
     def url_cierre_sesion(self, volver_a: str) -> str:

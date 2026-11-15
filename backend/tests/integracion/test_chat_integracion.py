@@ -113,6 +113,7 @@ async def test_chat_de_punta_a_punta(prefijo_aislado, entorno):
     # SELECT: 1000 en pantalla de 1500; el Administrador ve el CUIT enmascarado, aun con alias.
     respuestas.append(
         Traduccion(
+            alcance="datos",
             sql="SELECT id, cuit AS c FROM dbo.clientes ORDER BY id",
             base=base,
             explicacion="x",
@@ -134,7 +135,11 @@ async def test_chat_de_punta_a_punta(prefijo_aislado, entorno):
     # El DBA ve el dato real.
     respuestas.append(
         Traduccion(
-            sql="SELECT TOP 1 cuit FROM dbo.clientes", base=base, explicacion="x", confianza=95
+            alcance="datos",
+            sql="SELECT TOP 1 cuit FROM dbo.clientes",
+            base=base,
+            explicacion="x",
+            confianza=95,
         )
     )
     r = await servicios.enviar(tenant, dba, None, conexion.id, "cuit")
@@ -142,7 +147,9 @@ async def test_chat_de_punta_a_punta(prefijo_aislado, entorno):
 
     # UPDATE en tabla sensible con doble confirmación: pide el segundo factor.
     update = "UPDATE dbo.clientes SET estado = 1 WHERE id <= 10"
-    respuestas.append(Traduccion(sql=update, base=base, explicacion="x", confianza=90))
+    respuestas.append(
+        Traduccion(alcance="datos", sql=update, base=base, explicacion="x", confianza=90)
+    )
     r = await servicios.enviar(tenant, dba, None, conexion.id, "activá los primeros 10")
     hilo_id, m = r["hilo_id"], r["respuesta"]
     assert m["revision"]["segundo_factor"] is True

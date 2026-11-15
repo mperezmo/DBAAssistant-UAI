@@ -1,7 +1,8 @@
 """Confirmación con segundo factor para operaciones sobre PROD.
 
-Antes de una acción sensible el usuario vuelve a autenticarse en Auth0 (que exige el
-segundo factor). La confirmación habilita las acciones sobre PROD durante unos minutos.
+Antes de una acción sensible el usuario confirma en Auth0 con el código de su autenticador
+(sin volver a ingresar credenciales). La confirmación habilita las acciones sobre PROD
+durante unos minutos.
 """
 
 import time

@@ -12,6 +12,7 @@ services:
       - "443:443"
     volumes:
       - certificados:/etc/nginx/certs
+      - tls-interno:/etc/nginx/interno:ro
     depends_on:
       - backend
     restart: unless-stopped
@@ -19,6 +20,8 @@ services:
   backend:
     build: ./backend
     env_file: .env
+    volumes:
+      - tls-interno:/srv/tls
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -93,5 +96,6 @@ networks:
 
 volumes:
   certificados:
+  tls-interno:
   sqlserver-datos:
   mongo-datos:
