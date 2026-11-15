@@ -1,8 +1,11 @@
 """Persistencia de workarounds propios, versiones, ejecuciones, autorizaciones y
-automatizaciones en la base SQL Server del tenant."""
+automatizaciones en la base SQL Server del tenant, y compilación de los pasos en la
+instancia registrada."""
 
 import json
 from datetime import datetime
+
+import pyodbc
 
 from app.datos import sqlserver
 from app.modulos.workarounds.entidades import (
@@ -561,3 +564,24 @@ def eliminar_automatizacion(base: str, tenant_id: str, automatizacion_id: str) -
         )
         conexion.commit()
     return filas == 1
+
+
+# --- Instancia registrada -----------------------------------------------------------
+
+
+def compilar_pasos(abierta, pasos: tuple[str, ...]) -> tuple[int, pyodbc.Error | None]:
+    """Compila cada paso sin ejecutarlo (NOEXEC). Devuelve el primer paso que falla
+    (desde 1) y su error, o (0, None) si compilan todos."""
+    cursor = abierta.cursor()
+    cursor.execute("SET NOEXEC ON")
+    try:
+        for numero, paso in enumerate(pasos, start=1):
+            try:
+                cursor.execute(paso)
+                while cursor.nextset():
+                    pass
+            except pyodbc.Error as error:
+                return numero, error
+    finally:
+        cursor.execute("SET NOEXEC OFF")
+    return 0, None

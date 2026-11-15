@@ -7,7 +7,7 @@ from bson import ObjectId
 
 from app.core.errores import ErrorDominio
 from app.identidad.entidades import Usuario
-from app.modulos.buenas_practicas import analisis_ia, chequeos, repositorios, servicios
+from app.modulos.buenas_practicas import analisis_ia, chequeos, entidades, repositorios, servicios
 from app.modulos.chat_ia import motor_ia
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.contexto_negocio import esquema
@@ -222,7 +222,7 @@ def _sugerencia(**cambios):
         "sql": "CREATE INDEX IX ON dbo.pedidos (cliente_id)",
         "indice_hallazgo": 0,
     }
-    return analisis_ia.Sugerencia(**{**datos, **cambios})
+    return entidades.Sugerencia(**{**datos, **cambios})
 
 
 async def test_solicitar_y_aplicar(bp, monkeypatch):

@@ -1,4 +1,5 @@
-"""Persistencia de conexiones en la base SQL Server del tenant."""
+"""Persistencia de conexiones en la base SQL Server del tenant y lecturas básicas de cada
+instancia registrada (versión y bases)."""
 
 from app.datos import sqlserver
 from app.modulos.conexiones.entidades import Conexion
@@ -134,3 +135,29 @@ def eliminar(base: str, tenant_id: str, conexion_id: str) -> None:
             "DELETE FROM dbo.conexion WHERE tenant_id = ? AND id = ?", tenant_id, conexion_id
         )
         conexion.commit()
+
+
+# --- Lecturas de la instancia registrada --------------------------------------------
+
+CONSULTA_PRUEBA = """
+    SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),
+           CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)),
+           (SELECT COUNT(*) FROM sys.databases WHERE database_id > 4)
+"""
+
+
+def datos_de_instancia(servidor: str, usuario: str, password: str) -> tuple[str, str, int]:
+    """Versión, edición y cantidad de bases de usuario de la instancia."""
+    with sqlserver.conectar_externo(servidor, usuario, password) as abierta:
+        version, edicion, bases = abierta.cursor().execute(CONSULTA_PRUEBA).fetchone()
+    return version, edicion, bases
+
+
+def bases_en_linea(servidor: str, usuario: str, password: str, solo_de_usuario: bool) -> list[str]:
+    """Bases ONLINE de la instancia; con ``solo_de_usuario`` se omiten las de sistema."""
+    filtro = "database_id > 4 AND " if solo_de_usuario else ""
+    with sqlserver.conectar_externo(servidor, usuario, password) as abierta:
+        filas = abierta.cursor().execute(
+            f"SELECT name FROM sys.databases WHERE {filtro}state_desc = 'ONLINE' ORDER BY name"
+        )
+        return [f[0] for f in filas.fetchall()]

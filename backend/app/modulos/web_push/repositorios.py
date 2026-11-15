@@ -1,16 +1,7 @@
 """Suscripciones push por dispositivo, en la base SQL Server del tenant."""
 
-from dataclasses import dataclass
-
 from app.datos import sqlserver
-
-
-@dataclass(frozen=True)
-class Suscripcion:
-    endpoint: str
-    p256dh: str
-    auth: str
-    idioma: str | None = None  # el del usuario dueño del dispositivo
+from app.modulos.web_push.entidades import Suscripcion
 
 
 def guardar(base: str, tenant_id: str, usuario_id: str, s: Suscripcion, agente: str | None) -> None:

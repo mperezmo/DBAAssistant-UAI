@@ -6,10 +6,8 @@ el contexto de negocio van en el bloque de sistema cacheado, como en el Chat IA.
 """
 
 import json
-from typing import Literal
 
-from pydantic import BaseModel, Field
-
+from app.modulos.buenas_practicas.entidades import Informe
 from app.modulos.chat_ia import motor_ia
 
 MAXIMO_TOKENS = 8000
@@ -36,21 +34,6 @@ prácticas definidas por el equipo. Con eso:
   posición (desde 0) del hallazgo en que se basa la sugerencia, o null si sale de una regla
   del equipo.
 """
-
-
-class Sugerencia(BaseModel):
-    titulo: str
-    tipo: Literal["consultas", "indices", "fragmentacion", "esquema", "regla"]
-    severidad: Literal["alta", "media", "baja"]
-    objeto: str
-    descripcion: str
-    sql: str | None = Field(description="T-SQL que aplica la sugerencia, o null.")
-    indice_hallazgo: int | None
-
-
-class Informe(BaseModel):
-    resumen: str
-    sugerencias: list[Sugerencia]
 
 
 async def analizar(contexto: str, base: str, hallazgos: list[dict], reglas: list[str]) -> Informe:

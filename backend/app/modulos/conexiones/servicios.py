@@ -29,11 +29,6 @@ log = logging.getLogger(__name__)
 PATRON_ALIAS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,59}$")
 PATRON_HOST = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.\-]{0,254}$")
 PUERTO_WINRM_HTTP, PUERTO_WINRM_HTTPS = 5985, 5986
-CONSULTA_PRUEBA = """
-    SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),
-           CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)),
-           (SELECT COUNT(*) FROM sys.databases WHERE database_id > 4)
-"""
 
 
 def _texto(valor: str | None) -> str | None:
@@ -111,10 +106,22 @@ async def obtener(tenant: Tenant, conexion_id: str) -> Conexion:
     return conexion
 
 
+def bases_en_linea(conexion: Conexion, solo_de_usuario: bool = False) -> list[str]:
+    """Bases ONLINE de la instancia registrada (CON_DB_000 si no responde)."""
+    try:
+        return repositorios.bases_en_linea(
+            servidor_de(conexion),
+            conexion.usuario_sql,
+            cifrado.descifrar(conexion.password_sql_cifrada),
+            solo_de_usuario,
+        )
+    except Exception as error:
+        raise ErrorDominio("CON_DB_000", str(error)) from error
+
+
 def _probar(servidor: str, usuario: str, password: str) -> ResultadoPrueba:
     try:
-        with sqlserver.conectar_externo(servidor, usuario, password) as conexion:
-            version, edicion, bases = conexion.cursor().execute(CONSULTA_PRUEBA).fetchone()
+        version, edicion, bases = repositorios.datos_de_instancia(servidor, usuario, password)
     except Exception as error:
         # El mensaje del driver identifica la causa (login, red, nombre de instancia).
         raise ErrorDominio("CON_DB_000", str(error)) from error

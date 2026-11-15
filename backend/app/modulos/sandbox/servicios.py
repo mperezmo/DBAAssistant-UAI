@@ -5,7 +5,7 @@ import hashlib
 import logging
 import re
 import xml.etree.ElementTree as ET
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pyodbc
 from starlette.concurrency import run_in_threadpool
@@ -24,13 +24,18 @@ from app.modulos.conexiones.entidades import Conexion
 from app.modulos.contexto_negocio import servicios as contexto
 from app.modulos.historico_schema import servicios as historico
 from app.modulos.sandbox import cliente, repositorios
+from app.modulos.sandbox.entidades import (
+    ERROR,
+    LISTO,
+    ROLES_PROMUEVEN,
+    SINCRONIZANDO,
+    VIGENCIA_ESTRUCTURA,
+)
 from app.tenants.entidades import Tenant
 from app.web.i18n import formatear, traducir
 
 log = logging.getLogger(__name__)
 
-ROLES_PROMUEVEN = ROLES_OPERATIVOS
-VIGENCIA_ESTRUCTURA = timedelta(hours=24)
 LARGO_MAXIMO_SQL = 100_000
 SEPARADOR_LOTES = re.compile(r"^\s*GO\s*$", re.IGNORECASE | re.MULTILINE)
 NS_PLAN = {"p": "http://schemas.microsoft.com/sqlserver/2004/07/showplan"}
@@ -99,19 +104,7 @@ async def estado(tenant: Tenant, conexion_id: str) -> dict:
 
 
 def _bases_de_usuario(conexion: Conexion) -> list[str]:
-    try:
-        with sqlserver.conectar_externo(
-            conexiones.servidor_de(conexion),
-            conexion.usuario_sql,
-            cifrado.descifrar(conexion.password_sql_cifrada),
-        ) as abierta:
-            filas = abierta.cursor().execute(
-                """SELECT name FROM sys.databases
-                   WHERE database_id > 4 AND state_desc = 'ONLINE' ORDER BY name"""
-            )
-            return [f[0] for f in filas.fetchall()]
-    except pyodbc.Error as error:
-        raise ErrorDominio("CON_DB_000", str(error)) from error
+    return conexiones.bases_en_linea(conexion, solo_de_usuario=True)
 
 
 async def sincronizar(tenant: Tenant, actor: Sesion | None, conexion_id: str) -> None:
@@ -121,7 +114,7 @@ async def sincronizar(tenant: Tenant, actor: Sesion | None, conexion_id: str) ->
     actual = await run_in_threadpool(
         repositorios.obtener, tenant.base_sqlserver, str(tenant.id), clave
     )
-    if actual and actual["estado"] == "sincronizando":
+    if actual and actual["estado"] == SINCRONIZANDO:
         return
     await run_in_threadpool(
         repositorios.guardar,
@@ -129,7 +122,7 @@ async def sincronizar(tenant: Tenant, actor: Sesion | None, conexion_id: str) ->
         str(tenant.id),
         clave,
         conexion.host,
-        "sincronizando",
+        SINCRONIZANDO,
     )
     tarea = asyncio.create_task(_sincronizar(tenant, actor, conexion, clave))
     _tareas.add(tarea)
@@ -144,7 +137,7 @@ async def _sincronizar(
         bases = await run_in_threadpool(_bases_de_usuario, conexion)
         resultados = await cliente.sincronizar(clave, _origen(conexion), bases)
         correctas = [r for r in resultados if r["estado"] == "ok"]
-        estado_final = "listo" if correctas or not resultados else "error"
+        estado_final = LISTO if correctas or not resultados else ERROR
         error = "; ".join(f"{r['base']}: {r['error']}" for r in resultados if r["error"])[:1000]
         await run_in_threadpool(
             repositorios.guardar,
@@ -165,7 +158,7 @@ async def _sincronizar(
             str(tenant.id),
             clave,
             conexion.host,
-            "error",
+            ERROR,
             None,
             str(falla)[:1000],
         )
@@ -309,18 +302,7 @@ def _plan_estimado(conexion: Conexion, base: str, lotes: list[str]) -> dict:
     """Plan estimado sobre la base real, sin ejecutar nada (SHOWPLAN_XML)."""
     abierta = _abrir_real(conexion, base)
     try:
-        cursor = abierta.cursor()
-        cursor.execute("SET SHOWPLAN_XML ON")
-        planes = []
-        for lote in lotes:
-            cursor.execute(lote)
-            while True:
-                if cursor.description:
-                    planes += [f[0] for f in cursor.fetchall()]
-                if not cursor.nextset():
-                    break
-        cursor.execute("SET SHOWPLAN_XML OFF")
-        return _resumen_estimado(planes)
+        return _resumen_estimado(repositorios.planes_estimados(abierta, lotes))
     except pyodbc.Error as error:
         raise ErrorDominio("SQL_EXE_000", str(error)) from error
     finally:
@@ -330,21 +312,9 @@ def _plan_estimado(conexion: Conexion, base: str, lotes: list[str]) -> dict:
 def _ejecutar_real(conexion: Conexion, base: str, lotes: list[str]) -> int:
     """Ejecuta en la base real dentro de una transacción; ante una falla, revierte."""
     abierta = _abrir_real(conexion, base)
-    abierta.autocommit = False
-    filas = 0
     try:
-        cursor = abierta.cursor()
-        for lote in lotes:
-            cursor.execute(lote)
-            while True:
-                if not cursor.description and cursor.rowcount and cursor.rowcount > 0:
-                    filas += cursor.rowcount
-                if not cursor.nextset():
-                    break
-        abierta.commit()
-        return filas
+        return repositorios.ejecutar_en_transaccion(abierta, lotes)
     except pyodbc.Error as error:
-        abierta.rollback()
         raise ErrorDominio("SQL_EXE_000", str(error)) from error
     finally:
         abierta.close()

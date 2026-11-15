@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.identidad.dependencias import requerir_modulo
 from app.modulos.sandbox import servicios
+from app.modulos.sandbox.entidades import ROLES_PROMUEVEN
 
 router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
 contexto = Depends(requerir_modulo("sandbox"))
@@ -48,7 +49,7 @@ async def historial(
     tenant, sesion = ctx
     return {
         "registros": await servicios.historial(tenant, conexion_id, usuario, estado),
-        "puede_promover": sesion.rol in servicios.ROLES_PROMUEVEN,
+        "puede_promover": sesion.rol in ROLES_PROMUEVEN,
     }
 
 

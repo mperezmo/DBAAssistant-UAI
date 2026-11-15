@@ -1,5 +1,6 @@
 """Persistencia del Sandbox: estado por servidor (SQL Server) y bitácora de ejecuciones
-(MongoDB, colección ``bitacora_sandbox``, retenida 5 años como el resto de las bitácoras)."""
+(MongoDB, colección ``bitacora_sandbox``, retenida 5 años como el resto de las bitácoras).
+También el plan estimado y la ejecución en la base real al promover."""
 
 import json
 from datetime import UTC, datetime
@@ -118,3 +119,43 @@ async def marcar_promovida(base_mongodb: str, registro_id: str, promocion: dict)
     await mongo.base(base_mongodb)[COLECCION].update_one(
         {"_id": ObjectId(registro_id)}, {"$set": {"promocion": promocion}}
     )
+
+
+# --- Base real de la instancia registrada (Promover) --------------------------------
+
+
+def planes_estimados(abierta, lotes: list[str]) -> list[str]:
+    """Planes XML estimados de cada lote, sin ejecutarlos (SHOWPLAN_XML)."""
+    cursor = abierta.cursor()
+    cursor.execute("SET SHOWPLAN_XML ON")
+    planes = []
+    for lote in lotes:
+        cursor.execute(lote)
+        while True:
+            if cursor.description:
+                planes += [f[0] for f in cursor.fetchall()]
+            if not cursor.nextset():
+                break
+    cursor.execute("SET SHOWPLAN_XML OFF")
+    return planes
+
+
+def ejecutar_en_transaccion(abierta, lotes: list[str]) -> int:
+    """Ejecuta los lotes en una transacción y devuelve las filas afectadas; si uno falla,
+    revierte todo y relanza el error."""
+    abierta.autocommit = False
+    filas = 0
+    try:
+        cursor = abierta.cursor()
+        for lote in lotes:
+            cursor.execute(lote)
+            while True:
+                if not cursor.description and cursor.rowcount and cursor.rowcount > 0:
+                    filas += cursor.rowcount
+                if not cursor.nextset():
+                    break
+        abierta.commit()
+        return filas
+    except Exception:
+        abierta.rollback()
+        raise

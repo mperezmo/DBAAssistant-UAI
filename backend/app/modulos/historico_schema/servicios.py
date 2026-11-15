@@ -9,7 +9,6 @@ que cambió esa ejecución.
 
 import logging
 import re
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from starlette.concurrency import run_in_threadpool
@@ -21,20 +20,12 @@ from app.modulos.chat_ia.analizador import analizar
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import Conexion
 from app.modulos.historico_schema import captura, repositorios
+from app.modulos.historico_schema.entidades import ACTUAL, Captura
 from app.tenants.entidades import Tenant
 from app.web.i18n import formatear, traducir
 
 log = logging.getLogger(__name__)
-ACTUAL = "actual"
 SEPARADOR_LOTES = re.compile(r"^\s*GO\s*$", re.IGNORECASE | re.MULTILINE)
-
-
-@dataclass
-class Captura:
-    """Estado de las bases alcanzadas por un DDL antes de ejecutarlo."""
-
-    conexion: Conexion
-    antes: dict[str, dict | None] = field(default_factory=dict)
 
 
 def _capturar(conexion: Conexion, base: str) -> dict:

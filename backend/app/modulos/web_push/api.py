@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.identidad.dependencias import requerir_modulo
 from app.modulos.web_push import servicios
-from app.modulos.web_push.repositorios import Suscripcion
+from app.modulos.web_push.entidades import Suscripcion
 
 router = APIRouter(prefix="/api/push", tags=["push"])
 contexto = Depends(requerir_modulo("alertas"))

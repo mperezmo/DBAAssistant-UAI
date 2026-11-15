@@ -4,12 +4,13 @@ from fastapi import APIRouter, Depends
 
 from app.identidad.dependencias import requerir_modulo
 from app.modulos.inicio import servicios
+from app.modulos.inicio.entidades import TODOS
 
 router = APIRouter(prefix="/api/inicio", tags=["inicio"])
 contexto = Depends(requerir_modulo("inicio"))
 
 
 @router.get("")
-async def resumen(ambiente: str = servicios.TODOS, ctx=contexto) -> dict:
+async def resumen(ambiente: str = TODOS, ctx=contexto) -> dict:
     tenant, sesion = ctx
     return await servicios.resumen(tenant, sesion, ambiente)

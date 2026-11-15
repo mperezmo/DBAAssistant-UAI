@@ -6,7 +6,7 @@ histórico de métricas y bitácora de Sandbox (MongoDB).
 """
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from starlette.concurrency import run_in_threadpool
@@ -16,16 +16,17 @@ from app.identidad.entidades import AMBIENTES, Sesion
 from app.modulos.chat_ia.analizador import analizar
 from app.modulos.conexiones.entidades import ZONA_HORARIA_POR_DEFECTO
 from app.modulos.inicio import repositorios
+from app.modulos.inicio.entidades import (
+    BLOQUEO_PROLONGADO_SEGUNDOS,
+    TODOS,
+    VENTANA_LATENCIA,
+    VENTANA_PENDIENTES,
+)
 from app.modulos.monitor import repositorios as monitor
 from app.modulos.workarounds import integrados
 from app.tenants.entidades import Tenant
 
 log = logging.getLogger(__name__)
-
-TODOS = "TODOS"
-BLOQUEO_PROLONGADO_SEGUNDOS = 30
-VENTANA_LATENCIA = timedelta(hours=1)
-VENTANA_PENDIENTES = timedelta(days=7)
 
 
 def inicio_de_mes(ahora: datetime) -> datetime:

@@ -19,7 +19,7 @@ from app.core.errores import ErrorDominio
 from app.core.secretos import SecretoNoEncontradoError, proveedor_secretos
 from app.identidad.entidades import Sesion
 from app.modulos.web_push import repositorios
-from app.modulos.web_push.repositorios import Suscripcion
+from app.modulos.web_push.entidades import Suscripcion
 from app.tenants.entidades import Tenant
 from app.web.i18n import en_idioma
 

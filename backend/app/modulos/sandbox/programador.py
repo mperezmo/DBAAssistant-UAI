@@ -18,6 +18,7 @@ from app.datos import cache
 from app.modulos.conexiones import repositorios as conexiones
 from app.modulos.conexiones.entidades import Conexion
 from app.modulos.sandbox import repositorios, servicios
+from app.modulos.sandbox.entidades import SINCRONIZANDO
 from app.tenants import repositorios as tenants
 
 log = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class Programador:
                 fila = await run_in_threadpool(
                     repositorios.obtener, tenant.base_sqlserver, str(tenant.id), clave
                 )
-                if fila and fila["estado"] == "sincronizando":
+                if fila and fila["estado"] == SINCRONIZANDO:
                     continue
                 if (
                     fila

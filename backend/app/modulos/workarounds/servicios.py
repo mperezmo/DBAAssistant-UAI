@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-import pyodbc
 from starlette.concurrency import run_in_threadpool
 
 from app.core import cifrado
@@ -192,22 +191,11 @@ def _validar_sintaxis(conexion: Conexion, base: str | None, pasos: tuple[str, ..
             cifrado.descifrar(conexion.password_sql_cifrada),
             base or sqlserver.BASE_SISTEMA,
         ) as abierta:
-            cursor = abierta.cursor()
-            cursor.execute("SET NOEXEC ON")
-            try:
-                for numero, paso in enumerate(pasos, start=1):
-                    try:
-                        cursor.execute(paso)
-                        while cursor.nextset():
-                            pass
-                    except pyodbc.Error as error:
-                        raise ErrorDominio("SQL_VAL_000", f"Paso {numero}: {error}") from error
-            finally:
-                cursor.execute("SET NOEXEC OFF")
-    except ErrorDominio:
-        raise
-    except Exception as error:
-        raise ErrorDominio("CON_DB_000", str(error)) from error
+            numero, error = repositorios.compilar_pasos(abierta, pasos)
+    except Exception as falla:
+        raise ErrorDominio("CON_DB_000", str(falla)) from falla
+    if error is not None:
+        raise ErrorDominio("SQL_VAL_000", f"Paso {numero}: {error}") from error
 
 
 async def _validar_propio(tenant: Tenant, w: Propio, validar_en: tuple[str, str | None]) -> Propio:
@@ -638,21 +626,7 @@ async def ejecuciones(tenant: Tenant) -> list[dict]:
 async def bases(tenant: Tenant, conexion_id: str) -> list[str]:
     conexion = await conexiones.obtener(tenant, conexion_id)
 
-    def leer() -> list[str]:
-        try:
-            with sqlserver.conectar_externo(
-                conexiones.servidor_de(conexion),
-                conexion.usuario_sql,
-                cifrado.descifrar(conexion.password_sql_cifrada),
-            ) as abierta:
-                filas = abierta.cursor().execute(
-                    "SELECT name FROM sys.databases WHERE state_desc = 'ONLINE' ORDER BY name"
-                )
-                return [f[0] for f in filas.fetchall()]
-        except Exception as error:
-            raise ErrorDominio("CON_DB_000", str(error)) from error
-
-    return await run_in_threadpool(leer)
+    return await run_in_threadpool(conexiones.bases_en_linea, conexion)
 
 
 async def cerrar_interrumpidas_todo(tenants: list[Tenant]) -> None:

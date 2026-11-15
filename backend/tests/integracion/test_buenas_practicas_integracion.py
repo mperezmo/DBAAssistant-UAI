@@ -12,7 +12,7 @@ from app.core.secretos import proveedor_secretos
 from app.datos import sqlserver
 from app.identidad import repositorios as usuarios
 from app.identidad.entidades import Sesion
-from app.modulos.buenas_practicas import analisis_ia, chequeos, servicios
+from app.modulos.buenas_practicas import analisis_ia, chequeos, entidades, servicios
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.conexiones.entidades import DatosConexion
 from app.tenants import servicios as tenants
@@ -31,10 +31,10 @@ def entorno(monkeypatch, redis_falso):
 
     async def analizar(contexto, base, hallazgos, reglas):
         recibidos.append((base, hallazgos, reglas))
-        return analisis_ia.Informe(
+        return entidades.Informe(
             resumen="Revisión",
             sugerencias=[
-                analisis_ia.Sugerencia(
+                entidades.Sugerencia(
                     titulo=h["descripcion"],
                     tipo=h["tipo"],
                     severidad=h["severidad"],
