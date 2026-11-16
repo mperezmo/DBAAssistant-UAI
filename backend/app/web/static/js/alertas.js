@@ -135,7 +135,7 @@ document.addEventListener("alpine:init", () => {
       window.dispatchEvent(new CustomEvent("ejecutar-workaround", {
         detail: {
           workaround: sugerido.id, conexion_id: a.conexion_id, base: sugerido.parametros.base || "",
-          alerta_id: a.id,
+          job_id: sugerido.parametros.job_id || "", alerta_id: a.id,
         },
       }));
     },

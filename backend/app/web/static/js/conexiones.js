@@ -18,7 +18,10 @@ document.addEventListener("alpine:init", () => {
     TEXTOS.resultado
       .replace("{version}", r.version)
       .replace("{edicion}", r.edicion)
-      .replace("{bases}", r.bases);
+      .replace("{bases}", r.bases)
+    + ((r.faltantes || []).length
+      ? " " + TEXTOS.faltantes.replace("{permisos}", r.faltantes.map((p) => TEXTOS.permisos[p] || p).join("; "))
+      : "");
 
   // Servicios de SQL Server informados por Windows, p. ej. "MSSQLSERVER: Running".
   const textoWinrm = (r) =>

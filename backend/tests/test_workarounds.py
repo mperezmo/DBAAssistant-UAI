@@ -785,7 +785,7 @@ async def test_api_workarounds(wk, monkeypatch):
     monkeypatch.setattr(servicios, "bases", lambda tenant, conexion_id: _lista(["ERP"]))
 
     biblioteca = navegador.get("/api/workarounds").json()
-    assert biblioteca["permisos"]["crear"] is True and len(biblioteca["workarounds"]) == 8
+    assert biblioteca["permisos"]["crear"] is True and len(biblioteca["workarounds"]) == 13
     assert navegador.get("/api/workarounds/kill_bloqueos").json()["codigo"] == "WK-01"
     assert navegador.get(f"/api/workarounds/conexiones/{conexion.id}/bases").json() == {
         "bases": ["ERP"]

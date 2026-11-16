@@ -143,6 +143,9 @@ class Recolector:
                 "valores": resultado.valores,
                 "bloqueos": resultado.bloqueos,
                 "volumenes": resultado.volumenes,
+                "backups": resultado.backups,
+                "agente": resultado.agente,
+                "jobs": resultado.jobs,
             }
             if self._ultimas.get(conexion.id, {}).get("estado") == "sin_conexion":
                 log.info("Se recuperó la conexión con %s.", conexion.alias)

@@ -14,6 +14,8 @@ document.addEventListener("alpine:init", () => {
     try { localStorage.setItem(clave, valor); } catch { /* sin almacenamiento local */ }
   };
 
+  const CLAVE_PRECARGA = "dba.sandbox.precarga";
+
   Alpine.data("sandbox", () => ({
     TEXTOS,
     conexiones: [], conexionId: "", base: "", sql: "", estado: null, error: null,
@@ -28,9 +30,16 @@ document.addEventListener("alpine:init", () => {
         return;
       }
       if (!this.conexiones.length) return;
-      const recordada = leer(CLAVE_CONEXION);
+      // Desde el Monitoreo ("Probar en Sandbox") llega una consulta para validar.
+      let precarga = null;
+      try {
+        precarga = JSON.parse(sessionStorage.getItem(CLAVE_PRECARGA) || "null");
+        sessionStorage.removeItem(CLAVE_PRECARGA);
+      } catch { /* sin almacenamiento de sesión */ }
+      const recordada = precarga?.conexion_id || leer(CLAVE_CONEXION);
       this.conexionId = this.conexiones.some((c) => c.id === recordada) ? recordada : this.conexiones[0].id;
       await Promise.all([this.cargarEstado(), this.cargarHistorial()]);
+      if (precarga) Object.assign(this, { base: precarga.base || "", sql: precarga.sql || "" });
       const params = new URLSearchParams(location.search);
       if (params.get("registro")) await this.ver({ id: params.get("registro") });
       // Vuelta de la confirmación con segundo factor: se retoma la promoción.

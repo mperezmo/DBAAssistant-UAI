@@ -71,7 +71,7 @@ def entorno(monkeypatch, redis_falso):
         pruebas.append((servidor, usuario, password))
         if password == "mala":
             raise ErrorDominio("CON_DB_000", "Login failed for user")
-        return ResultadoPrueba("16.0.4255.2", "Developer Edition", 3)
+        return ResultadoPrueba("16.0.4255.2", "Developer Edition", 3, ("msdb_jobs",))
 
     monkeypatch.setattr(servicios.auditoria, "registrar", registrar)
     monkeypatch.setattr(servicios, "_probar", probar)
@@ -276,7 +276,12 @@ async def test_api_crud_sin_exponer_contrasenas(entorno):
     prueba = navegador.post(
         "/api/conexiones/probar", json={**cambios, "id": cuerpo["id"]}, headers=CABECERA
     )
-    assert prueba.json() == {"version": "16.0.4255.2", "edicion": "Developer Edition", "bases": 3}
+    assert prueba.json() == {
+        "version": "16.0.4255.2",
+        "edicion": "Developer Edition",
+        "bases": 3,
+        "faltantes": ["msdb_jobs"],
+    }
 
     assert navegador.delete(f"/api/conexiones/{cuerpo['id']}", headers=CABECERA).status_code == 204
 

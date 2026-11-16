@@ -35,6 +35,9 @@ class _Cursor:
     def fetchall(self):
         return self.filas
 
+    def fetchone(self):
+        return self.filas[0]
+
 
 class _Conexion:
     timeout = 0
@@ -47,6 +50,8 @@ class _Conexion:
 
 
 RESPUESTAS = {
+    # SQL Server 2014: sin Query Store, no hay regresiones que informar.
+    "ProductMajorVersion": [(12,)],
     "dm_exec_query_stats": [
         ("SELECT *\n  FROM dbo.pedidos WHERE x = 1", 120, 1500.0, 1800.2, 90000)
     ],

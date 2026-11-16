@@ -142,15 +142,25 @@ def eliminar(base: str, tenant_id: str, conexion_id: str) -> None:
 CONSULTA_PRUEBA = """
     SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),
            CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)),
-           (SELECT COUNT(*) FROM sys.databases WHERE database_id > 4)
+           (SELECT COUNT(*) FROM sys.databases WHERE database_id > 4),
+           HAS_PERMS_BY_NAME(NULL, NULL, 'VIEW SERVER STATE'),
+           HAS_PERMS_BY_NAME('msdb.dbo.backupset', 'OBJECT', 'SELECT'),
+           HAS_PERMS_BY_NAME('msdb.dbo.sysjobs', 'OBJECT', 'SELECT'),
+           HAS_PERMS_BY_NAME('msdb.dbo.sp_add_job', 'OBJECT', 'EXECUTE')
 """
+# Permisos que usa la aplicación, en el orden de la consulta de prueba: monitoreo y Query
+# Store; historial de backups; jobs del SQL Server Agent; backups programados y reintentos.
+PERMISOS = ("view_server_state", "msdb_backups", "msdb_jobs", "agente_crear")
 
 
-def datos_de_instancia(servidor: str, usuario: str, password: str) -> tuple[str, str, int]:
-    """Versión, edición y cantidad de bases de usuario de la instancia."""
+def datos_de_instancia(
+    servidor: str, usuario: str, password: str
+) -> tuple[str, str, int, tuple[str, ...]]:
+    """Versión, edición, cantidad de bases de usuario y permisos que le faltan al login."""
     with sqlserver.conectar_externo(servidor, usuario, password) as abierta:
-        version, edicion, bases = abierta.cursor().execute(CONSULTA_PRUEBA).fetchone()
-    return version, edicion, bases
+        fila = abierta.cursor().execute(CONSULTA_PRUEBA).fetchone()
+    faltantes = tuple(p for p, tiene in zip(PERMISOS, fila[3:], strict=True) if not tiene)
+    return fila[0], fila[1], fila[2], faltantes
 
 
 def bases_en_linea(servidor: str, usuario: str, password: str, solo_de_usuario: bool) -> list[str]:

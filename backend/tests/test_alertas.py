@@ -140,6 +140,8 @@ class RepositorioAlertasFalso:
         ):
             monkeypatch.setattr(repositorios, nombre, getattr(self, nombre))
         monkeypatch.setattr(monitor_repo, "listar_umbrales_del_tenant", lambda base, t: {})
+        self.politicas = {}
+        monkeypatch.setattr(monitor_repo, "politicas_del_tenant", lambda base, t: self.politicas)
         return self
 
     def listar_reglas(self, base, tenant_id):

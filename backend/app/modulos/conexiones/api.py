@@ -97,7 +97,12 @@ async def eliminar(conexion_id: str, ctx=contexto) -> None:
 async def probar(datos: PruebaEntrada, ctx=contexto) -> dict:
     tenant, _ = ctx
     resultado = await servicios.probar(tenant, datos.a_datos(), datos.id)
-    return {"version": resultado.version, "edicion": resultado.edicion, "bases": resultado.bases}
+    return {
+        "version": resultado.version,
+        "edicion": resultado.edicion,
+        "bases": resultado.bases,
+        "faltantes": list(resultado.faltantes),
+    }
 
 
 @router.post("/probar-winrm")

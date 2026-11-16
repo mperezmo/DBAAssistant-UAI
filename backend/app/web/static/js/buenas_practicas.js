@@ -34,6 +34,7 @@ document.addEventListener("alpine:init", () => {
       this.conexionId = this.conexiones.some((c) => c.id === pedida) ? pedida : this.conexiones[0].id;
       if (params.get("tipos")) this.tiposElegidos = params.get("tipos").split(",");
       await this.cargarBases();
+      if (this.bases.includes(params.get("base"))) this.base = params.get("base");
       if (this.informes.length) await this.abrir(this.informes[0].id);
     },
 

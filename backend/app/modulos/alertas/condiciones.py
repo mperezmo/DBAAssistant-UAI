@@ -1,13 +1,23 @@
 """Condiciones de alerta que se evalúan sobre cada lectura de una instancia.
 
-Tres orígenes: umbrales del monitoreo (CU-000-003-B), eventos fijos y reglas propias
-(CU-000-004-A). Las funciones son puras: reciben la lectura y la configuración y
-devuelven las condiciones que se cumplen en ese momento.
+Tres orígenes: umbrales del monitoreo (CU-000-003-B), eventos fijos (entre ellos,
+backups y jobs del SQL Server Agent) y reglas propias (CU-000-004-A). Las funciones son
+puras: reciben la lectura y la configuración y devuelven las condiciones que se cumplen
+en ese momento.
 """
 
 from app.identidad.entidades import ROLES_OPERATIVOS
 from app.modulos.alertas.entidades import Condicion, Regla
-from app.modulos.monitor.entidades import METRICAS, Lectura, Umbral
+from app.modulos.monitor.entidades import (
+    METRICAS,
+    Lectura,
+    PoliticaBackup,
+    Umbral,
+    agente_detenido,
+    estado_backup,
+    estado_job,
+    falla_vigente,
+)
 from app.web.i18n import IDIOMA_PREDETERMINADO, formatear
 
 # Destinatarios de las alertas que no vienen de una regla propia.
@@ -169,6 +179,128 @@ def por_eventos(lectura: Lectura) -> list[Condicion]:
     return condiciones
 
 
+def _duracion(minutos: int | float) -> str:
+    """Tiempo transcurrido abreviado (d, h, min), igual en todos los idiomas."""
+    minutos = int(minutos)
+    if minutos < 60:
+        return f"{minutos} min"
+    horas, resto = divmod(minutos, 60)
+    if horas < 48:
+        return f"{horas} h {resto} min" if resto else f"{horas} h"
+    dias, horas = divmod(horas, 24)
+    return f"{dias} d {horas} h" if horas else f"{dias} d"
+
+
+def _evento(clave: str, severidad: str, titulo: list, descripcion: list, email: bool) -> Condicion:
+    # Backups y jobs se leen cada pocos minutos: no hace falta esperar a que se sostengan.
+    return Condicion(
+        clave=clave,
+        origen="evento",
+        severidad=severidad,
+        **_textos(titulo, descripcion),
+        sostenida_segundos=0,
+        destinatarios=DESTINATARIOS_SISTEMA,
+        push=True,
+        email=email,
+    )
+
+
+def por_backups(lectura: Lectura, politica: PoliticaBackup) -> list[Condicion]:
+    condiciones = []
+    for b in lectura.backups or []:
+        estado = estado_backup(b, politica)
+        base = b["base"]
+        if estado["full"] in ("warning", "critical"):
+            plazo = _duracion(politica.full_horas * 60)
+            descripcion = (
+                _ref("alertas.evento.backup_full.nunca", base=base, plazo=plazo)
+                if b["full_min"] is None
+                else _ref(
+                    "alertas.evento.backup_full.descripcion",
+                    base=base,
+                    tiempo=_duracion(b["full_min"]),
+                    plazo=plazo,
+                )
+            )
+            condiciones.append(
+                _evento(
+                    f"evento:backup_full:{base}",
+                    estado["full"],
+                    _ref("alertas.evento.backup_full.titulo", base=base),
+                    descripcion,
+                    email=True,
+                )
+            )
+        if estado["log"] == "warning":
+            transcurrido = b["log_min"] if b["log_min"] is not None else b["full_min"]
+            condiciones.append(
+                _evento(
+                    f"evento:backup_log:{base}",
+                    "warning",
+                    _ref("alertas.evento.backup_log.titulo", base=base),
+                    _ref(
+                        "alertas.evento.backup_log.descripcion",
+                        base=base,
+                        recuperacion=b["recuperacion"],
+                        tiempo=_duracion(transcurrido),
+                        plazo=_duracion(politica.log_minutos),
+                    ),
+                    email=True,
+                )
+            )
+    return condiciones
+
+
+def por_agente(lectura: Lectura, servidor: str) -> list[Condicion]:
+    condiciones = []
+    if agente_detenido(lectura.agente):
+        condiciones.append(
+            _evento(
+                "evento:agente",
+                "critical",
+                _ref("alertas.evento.agente.titulo"),
+                _ref(
+                    "alertas.evento.agente.descripcion",
+                    servidor=servidor,
+                    estado=lectura.agente["estado"],
+                ),
+                email=True,
+            )
+        )
+    for job in lectura.jobs or []:
+        if falla_vigente(job):
+            condiciones.append(
+                _evento(
+                    f"evento:job:{job['id']}",
+                    "warning",
+                    _ref("alertas.evento.job.titulo", job=job["nombre"]),
+                    _ref(
+                        "alertas.evento.job.descripcion",
+                        job=job["nombre"],
+                        tiempo=_duracion(job["hace_min"]),
+                        error=(job["error"] or "—")[:300],
+                    ),
+                    email=True,
+                )
+            )
+        elif estado_job(job) == "colgado":
+            condiciones.append(
+                _evento(
+                    f"evento:job_colgado:{job['id']}",
+                    "warning",
+                    _ref("alertas.evento.job_colgado.titulo", job=job["nombre"]),
+                    _ref(
+                        "alertas.evento.job_colgado.descripcion",
+                        job=job["nombre"],
+                        tiempo=_duracion(job["corriendo_s"] / 60),
+                        promedio=_duracion(max(job["promedio_s"] / 60, 1)),
+                    ),
+                    email=False,
+                )
+            )
+    return condiciones
+
+
 def por_reglas(lectura: Lectura, reglas: list[Regla], conexion_id: str) -> list[Condicion]:
     condiciones = []
     for r in reglas:
@@ -217,6 +349,7 @@ def evaluar(
     umbrales: dict[str, Umbral],
     reglas: list[Regla],
     conexion_id: str,
+    politica: PoliticaBackup | None = None,
 ) -> tuple[list[Condicion], bool]:
     """Condiciones que se cumplen y si la lectura permitió evaluar todas.
 
@@ -228,6 +361,8 @@ def evaluar(
     return (
         por_umbrales(lectura, umbrales)
         + por_eventos(lectura)
+        + por_backups(lectura, politica or PoliticaBackup())
+        + por_agente(lectura, servidor)
         + por_reglas(lectura, reglas, conexion_id),
         True,
     )

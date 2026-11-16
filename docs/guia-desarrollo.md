@@ -91,8 +91,15 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
   - documentos de negocio (PDF) en Contexto de Negocio: los carga cualquier rol, se convierten
     a Markdown con MarkItDown y la IA arma un resumen revisable (que se suma al contexto del Chat
     IA y de Buenas Prácticas) y propone términos y reglas que se aceptan con un clic.
-- **Pendiente:** dominio propio para el túnel (push real en el celular) y despliegue en
-  Azure.
+- **Sprint 13 (en `dev`, pendiente de QA):** backups, jobs y consultas costosas:
+  - estado de los backups por base frente a una política por conexión, con alertas y
+    backups programados como job del SQL Server Agent (WK-09 full COPY_ONLY y WK-10 log);
+  - jobs del Agent: estado, historial, alertas de fallas y demoras, explicación de la falla
+    con IA, reintento (WK-11) e inicio del Agent por WinRM (WK-12);
+  - consultas costosas por base desde Query Store, con tendencia, regresiones y cambios de
+    plan, y activación de Query Store (WK-13);
+  - la prueba de conexión informa los permisos que le faltan al login.
+- **Pendiente:** despliegue en Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.
 - Decisiones abiertas: `docs/pendientes.md`.

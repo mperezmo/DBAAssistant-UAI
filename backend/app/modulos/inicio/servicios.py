@@ -23,6 +23,7 @@ from app.modulos.inicio.entidades import (
     VENTANA_PENDIENTES,
 )
 from app.modulos.monitor import repositorios as monitor
+from app.modulos.monitor.entidades import PoliticaBackup, estado_backup, falla_vigente
 from app.modulos.workarounds import integrados
 from app.tenants.entidades import Tenant
 
@@ -73,7 +74,14 @@ def disponibilidad(
 
 
 async def _estado_actual(tenant: Tenant, ids: list[str]) -> dict:
-    online = sesiones = bloqueos = 0
+    online = sesiones = bloqueos = backups = jobs = 0
+    try:
+        politicas = await run_in_threadpool(
+            monitor.politicas_del_tenant, tenant.base_sqlserver, str(tenant.id)
+        )
+    except Exception as error:
+        log.warning("Sin las políticas de backup: %s", error)
+        politicas = {}
     for conexion_id in ids:
         try:
             estado = await monitor.obtener_estado(str(tenant.id), conexion_id)
@@ -89,7 +97,21 @@ async def _estado_actual(tenant: Tenant, ids: list[str]) -> dict:
             for b in estado.get("bloqueos") or []
             if (b.get("espera_s") or 0) > BLOQUEO_PROLONGADO_SEGUNDOS
         )
-    return {"online": online, "sesiones": sesiones, "bloqueos_prolongados": bloqueos}
+        # Mismos criterios que las alertas: bases fuera de la política y jobs que fallaron.
+        politica = politicas.get(conexion_id) or PoliticaBackup()
+        backups += sum(
+            1
+            for b in estado.get("backups") or []
+            if {"warning", "critical"} & set(estado_backup(b, politica).values())
+        )
+        jobs += sum(1 for j in estado.get("jobs") or [] if falla_vigente(j))
+    return {
+        "online": online,
+        "sesiones": sesiones,
+        "bloqueos_prolongados": bloqueos,
+        "backups_atrasados": backups,
+        "jobs_con_falla": jobs,
+    }
 
 
 async def resumen(

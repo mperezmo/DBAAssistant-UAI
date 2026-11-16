@@ -43,16 +43,24 @@ class Motor:
         # (conexion_id, clave) → (severidad, último refresco) de las alertas en curso.
         self._en_curso: dict[tuple[str, str], tuple[str, float]] = {}
         self._tenants_cargados: set[str] = set()
-        self._configuracion: dict[str, tuple[float, list, dict, set]] = {}
+        self._configuracion: dict[str, tuple[float, list, dict, set, dict]] = {}
 
     async def evaluar(self, tenant: Tenant, conexion: Conexion, lectura: Lectura | None) -> None:
         ahora = time.monotonic()
         await self._cargar_en_curso(tenant)
-        reglas, umbrales, desestimadas = await self._configuracion_de(tenant, ahora)
+        reglas, umbrales, desestimadas, politicas = await self._configuracion_de(tenant, ahora)
         servidor = sqlserver.servidor_externo(conexion.host, conexion.puerto, conexion.instancia)
         cumplidas, completa = condiciones.evaluar(
-            lectura, servidor, umbrales.get(conexion.id, {}), reglas, conexion.id
+            lectura,
+            servidor,
+            umbrales.get(conexion.id, {}),
+            reglas,
+            conexion.id,
+            politicas.get(conexion.id),
         )
+        # Lo que la lectura no pudo evaluar (por ejemplo, sin permiso sobre msdb) no se da
+        # por normalizado.
+        sin_evaluar = lectura.no_evaluadas if lectura else ()
         # Lo desestimado se ignora y se olvida: al reactivarse, si la condición sigue,
         # dispara como una alerta nueva.
         for c in [c for c in cumplidas if (conexion.id, c.clave) in desestimadas]:
@@ -68,6 +76,8 @@ class Motor:
             if completa or clave_desde[1] == condiciones.CLAVE_INSTANCIA:
                 del self._desde[clave_desde]
         for clave in [k for k in self._en_curso if k[0] == conexion.id and k[1] not in vigentes]:
+            if clave[1].startswith(sin_evaluar):
+                continue
             if completa or clave[1] == condiciones.CLAVE_INSTANCIA:
                 del self._en_curso[clave]
                 await run_in_threadpool(
@@ -138,7 +148,7 @@ class Motor:
             self._en_curso[(conexion_id, clave)] = (severidad, 0.0)
         self._tenants_cargados.add(tenant_id)
 
-    async def _configuracion_de(self, tenant: Tenant, ahora: float) -> tuple[list, dict, set]:
+    async def _configuracion_de(self, tenant: Tenant, ahora: float) -> tuple[list, dict, set, dict]:
         tenant_id = str(tenant.id)
         guardada = self._configuracion.get(tenant_id)
         if guardada and ahora - guardada[0] < VIGENCIA_CONFIGURACION_SEGUNDOS:
@@ -155,8 +165,11 @@ class Motor:
                 repositorios.listar_desestimadas, tenant.base_sqlserver, tenant_id
             )
         }
-        self._configuracion[tenant_id] = (ahora, reglas, umbrales, desestimadas)
-        return reglas, umbrales, desestimadas
+        politicas = await run_in_threadpool(
+            monitor.politicas_del_tenant, tenant.base_sqlserver, tenant_id
+        )
+        self._configuracion[tenant_id] = (ahora, reglas, umbrales, desestimadas, politicas)
+        return reglas, umbrales, desestimadas, politicas
 
     def invalidar_configuracion(self) -> None:
         self._configuracion.clear()

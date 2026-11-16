@@ -183,6 +183,8 @@
     confirmarEliminar: {{ t("conexiones.confirmar_eliminar") | tojson }},
     confirmarMfa: {{ t("conexiones.confirmar_mfa") | tojson }},
     resultado: {{ t("conexiones.resultado") | tojson }},
+    faltantes: {{ t("conexiones.faltantes") | tojson }},
+    permisos: { {% for p in ["view_server_state", "msdb_backups", "msdb_jobs", "agente_crear"] %}{{ p | tojson }}: {{ t("conexiones.permiso." ~ p) | tojson }},{% endfor %} },
     winrmSinServicios: {{ t("conexiones.winrm_sin_servicios") | tojson }},
     winrmResultado: {{ t("conexiones.winrm_resultado") | tojson }},
   };

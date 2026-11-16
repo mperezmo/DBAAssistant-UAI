@@ -1,6 +1,6 @@
 """Persistencia del monitoreo.
 
-- Umbrales: base SQL Server del tenant (estructura funcional).
+- Umbrales y política de backups: base SQL Server del tenant (estructura funcional).
 - Serie de métricas: colección time-series ``metricas`` de la base MongoDB del tenant.
 - Última lectura de cada instancia: Redis, para servir el dashboard sin consultar el motor.
 """
@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 from app.core.config import obtener_configuracion
 from app.datos import cache, mongo, sqlserver
-from app.modulos.monitor.entidades import Umbral
+from app.modulos.monitor.entidades import PoliticaBackup, Umbral
 
 # --- Umbrales (SQL Server) ----------------------------------------------------------
 
@@ -74,6 +74,59 @@ def guardar_umbrales(base: str, tenant_id: str, conexion_id: str, umbrales: list
         conexion.commit()
 
 
+# --- Política de backups (SQL Server) ----------------------------------------------
+
+
+def obtener_politica(base: str, tenant_id: str, conexion_id: str) -> PoliticaBackup | None:
+    with sqlserver.conectar(base) as conexion:
+        fila = (
+            conexion.cursor()
+            .execute(
+                """SELECT habilitada, full_horas, log_minutos FROM dbo.politica_backup
+                   WHERE tenant_id = ? AND conexion_id = ?""",
+                tenant_id,
+                conexion_id,
+            )
+            .fetchone()
+        )
+    return PoliticaBackup(bool(fila[0]), fila[1], fila[2]) if fila else None
+
+
+def politicas_del_tenant(base: str, tenant_id: str) -> dict[str, PoliticaBackup]:
+    with sqlserver.conectar(base) as conexion:
+        filas = (
+            conexion.cursor()
+            .execute(
+                """SELECT conexion_id, habilitada, full_horas, log_minutos
+                   FROM dbo.politica_backup WHERE tenant_id = ?""",
+                tenant_id,
+            )
+            .fetchall()
+        )
+    return {str(f[0]): PoliticaBackup(bool(f[1]), f[2], f[3]) for f in filas}
+
+
+def guardar_politica(base: str, tenant_id: str, conexion_id: str, politica: PoliticaBackup) -> None:
+    with sqlserver.conectar(base) as conexion:
+        cursor = conexion.cursor()
+        cursor.execute(
+            "DELETE FROM dbo.politica_backup WHERE tenant_id = ? AND conexion_id = ?",
+            tenant_id,
+            conexion_id,
+        )
+        cursor.execute(
+            """INSERT INTO dbo.politica_backup
+                   (conexion_id, tenant_id, habilitada, full_horas, log_minutos)
+               VALUES (?, ?, ?, ?, ?)""",
+            conexion_id,
+            tenant_id,
+            politica.habilitada,
+            politica.full_horas,
+            politica.log_minutos,
+        )
+        conexion.commit()
+
+
 # --- Serie de métricas (MongoDB) ----------------------------------------------------
 
 
@@ -131,9 +184,9 @@ async def obtener_estado(tenant_id: str, conexion_id: str) -> dict | None:
     return json.loads(valor) if valor else None
 
 
-async def guardar_en_cache(clave: str, valor) -> None:
+async def guardar_en_cache(clave: str, valor, vigencia: int | None = None) -> None:
     await cache.cliente().set(
-        clave, json.dumps(valor), ex=obtener_configuracion().cache_ttl_metricas
+        clave, json.dumps(valor), ex=vigencia or obtener_configuracion().cache_ttl_metricas
     )
 
 

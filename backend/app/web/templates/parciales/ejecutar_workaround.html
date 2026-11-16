@@ -79,7 +79,57 @@
               </div>
             </template>
 
-            <template x-if="w.id === 'iniciar_servicio'">
+            <!-- Backup programado: fecha y hora (del servidor) del job que lo ejecuta -->
+            <template x-if="esBackup()">
+              <div class="space-y-2.5 text-sm">
+                <div class="rounded border border-line p-3 font-mono text-xs" style="background: var(--bg-sunk)">
+                  <div x-text="`${TEXTOS_EJ.recuperacion} ${diag.diagnostico.recuperacion} · SQL Server Agent: ${diag.diagnostico.agente || '—'}`"></div>
+                  <div x-text="`${TEXTOS_EJ.carpeta} ${diag.diagnostico.carpeta || '—'}`"></div>
+                  <div class="mt-1 text-danger" x-show="!diag.diagnostico.agente">{{ t("error.WKR_EJE_003") }}</div>
+                  <div class="mt-1 text-warn" x-show="diag.diagnostico.agente && diag.diagnostico.agente !== 'Running'">{{ t("workarounds.ejecutar.agente_detenido") }}</div>
+                  <div class="mt-1 text-danger" x-show="w.id === 'programar_backup_log' && (!['FULL', 'BULK_LOGGED'].includes(diag.diagnostico.recuperacion) || !diag.diagnostico.cadena_log)">{{ t("error.WKR_EJE_005") }}</div>
+                </div>
+                <div class="field" x-show="diag.diagnostico.agente">
+                  <label for="ej-inicio">{{ t("workarounds.ejecutar.inicio") }}</label>
+                  <input id="ej-inicio" type="datetime-local" class="w-full rounded border border-line px-3 py-2 text-sm"
+                         x-model="inicio" :min="diag.diagnostico.ahora_servidor" @change="diagnosticar()">
+                  <p class="mt-1 text-[11px] text-fg-faint" x-text="diag.diagnostico.ventana ? TEXTOS_EJ.sugeridoVentana : TEXTOS_EJ.sugeridoSinVentana"></p>
+                </div>
+                <div x-show="diag.diagnostico.programados.length">
+                  <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("workarounds.ejecutar.ya_programados") }}</div>
+                  <template x-for="p in diag.diagnostico.programados" :key="p.nombre">
+                    <div class="metric-mono text-[11.5px]" x-text="`${p.nombre}${p.proxima ? ' → ' + p.proxima.replace('T', ' ') : ''}`"></div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- Reintentar un job del SQL Server Agent -->
+            <template x-if="w.id === 'reintentar_job'">
+              <div class="space-y-1.5 text-sm">
+                <p class="text-fg-muted" x-show="!diag.diagnostico.jobs.length">{{ t("workarounds.ejecutar.sin_jobs") }}</p>
+                <template x-for="j in diag.diagnostico.jobs" :key="j.id">
+                  <label class="flex items-start gap-2">
+                    <input type="radio" class="mt-1" :value="j.id" x-model="jobId">
+                    <span class="min-w-0">
+                      <span class="metric-mono" x-text="j.nombre"></span>
+                      <span class="tag ml-1 px-1.5 py-px text-[9.5px]" :class="j.estado === 'falla' ? 'tag-red' : 'tag-green'" x-text="TEXTOS_EJ.jobs[j.estado] || j.estado"></span>
+                      <span class="block break-words text-[11px] text-fg-faint" x-show="j.error" x-text="j.error"></span>
+                    </span>
+                  </label>
+                </template>
+              </div>
+            </template>
+
+            <!-- Activar Query Store -->
+            <template x-if="w.id === 'activar_query_store'">
+              <div class="rounded border border-line p-3 font-mono text-xs" style="background: var(--bg-sunk)">
+                <div x-show="!diag.diagnostico.disponible">{{ t("error.WKR_EJE_006") }}</div>
+                <div x-show="diag.diagnostico.disponible" x-text="`Query Store: ${diag.diagnostico.estado} · ${diag.diagnostico.usado_mb} / ${diag.diagnostico.maximo_mb} MB`"></div>
+              </div>
+            </template>
+
+            <template x-if="['iniciar_servicio', 'iniciar_agente'].includes(w.id)">
               <div class="space-y-1 text-sm">
                 <template x-for="s in diag.diagnostico.servicios" :key="s.nombre">
                   <label class="flex items-center gap-2">
@@ -114,7 +164,7 @@
                 <template x-for="(p, i) in pasosVisibles()" :key="i"><li x-text="p"></li></template>
               </ol>
             </div>
-            <p class="text-sm text-fg-muted" x-show="!pasosVisibles().length && !['kill_bloqueos', 'iniciar_servicio', 'base_online'].includes(w.id)">{{ t("workarounds.ejecutar.nada") }}</p>
+            <p class="text-sm text-fg-muted" x-show="!pasosVisibles().length && !conEleccion()">{{ t("workarounds.ejecutar.nada") }}</p>
 
             <!-- Fuera de la ventana: pedido de autorización a otro usuario -->
             <div class="rounded border border-line p-3" x-show="diag.requiere_ventana && !diag.dentro_de_ventana">
@@ -174,6 +224,10 @@
     enUso: {{ t("workarounds.ejecutar.en_uso") | tojson }},
     recuperacion: {{ t("workarounds.ejecutar.recuperacion") | tojson }},
     planes: {{ t("workarounds.ejecutar.planes") | tojson }},
+    carpeta: {{ t("workarounds.ejecutar.carpeta") | tojson }},
+    sugeridoVentana: {{ t("workarounds.ejecutar.sugerido_ventana") | tojson }},
+    sugeridoSinVentana: {{ t("workarounds.ejecutar.sugerido_sin_ventana") | tojson }},
+    jobs: { {% for e in ["ok", "falla", "en_curso", "colgado", "deshabilitado", "sin_ejecuciones"] %}{{ e | tojson }}: {{ t("monitor.jobs.estado." ~ e) | tojson }},{% endfor %} },
     cerrar: {{ t("workarounds.ejecutar.cerrar") | tojson }},
     cancelar: {{ t("workarounds.ejecutar.cancelar") | tojson }},
     confirmarMfa: {{ t("workarounds.ejecutar.confirmar_mfa") | tojson }},

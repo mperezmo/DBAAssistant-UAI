@@ -41,6 +41,8 @@ jobs:
         env:
           ACCEPT_EULA: "Y"
           MSSQL_SA_PASSWORD: Integracion#2026
+          # Jobs del SQL Server Agent y backups programados (WK-09 a WK-11).
+          MSSQL_AGENT_ENABLED: "true"
         ports: ["14330:1433"]
         options: >-
           --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Integracion#2026 -Q 'SELECT 1'"

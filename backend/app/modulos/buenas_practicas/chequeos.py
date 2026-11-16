@@ -7,6 +7,9 @@ que lo corrige. La IA trabaja sobre estos hallazgos: no inventa métricas.
 
 from collections.abc import Callable
 
+import pyodbc
+
+from app.modulos.monitor import query_store
 from app.web.i18n import formatear, traducir
 
 TIPOS = ("consultas", "indices", "fragmentacion", "esquema")
@@ -134,7 +137,39 @@ def consultas(cursor) -> list[dict]:
                 },
             )
         )
-    return hallazgos
+    return regresiones(cursor) + hallazgos
+
+
+def regresiones(cursor) -> list[dict]:
+    """Consultas que empeoraron o cambiaron de plan, según el Query Store de la base (si
+    está activo). Van primero: son lo más urgente de revisar."""
+    try:
+        if query_store.version(cursor) < query_store.VERSION_MINIMA:
+            return []
+        if query_store.opciones(cursor)["estado"] not in ("READ_WRITE", "READ_ONLY"):
+            return []
+        consultas = query_store.ranking(cursor, "duracion", "24h")
+    except pyodbc.Error:
+        return []
+    return [
+        _hallazgo(
+            "consultas",
+            "alta",
+            " ".join(c["texto"].split())[:80],
+            traducir("bp.hallazgo.consulta_regresion"),
+            {
+                "texto": c["texto"][:2000],
+                "query_id": c["query_id"],
+                "duracion_ms_antes": c["tendencia"]["antes"],
+                "duracion_ms_ahora": c["tendencia"]["ahora"],
+                "empeoro": c["tendencia"]["empeoro"],
+                "cambio_plan": c["tendencia"]["cambio_plan"],
+                "planes": c["planes"],
+            },
+        )
+        for c in consultas
+        if c["tendencia"]["empeoro"] or c["tendencia"]["cambio_plan"]
+    ][:MAXIMO_POR_CHEQUEO]
 
 
 def indices(cursor) -> list[dict]:

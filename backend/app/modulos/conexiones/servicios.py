@@ -121,11 +121,13 @@ def bases_en_linea(conexion: Conexion, solo_de_usuario: bool = False) -> list[st
 
 def _probar(servidor: str, usuario: str, password: str) -> ResultadoPrueba:
     try:
-        version, edicion, bases = repositorios.datos_de_instancia(servidor, usuario, password)
+        version, edicion, bases, faltantes = repositorios.datos_de_instancia(
+            servidor, usuario, password
+        )
     except Exception as error:
         # El mensaje del driver identifica la causa (login, red, nombre de instancia).
         raise ErrorDominio("CON_DB_000", str(error)) from error
-    return ResultadoPrueba(version=version, edicion=edicion, bases=bases)
+    return ResultadoPrueba(version=version, edicion=edicion, bases=bases, faltantes=faltantes)
 
 
 async def probar(tenant: Tenant, datos: DatosConexion, conexion_id: str | None) -> ResultadoPrueba:

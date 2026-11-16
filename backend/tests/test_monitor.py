@@ -29,7 +29,7 @@ class CursorFalso:
         self.ejecutadas = []
         self._actual = None
 
-    def execute(self, consulta):
+    def execute(self, consulta, *parametros):
         self.ejecutadas.append(consulta)
         self._actual = self.respuestas[consulta]
         return self
@@ -60,6 +60,12 @@ def _respuestas(logins=100, cpu=42):
         lectura.CONSULTA_BASES: [("ERP", "SUSPECT")],
         lectura.CONSULTA_LOGS: [("ERP", 93), ("CRM", 12)],
         lectura.CONSULTA_COSTOSAS: [(14_820, 124, "  EXEC sp_Facturar  ")],
+        lectura.CONSULTA_BACKUPS: [("ERP", "FULL", 90_000, 1500, None, None)],
+        lectura.CONSULTA_AGENTE: [("Running", "Automatic")],
+        lectura.CONSULTA_JOBS: [
+            ("0AB5C67A-7114-4B59-B03A-65BDFEA1FE62", "Cierre", 1, 0, 30, 4, " Paso 1: falla ")
+            + (None, 12, None)
+        ],
     }
 
 
@@ -139,10 +145,19 @@ def monitor(entorno, monkeypatch):  # noqa: F811
             raise RuntimeError("mongo caído")
         return [{"ts": "2026-10-20T00:00:00+00:00", **dict.fromkeys(metricas, 1.0)}]
 
+    politicas = {}
+
+    def guardar_politica(base, tenant_id, conexion_id, politica):
+        politicas[conexion_id] = politica
+
     monkeypatch.setattr(repositorios, "listar_umbrales", listar_umbrales)
     monkeypatch.setattr(repositorios, "guardar_umbrales", guardar_umbrales)
     monkeypatch.setattr(repositorios, "serie", serie)
-    return {**entorno, "umbrales": guardados, "series": series}
+    monkeypatch.setattr(
+        repositorios, "obtener_politica", lambda base, t, conexion_id: politicas.get(conexion_id)
+    )
+    monkeypatch.setattr(repositorios, "guardar_politica", guardar_politica)
+    return {**entorno, "umbrales": guardados, "series": series, "politicas": politicas}
 
 
 async def test_estado_actual_sin_datos_y_con_lectura(monitor):

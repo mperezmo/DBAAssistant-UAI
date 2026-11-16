@@ -87,13 +87,26 @@ El SQL Server corre en Linux dentro de Docker, por lo que **no admite autenticac
 
 ### Instancias monitoreadas
 
-El login SQL de cada conexión necesita permiso para leer las vistas de administración:
+El login SQL de cada conexión necesita permiso para leer las vistas de administración
+(monitoreo y Query Store):
 
 ```sql
 GRANT VIEW SERVER STATE TO [login_de_la_conexion];
 ```
 
-El recolector empieza a leer una conexión nueva en hasta 30 segundos.
+Para backups y jobs del SQL Server Agent, además, lectura sobre `msdb`; y para programar
+backups (WK-09 y WK-10) y reintentar jobs (WK-11), crear y ejecutar jobs:
+
+```sql
+USE msdb;
+CREATE USER [login_de_la_conexion] FOR LOGIN [login_de_la_conexion];
+ALTER ROLE db_datareader ADD MEMBER [login_de_la_conexion];
+ALTER ROLE SQLAgentOperatorRole ADD MEMBER [login_de_la_conexion];
+-- En cada base que se respalda: ALTER ROLE db_backupoperator ADD MEMBER [usuario];
+```
+
+La prueba de conexión avisa qué permisos faltan. El recolector empieza a leer una conexión
+nueva en hasta 30 segundos.
 
 ### Notificaciones push
 

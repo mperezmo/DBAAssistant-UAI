@@ -1,7 +1,8 @@
 """Lectura de métricas de una instancia SQL Server mediante vistas de administración (DMV).
 
-El login de la conexión necesita el permiso ``VIEW SERVER STATE``. Las funciones son
-sincrónicas (pyodbc): el recolector las ejecuta en hilos aparte.
+El login de la conexión necesita el permiso ``VIEW SERVER STATE``; para backups y jobs del
+SQL Server Agent, además, lectura sobre ``msdb``. Las funciones son sincrónicas (pyodbc):
+el recolector las ejecuta en hilos aparte.
 """
 
 from dataclasses import dataclass
@@ -82,9 +83,91 @@ CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) AS st
 WHERE st.text NOT LIKE '%dba-assistant:monitor%'
 ORDER BY qs.total_worker_time DESC"""
 
+# Último backup full, diferencial y de log de cada base (minutos transcurridos). El GUID
+# descarta los backups de una base anterior con el mismo nombre; los 40 días acotan la
+# lectura de msdb (la política admite hasta 31 días entre backups full).
+CONSULTA_BACKUPS = f"""{MARCA}
+SELECT d.name, d.recovery_model_desc, DATEDIFF(MINUTE, d.create_date, GETDATE()),
+       DATEDIFF(MINUTE, MAX(CASE WHEN b.type = 'D' THEN b.backup_finish_date END), GETDATE()),
+       DATEDIFF(MINUTE, MAX(CASE WHEN b.type = 'I' THEN b.backup_finish_date END), GETDATE()),
+       DATEDIFF(MINUTE, MAX(CASE WHEN b.type = 'L' THEN b.backup_finish_date END), GETDATE())
+FROM sys.databases AS d
+JOIN sys.database_recovery_status AS rs ON rs.database_id = d.database_id
+LEFT JOIN msdb.dbo.backupset AS b
+    ON b.database_name = d.name AND b.database_guid = rs.database_guid
+   AND b.backup_finish_date >= DATEADD(DAY, -40, GETDATE())
+WHERE d.database_id <> 2 AND d.name <> N'model' AND d.state_desc = 'ONLINE'
+  AND d.source_database_id IS NULL
+GROUP BY d.name, d.recovery_model_desc, d.create_date
+ORDER BY d.name"""
+
+CONSULTA_HISTORIAL_BACKUPS = f"""{MARCA}
+SELECT TOP (10) b.type, b.is_copy_only, CONVERT(VARCHAR(19), b.backup_finish_date, 126),
+       DATEDIFF(SECOND, b.backup_start_date, b.backup_finish_date),
+       b.backup_size, b.compressed_backup_size, m.physical_device_name, b.user_name
+FROM msdb.dbo.backupset AS b
+OUTER APPLY (SELECT TOP (1) physical_device_name FROM msdb.dbo.backupmediafamily
+             WHERE media_set_id = b.media_set_id ORDER BY family_sequence_number) AS m
+WHERE b.database_name = ?
+ORDER BY b.backup_set_id DESC"""
+
+# Servicio SQL Server Agent (no existe en todas las ediciones; en Express no corre).
+CONSULTA_AGENTE = f"""{MARCA}
+SELECT status_desc, startup_type_desc FROM sys.dm_server_services
+WHERE servicename LIKE N'SQL Server Agent%'"""
+
+# Jobs con su última ejecución, el error del paso que falló, si están corriendo (en la
+# sesión actual del Agent), la duración promedio de sus ejecuciones exitosas y la próxima.
+_SEGUNDOS = "run_duration / 10000 * 3600 + run_duration / 100 % 100 * 60 + run_duration % 100"
+CONSULTA_JOBS = f"""{MARCA}
+WITH sesion AS (SELECT MAX(session_id) AS id FROM msdb.dbo.syssessions)
+SELECT CONVERT(NVARCHAR(36), j.job_id), j.name, j.enabled, h.run_status,
+       DATEDIFF(MINUTE, DATETIMEFROMPARTS(h.run_date / 10000, h.run_date / 100 % 100,
+           h.run_date % 100, h.run_time / 10000, h.run_time / 100 % 100, h.run_time % 100, 0),
+           GETDATE()),
+       h.duracion_s, paso.mensaje,
+       CASE WHEN a.start_execution_date IS NOT NULL AND a.stop_execution_date IS NULL
+            THEN DATEDIFF(SECOND, a.start_execution_date, GETDATE()) END,
+       prom.promedio_s, CONVERT(VARCHAR(16), a.next_scheduled_run_date, 126)
+FROM msdb.dbo.sysjobs AS j
+OUTER APPLY (SELECT TOP (1) instance_id, run_status, run_date, run_time,
+                    {_SEGUNDOS} AS duracion_s
+             FROM msdb.dbo.sysjobhistory WHERE job_id = j.job_id AND step_id = 0
+             ORDER BY instance_id DESC) AS h
+OUTER APPLY (SELECT TOP (1) step_name + N': ' + message AS mensaje
+             FROM msdb.dbo.sysjobhistory
+             WHERE job_id = j.job_id AND step_id > 0 AND run_status = 0 AND h.run_status = 0
+               AND instance_id < h.instance_id
+             ORDER BY instance_id DESC) AS paso
+OUTER APPLY (SELECT TOP (1) start_execution_date, stop_execution_date, next_scheduled_run_date
+             FROM msdb.dbo.sysjobactivity
+             WHERE job_id = j.job_id AND session_id = (SELECT id FROM sesion)) AS a
+OUTER APPLY (SELECT AVG(x.s) AS promedio_s
+             FROM (SELECT TOP (10) {_SEGUNDOS} AS s FROM msdb.dbo.sysjobhistory
+                   WHERE job_id = j.job_id AND step_id = 0 AND run_status = 1
+                   ORDER BY instance_id DESC) AS x) AS prom
+ORDER BY j.name"""
+
+# Historial de un job: ejecuciones (step_id 0) con sus pasos.
+CONSULTA_HISTORIAL_JOB = f"""{MARCA}
+SELECT TOP (300) step_id, step_name, run_status,
+       CONVERT(VARCHAR(19), DATETIMEFROMPARTS(run_date / 10000, run_date / 100 % 100,
+           run_date % 100, run_time / 10000, run_time / 100 % 100, run_time % 100, 0), 126),
+       {_SEGUNDOS}, message
+FROM msdb.dbo.sysjobhistory
+WHERE job_id = ?
+ORDER BY instance_id DESC"""
+
 # Leer el archivo de eventos es costoso: los deadlocks se actualizan cada minuto.
 INTERVALO_DEADLOCKS_SEGUNDOS = 60
+# Backups y jobs cambian poco: no hace falta leerlos en cada ciclo.
+INTERVALO_BACKUPS_SEGUNDOS = 300
+INTERVALO_JOBS_SEGUNDOS = 60
 GB = 1024**3
+# run_status de msdb.dbo.sysjobhistory.
+RESULTADOS_JOB = {0: "falla", 1: "exito", 2: "reintento", 3: "cancelado", 4: "en_curso"}
+PREFIJO_BACKUPS = "evento:backup_"
+PREFIJOS_AGENTE = ("evento:job", "evento:agente")
 
 
 @dataclass
@@ -95,6 +178,11 @@ class EstadoLectura:
     logins_en: float | None = None
     deadlocks: int | None = None
     deadlocks_en: float | None = None
+    backups: list[dict] | None = None
+    backups_en: float | None = None
+    jobs: list[dict] | None = None
+    agente: dict | None = None
+    jobs_en: float | None = None
 
 
 def _porcentaje(usado: float, total: float) -> float | None:
@@ -164,6 +252,25 @@ def leer(conexion: pyodbc.Connection, estado: EstadoLectura, ahora: float) -> Le
         estado.deadlocks = cursor.execute(CONSULTA_DEADLOCKS).fetchone()[0]
         estado.deadlocks_en = ahora
 
+    # Backups y jobs viven en msdb y pueden requerir permisos que el login no tenga: si
+    # fallan, el resto de la lectura vale igual y sus alertas quedan sin evaluar.
+    if estado.backups_en is None or ahora - estado.backups_en >= INTERVALO_BACKUPS_SEGUNDOS:
+        estado.backups_en = ahora
+        try:
+            estado.backups = leer_backups(cursor)
+        except pyodbc.Error:
+            estado.backups = None
+    if estado.jobs_en is None or ahora - estado.jobs_en >= INTERVALO_JOBS_SEGUNDOS:
+        estado.jobs_en = ahora
+        try:
+            estado.agente = leer_agente(cursor)
+            estado.jobs = leer_jobs(cursor)
+        except pyodbc.Error:
+            estado.agente, estado.jobs = None, None
+    no_evaluadas = ((PREFIJO_BACKUPS,) if estado.backups is None else ()) + (
+        PREFIJOS_AGENTE if estado.jobs is None else ()
+    )
+
     return Lectura(
         valores={
             "cpu": cpu,
@@ -179,7 +286,101 @@ def leer(conexion: pyodbc.Connection, estado: EstadoLectura, ahora: float) -> Le
         volumenes=volumenes,
         bases_no_disponibles=bases,
         logs=logs,
+        backups=estado.backups,
+        jobs=estado.jobs,
+        agente=estado.agente,
+        no_evaluadas=no_evaluadas,
     )
+
+
+def leer_backups(cursor: pyodbc.Cursor) -> list[dict]:
+    """Minutos desde el último backup de cada tipo (None: no hubo en los últimos 40 días)."""
+    return [
+        {
+            "base": f[0],
+            "recuperacion": f[1],
+            "creada_min": f[2],
+            "full_min": f[3],
+            "diferencial_min": f[4],
+            "log_min": f[5],
+        }
+        for f in cursor.execute(CONSULTA_BACKUPS).fetchall()
+    ]
+
+
+def leer_agente(cursor: pyodbc.Cursor) -> dict | None:
+    fila = cursor.execute(CONSULTA_AGENTE).fetchone()
+    return {"estado": fila[0], "inicio": fila[1]} if fila else None
+
+
+def leer_jobs(cursor: pyodbc.Cursor) -> list[dict]:
+    return [
+        {
+            "id": f[0],
+            "nombre": f[1],
+            "habilitado": bool(f[2]),
+            "resultado": RESULTADOS_JOB.get(f[3]) if f[3] is not None else None,
+            "hace_min": f[4],
+            "duracion_s": f[5],
+            "error": (f[6] or "").strip()[:1000] or None,
+            "corriendo_s": f[7],
+            "promedio_s": f[8],
+            "proxima": f[9],
+        }
+        for f in cursor.execute(CONSULTA_JOBS).fetchall()
+    ]
+
+
+def historial_backups(conexion: pyodbc.Connection, base: str) -> list[dict]:
+    tipos = {"D": "full", "I": "diferencial", "L": "log"}
+    return [
+        {
+            "tipo": tipos.get(f[0], f[0]),
+            "copy_only": bool(f[1]),
+            "fin": f[2],
+            "duracion_s": f[3],
+            "tamano_mb": round(float(f[4] or 0) / 1048576, 1),
+            "comprimido_mb": round(float(f[5]) / 1048576, 1) if f[5] else None,
+            "archivo": f[6],
+            "usuario": f[7],
+        }
+        for f in conexion.cursor().execute(CONSULTA_HISTORIAL_BACKUPS, base).fetchall()
+    ]
+
+
+def historial_job(conexion: pyodbc.Connection, job_id: str, maximo: int = 20) -> list[dict]:
+    """Últimas ejecuciones de un job, cada una con sus pasos (de la más reciente a la más
+    vieja). En msdb cada ejecución termina con una fila de resultado (paso 0) y sus pasos
+    quedan antes que ella."""
+    ejecuciones: list[dict] = []
+    actual: dict | None = None
+    for paso, nombre, estado, inicio, duracion, mensaje in (
+        conexion.cursor().execute(CONSULTA_HISTORIAL_JOB, job_id).fetchall()
+    ):
+        if paso == 0:
+            if len(ejecuciones) == maximo:
+                break
+            actual = {
+                "inicio": inicio,
+                "duracion_s": duracion,
+                "resultado": RESULTADOS_JOB.get(estado),
+                "mensaje": (mensaje or "").strip(),
+                "pasos": [],
+            }
+            ejecuciones.append(actual)
+        elif actual is not None:
+            actual["pasos"].insert(
+                0,
+                {
+                    "paso": paso,
+                    "nombre": nombre,
+                    "resultado": RESULTADOS_JOB.get(estado),
+                    "inicio": inicio,
+                    "duracion_s": duracion,
+                    "mensaje": (mensaje or "").strip(),
+                },
+            )
+    return ejecuciones
 
 
 def consultas_costosas(conexion: pyodbc.Connection) -> list[dict]:

@@ -87,6 +87,10 @@
           <strong class="metric-mono" x-text="datos ? datos.salud.sesiones.toLocaleString() : '—'"></strong>
           <span class="text-fg-muted">{{ t("inicio.salud.bloqueos") }}</span>
           <strong class="metric-mono" :style="datos?.salud.bloqueos_prolongados ? 'color: var(--mustard)' : ''" x-text="datos ? datos.salud.bloqueos_prolongados : '—'"></strong>
+          <span class="text-fg-muted">{{ t("inicio.salud.backups") }}</span>
+          <strong class="metric-mono" :style="datos?.salud.backups_atrasados ? 'color: var(--mustard)' : ''" x-text="datos ? datos.salud.backups_atrasados : '—'"></strong>
+          <span class="text-fg-muted">{{ t("inicio.salud.jobs") }}</span>
+          <strong class="metric-mono" :class="datos?.salud.jobs_con_falla ? 'text-danger' : ''" x-text="datos ? datos.salud.jobs_con_falla : '—'"></strong>
         </div>
       </div>
     </section>

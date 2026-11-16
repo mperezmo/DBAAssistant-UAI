@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -331,10 +331,33 @@ def dentro_de_ventana(conexion: Conexion, ahora: datetime | None = None) -> bool
     return local >= inicio or local < fin
 
 
+def inicio_sugerido(conexion: Conexion, diagnostico: dict, ahora: datetime | None = None) -> str:
+    """Hora sugerida para un backup programado, en hora del servidor SQL: el inicio de la
+    próxima ventana de mantenimiento (o en unos minutos, si ya está dentro de ella). Sin
+    ventana configurada, las 02:00 siguientes del servidor."""
+    zona_servidor = timezone(timedelta(minutes=diagnostico["desfase_min"]))
+    ahora = (ahora or datetime.now(UTC)).astimezone(zona_servidor)
+    if conexion.ventana_inicio is None or conexion.ventana_fin is None:
+        candidato = ahora.replace(hour=2, minute=0, second=0, microsecond=0)
+    elif dentro_de_ventana(conexion, ahora):
+        candidato = ahora + timedelta(minutes=5 - ahora.minute % 5 + 5)
+    else:
+        local = ahora.astimezone(ZoneInfo(conexion.zona_horaria))
+        candidato = local.replace(
+            hour=conexion.ventana_inicio.hour,
+            minute=conexion.ventana_inicio.minute,
+            second=0,
+            microsecond=0,
+        ).astimezone(zona_servidor)
+    if candidato <= ahora:
+        candidato += timedelta(days=1)
+    return candidato.replace(second=0, microsecond=0).strftime(integrados.FORMATO_INICIO)
+
+
 def _leer_diagnostico(
     conexion: Conexion, base: str | None, integrado: integrados.Integrado
 ) -> dict:
-    if integrado.id == "iniciar_servicio":
+    if integrado.id in integrados.SERVICIOS_WINRM:
         if not conexion.tiene_winrm:
             raise ErrorDominio("WRM_000", "La conexión no tiene WinRM configurado.")
         try:
@@ -344,7 +367,7 @@ def _leer_diagnostico(
                 conexion.winrm_https,
                 conexion.winrm_usuario,
                 cifrado.descifrar(conexion.winrm_password_cifrada),
-                integrados.SCRIPT_ESTADO_SERVICIOS,
+                integrados.SERVICIOS_WINRM[integrado.id][0],
             )
             return {"servicios": integrados.servicios_desde_json(resultado.salida)}
         except ErrorDominio:
@@ -358,9 +381,13 @@ def _leer_diagnostico(
             cifrado.descifrar(conexion.password_sql_cifrada),
             base or sqlserver.BASE_SISTEMA,
         ) as abierta:
-            return integrados.diagnosticar(integrado, abierta)
+            datos = integrados.diagnosticar(integrado, abierta)
     except Exception as error:
         raise ErrorDominio("CON_DB_000", str(error)) from error
+    if integrado.id in ("programar_backup_full", "programar_backup_log"):
+        datos["sugerido"] = inicio_sugerido(conexion, datos)
+        datos["ventana"] = conexion.ventana_inicio is not None
+    return datos
 
 
 async def _preparar(

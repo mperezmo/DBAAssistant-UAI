@@ -62,6 +62,8 @@ class ResultadoPrueba:
     version: str
     edicion: str
     bases: int
+    # Permisos que le faltan al login (ver conexiones.repositorios.PERMISOS).
+    faltantes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
