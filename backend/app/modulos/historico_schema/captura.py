@@ -1,11 +1,14 @@
 """Snapshot de la estructura de una base y diferencias entre dos snapshots.
 
 Se lee del catálogo de la base (sin sqlpackage): tablas con sus columnas, claves e
-índices, y el código de vistas, procedimientos, funciones y triggers. Cada objeto queda
-como un texto DDL legible, así el diff se puede mostrar lado a lado.
+índices (y el versionado si son temporales), y el código de vistas, procedimientos,
+funciones y triggers, incluidos los de base de datos. Cada objeto queda como un texto DDL
+legible, así el diff se puede mostrar lado a lado.
 """
 
 from collections import defaultdict
+
+import pyodbc
 
 CONSULTA_COLUMNAS = """
     SELECT s.name, t.name, c.name, ty.name, c.max_length, c.precision, c.scale,
@@ -52,6 +55,27 @@ CONSULTA_MODULOS = """
     JOIN sys.schemas s ON s.schema_id = o.schema_id
     WHERE o.is_ms_shipped = 0 AND o.type IN ('V', 'P', 'FN', 'IF', 'TF', 'TR')
 """
+# Tablas temporales (SQL Server 2017+): período y tabla de historia. En versiones
+# anteriores la consulta falla y las tablas se describen sin versionado.
+CONSULTA_TEMPORALES = """
+    SELECT s.name, t.name, cs.name, cs.is_hidden, ce.name, ce.is_hidden, sh.name, th.name,
+           t.history_retention_period, t.history_retention_period_unit_desc
+    FROM sys.tables t
+    JOIN sys.schemas s ON s.schema_id = t.schema_id
+    JOIN sys.periods p ON p.object_id = t.object_id
+    JOIN sys.columns cs ON cs.object_id = t.object_id AND cs.column_id = p.start_column_id
+    JOIN sys.columns ce ON ce.object_id = t.object_id AND ce.column_id = p.end_column_id
+    JOIN sys.tables th ON th.object_id = t.history_table_id
+    JOIN sys.schemas sh ON sh.schema_id = th.schema_id
+    WHERE t.temporal_type = 2
+"""
+# Triggers de base de datos (DDL): no figuran en sys.objects.
+CONSULTA_TRIGGERS_BASE = """
+    SELECT tr.name, m.definition
+    FROM sys.triggers tr
+    JOIN sys.sql_modules m ON m.object_id = tr.object_id
+    WHERE tr.parent_class = 0 AND tr.is_ms_shipped = 0
+"""
 TIPOS_MODULO = {
     "V": "vista",
     "P": "procedimiento",
@@ -78,9 +102,32 @@ def _tipo(nombre: str, largo: int, precision: int, escala: int) -> str:
     return nombre
 
 
+def _temporales(cursor) -> dict[tuple[str, str], dict]:
+    try:
+        filas = cursor.execute(CONSULTA_TEMPORALES).fetchall()
+    except pyodbc.Error:
+        return {}
+    temporales = {}
+    for fila in filas:
+        esquema, tabla, inicio, inicio_oculto, fin, fin_oculto, *historia, periodo, unidad = fila
+        infinita = periodo is None or periodo < 0 or unidad == "INFINITE"
+        retencion = "INFINITE" if infinita else f"{periodo} {unidad}S"
+        tabla_historia = f"{_q(historia[0])}.{_q(historia[1])}"
+        temporales[(esquema, tabla)] = {
+            "columnas": {inicio: ("START", inicio_oculto), fin: ("END", fin_oculto)},
+            "periodo": f"    PERIOD FOR SYSTEM_TIME ({_q(inicio)}, {_q(fin)})",
+            "versionado": (
+                f" WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = {tabla_historia},"
+                f" HISTORY_RETENTION_PERIOD = {retencion}))"
+            ),
+        }
+    return temporales
+
+
 def capturar(abierta) -> dict[str, dict]:
     """Objetos de la base abierta, por clave ``tipo:esquema.nombre``."""
     cursor = abierta.cursor()
+    temporales = _temporales(cursor)
     columnas: dict[tuple[str, str], list[str]] = defaultdict(list)
     for (
         esquema,
@@ -97,6 +144,9 @@ def capturar(abierta) -> dict[str, dict]:
     ) in cursor.execute(CONSULTA_COLUMNAS).fetchall():
         linea = f"    {_q(col)} {_tipo(tipo, largo, precision, escala)}"
         linea += " IDENTITY" if identidad else ""
+        periodo = temporales.get((esquema, tabla), {}).get("columnas", {}).get(col)
+        if periodo:
+            linea += f" GENERATED ALWAYS AS ROW {periodo[0]}" + (" HIDDEN" if periodo[1] else "")
         linea += " NULL" if nula else " NOT NULL"
         linea += f" DEFAULT {defecto}" if defecto else ""
         columnas[(esquema, tabla)].append(linea)
@@ -161,11 +211,14 @@ def capturar(abierta) -> dict[str, dict]:
         restricciones[(esquema, tabla)].append(linea)
 
     for (esquema, tabla), lineas in columnas.items():
-        cuerpo = ",\n".join(lineas + restricciones.get((esquema, tabla), []))
+        temporal = temporales.get((esquema, tabla))
+        periodo = [temporal["periodo"]] if temporal else []
+        cuerpo = ",\n".join(lineas + periodo + restricciones.get((esquema, tabla), []))
+        versionado = temporal["versionado"] if temporal else ""
         objetos[f"tabla:{esquema}.{tabla}"] = {
             "tipo": "tabla",
             "nombre": f"{esquema}.{tabla}",
-            "definicion": f"CREATE TABLE {_q(esquema)}.{_q(tabla)} (\n{cuerpo}\n);",
+            "definicion": f"CREATE TABLE {_q(esquema)}.{_q(tabla)} (\n{cuerpo}\n){versionado};",
         }
 
     for tipo, esquema, nombre, definicion in cursor.execute(CONSULTA_MODULOS).fetchall():
@@ -173,10 +226,24 @@ def capturar(abierta) -> dict[str, dict]:
         objetos[f"{clase}:{esquema}.{nombre}"] = {
             "tipo": clase,
             "nombre": f"{esquema}.{nombre}",
-            # Sin espacios finales por renglón: el motor a veces los agrega al guardar.
-            "definicion": "\n".join(r.rstrip() for r in (definicion or "").strip().splitlines()),
+            "definicion": _sin_espacios_finales(definicion),
+        }
+    try:
+        triggers_base = cursor.execute(CONSULTA_TRIGGERS_BASE).fetchall()
+    except pyodbc.Error:
+        triggers_base = []
+    for nombre, definicion in triggers_base:
+        objetos[f"trigger:{nombre}"] = {
+            "tipo": "trigger",
+            "nombre": nombre,
+            "definicion": _sin_espacios_finales(definicion),
         }
     return objetos
+
+
+def _sin_espacios_finales(definicion: str | None) -> str:
+    # Sin espacios finales por renglón: el motor a veces los agrega al guardar.
+    return "\n".join(r.rstrip() for r in (definicion or "").strip().splitlines())
 
 
 def diferencias(antes: dict[str, dict], despues: dict[str, dict]) -> list[dict]:

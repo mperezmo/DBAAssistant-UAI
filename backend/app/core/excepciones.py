@@ -5,6 +5,9 @@ Un handler de logging toma los registros a partir del nivel configurado por cada
 ``bitacora_excepciones`` del tenant. Así el log nunca espera a la base y una caída de
 MongoDB no frena la aplicación (los registros que no entran en la cola se descartan).
 Los logs sin tenant (arranque, tareas globales) van a la base de la plataforma.
+
+Además de los logs del código, quedan las respuestas HTTP con error (4xx como WARNING y
+5xx como ERROR, ver ``registro_http``): el campo ``origen`` distingue unos de otros.
 """
 
 import logging
@@ -42,8 +45,13 @@ def actualizar_nivel(slug: str, nivel: str) -> None:
     _niveles[slug] = logging.getLevelName(nivel)
 
 
+ORIGEN_HTTP = "http"
+ORIGEN_CODIGO = "codigo"
+
+
 def documento(registro: logging.LogRecord, slug: str | None, usuario: str | None) -> dict:
     mensaje = registro.getMessage()
+    http = getattr(registro, "http", None)
     traza = None
     if registro.exc_info:
         traza = "".join(traceback.format_exception(*registro.exc_info))
@@ -55,8 +63,13 @@ def documento(registro: logging.LogRecord, slug: str | None, usuario: str | None
         "mensaje": mensaje[:4000],
         "codigo": codigo.group(0) if codigo else None,
         "traza": traza[-8000:] if traza else None,
-        "usuario": usuario,
+        # En los errores HTTP el usuario lo informa el middleware: la variable de contexto
+        # se fija dentro de la petición y no llega hasta él.
+        "usuario": (http or {}).get("usuario") or usuario,
         "ruta": contexto.ruta.get(),
+        "ip": contexto.ip.get(),
+        "origen": ORIGEN_HTTP if http else ORIGEN_CODIGO,
+        "http": {k: v for k, v in http.items() if k != "usuario"} if http else None,
         "tenant": slug,
     }
 
@@ -66,6 +79,11 @@ class ManejadorExcepciones(logging.Handler):
         super().__init__(logging.DEBUG)
         self.cola: queue.Queue = queue.Queue(CAPACIDAD_COLA)
         self.escritor: threading.Thread | None = None
+        # Contadores para el panel de Soporte (cola de la bitácora).
+        self.descartados = 0
+        self.escritos = 0
+        self.fallidos = 0
+        self.ultima_falla: datetime | None = None
 
     def emit(self, registro: logging.LogRecord) -> None:
         # Los logs del propio escritor (por ejemplo, MongoDB caído) no se vuelven a encolar.
@@ -77,7 +95,7 @@ class ManejadorExcepciones(logging.Handler):
         try:
             self.cola.put_nowait(documento(registro, slug, contexto.usuario.get()))
         except queue.Full:
-            pass
+            self.descartados += 1
         except Exception:
             self.handleError(registro)
 
@@ -139,7 +157,10 @@ class Escritor:
             base = self.bases.get(doc["tenant"]) or self.plataforma
             try:
                 cliente[base][COLECCION].insert_one(doc)
+                self.manejador.escritos += 1
             except Exception:
+                self.manejador.fallidos += 1
+                self.manejador.ultima_falla = datetime.now(UTC)
                 logging.getLogger(__name__).exception("No se pudo guardar una excepción.")
         if cliente is not None:
             cliente.close()
@@ -163,6 +184,22 @@ def iniciar(tenants_activos) -> None:
         _manejador, tenants_activos, obtener_configuracion().mongodb_base_plataforma
     )
     _escritor.iniciar()
+
+
+def estadisticas() -> dict | None:
+    """Estado de la cola de la bitácora en esta réplica; None si no está iniciada."""
+    if _manejador is None:
+        return None
+    hilo = _manejador.escritor
+    return {
+        "pendientes": _manejador.cola.qsize(),
+        "capacidad": CAPACIDAD_COLA,
+        "escritos": _manejador.escritos,
+        "descartados": _manejador.descartados,
+        "fallidos": _manejador.fallidos,
+        "ultima_falla": _manejador.ultima_falla,
+        "escritor_activo": bool(hilo and hilo.is_alive()),
+    }
 
 
 def detener() -> None:

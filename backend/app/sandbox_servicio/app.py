@@ -52,6 +52,11 @@ def crear_app() -> FastAPI:
     configurar_registro("INFO")
     app = FastAPI(title="DBA Assistant · Sandbox", dependencies=[Depends(autenticar)])
 
+    @app.get("/salud")
+    async def salud() -> dict:
+        await run_in_threadpool(contenedores.verificar)
+        return {"estado": "ok"}
+
     @app.get("/sandboxes/{clave}")
     async def estado(clave: str) -> dict:
         return await run_in_threadpool(contenedores.estado, _clave(clave))

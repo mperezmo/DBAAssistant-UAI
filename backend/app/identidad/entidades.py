@@ -26,6 +26,7 @@ MODULOS_POR_ROL: dict[str, frozenset[str]] = {
             "buenas_practicas",
             "admin",
             "conexiones",
+            "soporte",
         }
     ),
     "DBA": frozenset(

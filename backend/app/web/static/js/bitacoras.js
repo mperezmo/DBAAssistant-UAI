@@ -1,10 +1,11 @@
-// Componente Alpine de Auditoría (CU-000-009 A, B, C y D).
+// Componente Alpine de las bitácoras (CU-000-009 A, B, C y D). Lo usan Auditoría
+// (transacciones, /api/auditoria) y Soporte (sistema y logs, /api/soporte/bitacoras).
 document.addEventListener("alpine:init", () => {
-  const TEXTOS = window.TEXTOS_AUDITORIA;
+  const TEXTOS = window.TEXTOS_BITACORAS;
   const api = window.DBA.api;
-  const VACIOS = { desde: "", hasta: "", usuario: "", ambiente: "", tipo: "", texto: "" };
+  const VACIOS = { desde: "", hasta: "", usuario: "", ambiente: "", tipo: "", texto: "", origen: "" };
 
-  Alpine.data("auditoria", () => ({
+  Alpine.data("bitacoras", (base) => ({
     TEXTOS,
     bitacoras: [], totales: {}, actual: "", filtros: { ...VACIOS }, registros: [], total: 0,
     pagina: 1, paginas: 1, nivel: "WARNING", puedeConfigurarNivel: false, detalle: null,
@@ -12,11 +13,11 @@ document.addEventListener("alpine:init", () => {
 
     async iniciar() {
       try {
-        const r = await api("GET", "/api/auditoria");
+        const r = await api("GET", base);
         this.bitacoras = r.bitacoras;
         this.totales = r.totales;
-        this.nivel = r.nivel_excepciones;
-        this.puedeConfigurarNivel = r.puede_configurar_nivel;
+        this.nivel = r.nivel_excepciones || "WARNING";
+        this.puedeConfigurarNivel = !!r.puede_configurar_nivel;
         const pedida = new URLSearchParams(location.search).get("bitacora");
         await this.elegir(this.bitacoras.includes(pedida) ? pedida : this.bitacoras[0]);
       } catch (error) {
@@ -46,7 +47,7 @@ document.addEventListener("alpine:init", () => {
       const params = this.consulta();
       params.set("pagina", pagina);
       try {
-        const r = await api("GET", `/api/auditoria/${this.actual}?${params}`);
+        const r = await api("GET", `${base}/${this.actual}?${params}`);
         Object.assign(this, { registros: r.registros, total: r.total, pagina: r.pagina, paginas: r.paginas });
         this.error = null;
       } catch (error) {
@@ -57,7 +58,7 @@ document.addEventListener("alpine:init", () => {
 
     async ver(r) {
       try {
-        this.detalle = await api("GET", `/api/auditoria/${this.actual}/registros/${r.id}`);
+        this.detalle = await api("GET", `${base}/${this.actual}/registros/${r.id}`);
       } catch (error) {
         this.error = error.message;
       }
@@ -70,7 +71,7 @@ document.addEventListener("alpine:init", () => {
       const params = this.consulta();
       params.set("formato", formato);
       try {
-        const respuesta = await fetch(`/api/auditoria/${this.actual}/exportar?${params}`);
+        const respuesta = await fetch(`${base}/${this.actual}/exportar?${params}`);
         if (!respuesta.ok) {
           const datos = await respuesta.json();
           this.error = datos.codigo === "EXP_LIM_000"
@@ -92,7 +93,7 @@ document.addEventListener("alpine:init", () => {
 
     async cambiarNivel() {
       try {
-        this.nivel = (await api("PUT", "/api/auditoria/excepciones/nivel", { nivel: this.nivel })).nivel;
+        this.nivel = (await api("PUT", `${base}/excepciones/nivel`, { nivel: this.nivel })).nivel;
       } catch (error) {
         this.error = error.message;
       }
@@ -111,6 +112,9 @@ document.addEventListener("alpine:init", () => {
     },
     colorResultado(resultado) {
       return ["fallida", "revertida", "error"].includes(resultado) ? "var(--terracotta)" : "var(--sage)";
+    },
+    origen(r) {
+      return r.origen === "http" ? `HTTP ${r.estado ?? ""}`.trim() : TEXTOS.origenCodigo;
     },
     colorNivel(nivel) {
       return { CRITICAL: "var(--terracotta)", ERROR: "var(--terracotta)", WARNING: "var(--mustard)" }[nivel] || "var(--fg-muted)";

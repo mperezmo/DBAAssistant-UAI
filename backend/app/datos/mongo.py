@@ -28,6 +28,8 @@ COLECCION_CONTEXTO = "contexto_negocio"
 BUCKET_DOCUMENTOS = "documentos"
 COLECCION_HILOS = "chat_hilos"
 COLECCION_SCHEMA = "schema_versiones"
+# Versiones de la estructura de la base propia de la aplicación (Soporte).
+COLECCION_SCHEMA_APLICACION = "schema_aplicacion"
 COLECCION_INFORMES = "informes_buenas_practicas"
 COLECCION_REGLAS_BP = "reglas_buenas_practicas"
 
@@ -84,6 +86,11 @@ async def preparar_base_tenant(nombre: str) -> None:
         ],
         unique=True,
         name="version_por_base",
+    )
+    await db[COLECCION_SCHEMA_APLICACION].create_index(
+        [("tenant_id", ASCENDING), ("version", ASCENDING)],
+        unique=True,
+        name="version_por_tenant",
     )
     await db[COLECCION_INFORMES].create_index([("tenant_id", ASCENDING), ("ts", ASCENDING)])
     await db[COLECCION_HILOS].create_index(

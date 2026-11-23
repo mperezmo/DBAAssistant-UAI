@@ -21,7 +21,7 @@ from typing import Protocol
 import pyodbc
 from starlette.concurrency import run_in_threadpool
 
-from app.core import cifrado, contexto
+from app.core import cifrado, contexto, procesos
 from app.core.config import obtener_configuracion
 from app.datos import cache, sqlserver
 from app.modulos.conexiones import repositorios as conexiones
@@ -74,11 +74,20 @@ class Recolector:
         log.info("Recolector de métricas iniciado (cada %s s).", intervalo)
         while True:
             inicio = time.monotonic()
+            activo = False
             try:
-                if await self._tomar_candado():
+                activo = await self._tomar_candado()
+                if activo:
                     await self.ciclo()
             except Exception:
                 log.exception("Falla en el ciclo del recolector de métricas.")
+            procesos.latido(
+                "recolector",
+                intervalo,
+                activo,
+                conexiones=len(self._catalogo),
+                en_curso=len(self._en_curso),
+            )
             await asyncio.sleep(max(0.0, intervalo - (time.monotonic() - inicio)))
 
     async def _tomar_candado(self) -> bool:

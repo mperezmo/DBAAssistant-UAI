@@ -99,6 +99,14 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
   - consultas costosas por base desde Query Store, con tendencia, regresiones y cambios de
     plan, y activación de Query Store (WK-13);
   - la prueba de conexión informa los permisos que le faltan al login.
+- **Sprint 14 (en `dev`, pendiente de QA):** Soporte, el panel técnico del Administrador:
+  - salud de los servicios (movida desde el Panel Admin, con el Sandbox), cola de la bitácora
+    de logs y procesos en segundo plano;
+  - logs de la aplicación con las respuestas HTTP con error (4xx y 5xx) y los errores del
+    código, y la auditoría del sistema; Auditoría queda con la bitácora de transacciones;
+  - historia de la base de la aplicación: tablas temporales (datos a través del tiempo, 5
+    años), trigger DDL (cada cambio de estructura, también desde SSMS) y versiones de la
+    estructura por migración o cambio detectado, comparables y descargables como script.
 - **Pendiente:** despliegue en Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.

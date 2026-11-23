@@ -13,7 +13,6 @@ from app.modulos.auditoria import reporte_pdf, repositorios, servicios
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.auditoria.servicios import Filtros
 from tests.test_conexiones import (
-    CABECERA,
     TENANT,
     _actor,
     _navegador,
@@ -144,8 +143,18 @@ def test_filtros_a_mongo():
     excepcion = servicios.filtro_mongo(TENANT, "excepciones", Filtros(tipo="error", texto="a.b"))
     assert excepcion["tenant"] == "acme" and excepcion["nivel"] == "ERROR"
     assert {"mensaje": {"$regex": "a\\.b", "$options": "i"}} in excepcion["$or"]
+    assert {"ruta": {"$regex": "a\\.b", "$options": "i"}} in excepcion["$or"]
     with pytest.raises(ErrorDominio):
         servicios.filtro_mongo(TENANT, "transacciones", Filtros(ambiente="QA"))
+
+    # Origen de los logs: los registros previos a los logs HTTP cuentan como del código.
+    http = servicios.filtro_mongo(TENANT, "excepciones", Filtros(origen="http"))
+    assert http["origen"] == "http"
+    codigo = servicios.filtro_mongo(TENANT, "excepciones", Filtros(origen="codigo"))
+    assert codigo["origen"] == {"$ne": "http"}
+    assert "origen" not in servicios.filtro_mongo(TENANT, "sistema", Filtros(origen="http"))
+    with pytest.raises(ErrorDominio):
+        servicios.filtro_mongo(TENANT, "excepciones", Filtros(origen="otro"))
 
 
 async def test_listar_y_detalle(bitacoras):
@@ -175,12 +184,24 @@ async def test_listar_y_detalle(bitacoras):
     assert error.value.codigo == "USR_PER_000"
     sistema = await servicios.listar(TENANT, _actor("ADMINISTRADOR"), "sistema", Filtros(), 1)
     assert '"email": "x@acme.com"' in sistema["registros"][0]["resumen"]
-    assert servicios.bitacoras_visibles(_actor("DBA")) == ["transacciones", "excepciones"]
-    assert await servicios.totales(TENANT, _actor("ADMINISTRADOR")) == {
+    # Auditoría muestra transacciones; sistema y logs son de Soporte (solo Administrador).
+    assert servicios.bitacoras_visibles(_actor("DBA"), servicios.BITACORAS_AUDITORIA) == [
+        "transacciones"
+    ]
+    assert servicios.bitacoras_visibles(_actor("DBA"), servicios.BITACORAS_SOPORTE) == []
+    todas = servicios.BITACORAS_AUDITORIA + servicios.BITACORAS_SOPORTE
+    assert await servicios.totales(TENANT, _actor("ADMINISTRADOR"), todas) == {
         "transacciones": 3,
         "sistema": 1,
         "excepciones": 1,
     }
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.listar(TENANT, _actor("DBA"), "excepciones", Filtros(), 1)
+    assert error.value.codigo == "USR_PER_000"
+    logs = await servicios.listar(TENANT, _actor("ADMINISTRADOR"), "excepciones", Filtros(), 1)
+    assert logs["registros"][0]["origen"] == "codigo"
+    assert logs["registros"][0]["origen_texto"] == "Código"
+    assert logs["registros"][0]["estado"] is None
     with pytest.raises(ErrorDominio):
         await servicios.listar(TENANT, _actor("DBA"), "otra", Filtros(), 1)
 
@@ -201,7 +222,7 @@ async def test_exportar_csv_y_pdf(bitacoras, monkeypatch):
         "filtros": {"usuario": "dba"},
     }
 
-    pdf = await servicios.exportar_pdf(TENANT, _actor("DBA"), "excepciones", Filtros())
+    pdf = await servicios.exportar_pdf(TENANT, _actor("ADMINISTRADOR"), "excepciones", Filtros())
     assert (
         pdf.startswith(b"%PDF") and bitacoras["eventos_auditoria"][-1].detalle["formato"] == "pdf"
     )
@@ -251,21 +272,17 @@ async def test_nivel_de_excepciones(bitacoras):
 async def test_api_auditoria(bitacoras):
     admin = await _navegador(bitacoras, "ADMINISTRADOR")
     r = admin.get("/api/auditoria").json()
-    assert r["bitacoras"] == ["transacciones", "sistema", "excepciones"]
-    assert r["puede_configurar_nivel"] is True
+    assert r == {"bitacoras": ["transacciones"], "totales": {"transacciones": 3}}
     pagina = admin.get("/api/auditoria/transacciones?pagina=1&usuario=dba&desde=2026-10-01").json()
     assert pagina["total"] == 3
     assert bitacoras["consultas"][-1][1]["usuario"]["$regex"] == "dba"
     registro = pagina["registros"][0]["id"]
     assert admin.get(f"/api/auditoria/transacciones/registros/{registro}").status_code == 200
-    csv = admin.get("/api/auditoria/sistema/exportar?formato=csv")
-    assert csv.status_code == 200 and "usuario.creado" in csv.text
-    pdf = admin.get("/api/auditoria/excepciones/exportar?formato=pdf")
-    assert pdf.headers["content-type"] == "application/pdf"
-    assert admin.put(
-        "/api/auditoria/excepciones/nivel", json={"nivel": "INFO"}, headers=CABECERA
-    ).json() == {"nivel": "INFO"}
-    excepciones._niveles.clear()
+    csv = admin.get("/api/auditoria/transacciones/exportar?formato=csv")
+    assert csv.status_code == 200 and "SELECT (chat)" in csv.text
+    # Sistema y logs se consultan desde Soporte.
+    assert admin.get("/api/auditoria/sistema").status_code == 422
+    assert admin.get("/api/auditoria/excepciones/exportar?formato=pdf").status_code == 422
 
     consulta = await _navegador(bitacoras, "CONSULTA")
     assert consulta.get("/api/auditoria").status_code == 403
@@ -288,6 +305,14 @@ def test_documento_de_excepcion():
     doc = excepciones.documento(registro, "acme", "dba@acme.com")
     assert doc["codigo"] == "CON_DB_003" and doc["nivel"] == "ERROR" and doc["ruta"] == "/api/x"
     assert "ValueError: falló" in doc["traza"] and doc["usuario"] == "dba@acme.com"
+    assert doc["origen"] == "codigo" and doc["http"] is None
+
+    # Respuesta HTTP con error: el usuario lo informa el middleware.
+    http = _registro(logging.WARNING, "GET /api/x 404")
+    http.http = {"metodo": "GET", "estado": 404, "duracion_ms": 3, "usuario": "a@acme.com"}
+    doc = excepciones.documento(http, "acme", None)
+    assert doc["origen"] == "http" and doc["usuario"] == "a@acme.com"
+    assert doc["http"] == {"metodo": "GET", "estado": 404, "duracion_ms": 3}
     assert (
         excepciones.documento(_registro(logging.WARNING, "WRM_000 x"), None, None)["codigo"]
         == "WRM_000"
@@ -310,7 +335,7 @@ def test_manejador_filtra_por_nivel_del_tenant():
     manejador.cola = queue.Queue(1)
     manejador.emit(_registro(logging.ERROR, "uno"))
     manejador.emit(_registro(logging.ERROR, "dos"))  # cola llena: se descarta
-    assert manejador.cola.qsize() == 1
+    assert manejador.cola.qsize() == 1 and manejador.descartados == 1
 
 
 def test_escritor_guarda_en_la_base_del_tenant(monkeypatch):
@@ -347,12 +372,13 @@ def test_escritor_guarda_en_la_base_del_tenant(monkeypatch):
     manejador.cola.put({"tenant": None, "mensaje": "dos"})
     escritor.iniciar()
     for _ in range(100):
-        if len(guardados) == 2:
+        if len(guardados) == 2 and manejador.escritos == 2:
             break
         time.sleep(0.02)
     escritor.detener.set()
     assert guardados[0] == ("db_t_acme", "bitacora_excepciones", "uno")
     assert guardados[1] == ("plataforma", "bitacora_excepciones", "dos")
+    assert manejador.escritos == 2
     assert excepciones.nivel_de("acme") == logging.ERROR
     excepciones._niveles.clear()
 

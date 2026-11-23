@@ -40,6 +40,7 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Alertas *(agregado)* | `alertas` |
 | Conexiones *(agregado: instancias registradas)* | `conexiones` |
 | Inicio *(agregado: panel principal)* | `inicio` |
+| Soporte *(agregado: panel técnico del Administrador)* | `soporte` |
 
 ## Decisiones tomadas
 
@@ -52,7 +53,7 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Dependencias | `uv` con `pyproject.toml` y `uv.lock`. |
 | Linter / tests | `ruff` (lint y formato) y `pytest` con cobertura mínima del 80%. |
 | SQL Server | Estructura funcional: tenants, conexiones, usuarios, roles, permisos por ambiente, métricas y umbrales, reglas de alerta, alertas, workarounds y versiones. Imagen 2022 en Docker, accesible desde SSMS en `localhost,14330`. |
-| MongoDB | Bitácoras (transacciones, auditoría, excepciones, sandbox), contexto de negocio (con los PDF de los documentos de negocio y su conversión a Markdown en GridFS, bucket `documentos`), informes de buenas prácticas, snapshots de schema y dispositivos push. |
+| MongoDB | Bitácoras (transacciones, auditoría, excepciones, sandbox), contexto de negocio (con los PDF de los documentos de negocio y su conversión a Markdown en GridFS, bucket `documentos`), informes de buenas prácticas, snapshots de schema (de las instancias y de la base de la aplicación) y dispositivos push. |
 | Redis | Contenedor propio. TTL configurables solo por variable de entorno. |
 | Secretos | `.env` en local, detrás de una interfaz; Key Vault por ambiente al migrar a Azure. |
 | IA | Claude Haiku 5.5 por defecto. |
@@ -114,11 +115,13 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Enmascaramiento | El origen de cada columna del resultado lo informa el motor (`sp_describe_first_result_set`), así que cubre alias y JOINs; una columna calculada que menciona una columna sensible también se oculta. Si no se puede verificar el origen, no se muestran los datos. |
 | Promover a PROD (ampliación) | Además de PROD, toda sentencia con DELETE, TRUNCATE o DROP pide segundo factor; las reglas de negocio de bloqueo impiden promover y las de advertencia se muestran en la comparación previa. |
 | Buenas prácticas | Análisis por conexión y base a pedido (Administrador y DBA; Consulta no ve el módulo). Chequeos objetivos sobre el motor: consultas más costosas en CPU (la base sale del atributo `dbid` del plan), índices faltantes del optimizador, fragmentación (`dm_db_index_physical_stats` en modo LIMITED, índices de más de 1.000 páginas, REORGANIZE entre 5% y 30%, REBUILD desde 30%) y esquema (tablas sin PK, heaps, FK sin índice, tipos obsoletos). El motor IA recibe los hallazgos, el esquema, el contexto de negocio y las reglas propias del equipo, y devuelve sugerencias por tipo y severidad con su T-SQL. El análisis corre en segundo plano y el informe queda en MongoDB. Aplicar una sugerencia y definir las reglas (Administrador y DBA) pasa por el Sandbox y se promueve desde ahí. El botón "Optimizar" de Monitoreo abre un análisis de consultas lentas de la instancia. |
-| Auditoría | Tres bitácoras en MongoDB (5 años): transacciones (Administrador y DBA), auditoría del sistema (solo Administrador, CU-000-009-B) y excepciones (Administrador y DBA). Listado paginado con filtros por fecha (días de Buenos Aires), usuario, ambiente, tipo de acción o nivel y texto; detalle con el registro completo. Cada evento guarda la IP de la petición. |
+| Auditoría | Tres bitácoras en MongoDB (5 años): transacciones (Administrador y DBA), auditoría del sistema (solo Administrador, CU-000-009-B) y excepciones (solo Administrador). El menú Auditoría muestra las transacciones (lo ejecutado desde la app sobre las instancias); las otras dos son técnicas y están en Soporte. Listado paginado con filtros por fecha (días de Buenos Aires), usuario, ambiente, tipo de acción o nivel y texto; detalle con el registro completo. Cada evento guarda la IP de la petición. |
 | Exportación de auditoría | CSV (hasta 1.000.000 de registros) y PDF (hasta 10.000) sin firma digital (firma omitida por ahora); por encima, EXP_LIM_000. Cada exportación queda en la bitácora de auditoría. |
-| Bitácora de excepciones | Los logs de la app desde el nivel que elige el Administrador (WARNING por defecto) se guardan en la base del tenant con módulo, código de error, usuario, ruta y traza. Un hilo aparte escribe en MongoDB desde una cola, así el log nunca espera a la base. Los logs sin tenant van a la base de la plataforma. |
+| Bitácora de excepciones | Los logs de la app desde el nivel que elige el Administrador (WARNING por defecto) se guardan en la base del tenant con módulo, código de error, usuario, ruta y traza. Incluye las respuestas HTTP con error (4xx como WARNING y 5xx como ERROR, con método, estado, duración y la traza de las excepciones no controladas); el campo `origen` (HTTP o código) permite filtrarlas. Un hilo aparte escribe en MongoDB desde una cola, así el log nunca espera a la base. Los logs sin tenant van a la base de la plataforma. |
 | Histórico de métricas | Colecciones *time-series* de MongoDB, retención de 30 días (`MONITOR_RETENCION_DIAS`). Rangos de 1 h, 24 h, 7 d y 30 d, promediados por tramo. |
 | Histórico de schema | Registra lo ejecutado desde la app (Promover desde el Sandbox y workarounds propios con DDL): usuario que escribió la sentencia, quién la autorizó, DDL y diff. Antes y después de cada ejecución se toma un snapshot de la base desde el catálogo (tablas con columnas, PK, FK e índices; código de vistas, procedimientos, funciones y triggers) y la versión guarda el resultado y las diferencias (MongoDB, `schema_versiones`). Un DDL que no cambia la estructura no genera versión; si no se pudo leer la estructura, queda el DDL sin diff. Se comparan dos versiones o una con el estado actual (que sí muestra lo hecho fuera de la app) y la comparación se descarga como texto. Lo ejecutado fuera de la app (SSMS, etc.) no genera versiones. |
+| Soporte *(agregado)* | Panel técnico solo para el Administrador, con tres pestañas. **Servicios y colas:** salud de SQL Server, MongoDB, Redis, Auth0 y Sandbox (movida desde el Panel Admin), la cola de la bitácora de logs (pendientes, escritos, descartados y fallidos) y los procesos en segundo plano (recolector y programador del Sandbox: activo, en espera de otra réplica o detenido); los datos son de la réplica que atiende. **Logs y auditoría:** bitácoras de excepciones (logs) y del sistema, con el mismo filtro, detalle y exportación que Auditoría y el nivel de log. **Historia de la base:** ver la fila siguiente. |
+| Historia de la base de la aplicación | Requisito del TFI de recuperar datos y estructura a través del tiempo, para la base SQL Server de cada tenant. **Datos:** tablas temporales con versión del sistema (migración 014) en `usuario`, `usuario_ambiente`, `conexion`, `umbral_metrica`, `regla_alerta`, `politica_backup`, `workaround`, `automatizacion_workaround` y `alerta_desestimada`; historia en el esquema `historia`, retención de 5 años, columnas del período ocultas. Se consulta (solo lectura) la tabla en un momento o todas las versiones de las filas; las contraseñas no se muestran. **Estructura:** un trigger DDL de base registra cada cambio en `dbo.historial_ddl` (evento, objeto, login, programa, equipo y T-SQL), también los hechos fuera de la app; además, al arrancar el backend y a pedido se toma un snapshot del catálogo (el mismo del Histórico de Schema) y, si cambió, se guarda una versión en MongoDB (`schema_aplicacion`) con su origen: inicial, migraciones nuevas (según `dbo.migracion_aplicada`), cambio detectado por fuera o captura manual. Cada versión se compara con otra o con el estado actual y se descarga como script para recrear la estructura. La restauración desde la app queda fuera de alcance. Las conexiones de la app se identifican como `DBA Assistant` (APP de ODBC). |
 
 ## Módulos por rol
 
@@ -128,8 +131,9 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Chat IA | ✔ | ✔ | Solo consultas SELECT |
 | Contexto de Negocio, Histórico de Schema | ✔ | ✔ | Solo lectura |
 | Workarounds, Sandbox | ✔ | ✔ | ✘ |
-| Auditoría (incluye visor de logs) | ✔ | ✔ | ✘ |
-| Panel Admin (conexiones, usuarios, reglas) | ✔ | ✘ | ✘ |
+| Auditoría (bitácora de transacciones) | ✔ | ✔ | ✘ |
+| Panel Admin (usuarios) | ✔ | ✘ | ✘ |
+| Soporte (servicios y colas, logs, auditoría del sistema, historia de la base) | ✔ | ✘ | ✘ |
 
 ## Desvíos respecto del diagrama
 
@@ -145,6 +149,7 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Invitación de Auth0 al nuevo usuario (CU-001-000-A) | Aviso de acceso por correo propio (SMTP), en el idioma del usuario, con la dirección de su empresa; se reenvía desde el Panel Admin | Decisión del usuario. Auth0 suma a la organización a quien se autentica, pero la app solo deja entrar a quien está dado de alta en el tenant y, en el primer ingreso, con email verificado. |
 | Login social con Google, GitHub y Microsoft | Google y email + contraseña | GitHub y Microsoft no se agregan por ahora. Decisión del usuario. Sumarlos es configuración de Auth0 (conexiones sociales) y de `CONEXIONES_TENANT`. |
 | Ramas `main`, `dev` y `testing` | Solo `main` y `dev` | No se incluye `testing` por ahora (un solo ambiente). Decisión del usuario. |
+| Sin panel técnico en el diagrama ni en el diseño | Menú **Soporte** en Sistema, solo para el Administrador, con el estilo del resto de las pantallas *(agregado)* | Reúne lo que no suele estar visible en una aplicación: salud de servicios, colas, logs, auditoría del sistema e historia de la base. Decisión del usuario. La bitácora de transacciones queda en Auditoría. |
 | Sin túnel en el diagrama | Servicio `tunel` (Cloudflare) en Docker Compose, perfil opcional *(agregado)* | Solo para desarrollo: publica la app con HTTPS confiable para probar push y biometría en el celular (`docs/tunel.md`). No forma parte del despliegue. |
 | MongoDB Atlas | MongoDB en Docker (provisorio) | Pendiente de decisión (ver `docs/pendientes.md`). |
 | TFI CU-000-004-E: push vía Firebase Cloud Messaging | Web Push con VAPID (W3C) | Es lo que indica el diagrama ("Web Push Notifier, VAPID, estándar W3C"); no depende de terceros. |

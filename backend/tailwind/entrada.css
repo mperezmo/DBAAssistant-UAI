@@ -30,6 +30,15 @@
 /* Sistema visual del diseño: componentes (sidebar, topbar, cards, tablas, etc.). */
 @import "./diseno.css" layer(components);
 
+/* La columna del contenido no se ensancha con una tabla de muchas columnas: la tabla se
+   desplaza dentro de su tarjeta. */
+.app-shell {
+  grid-template-columns: 232px minmax(0, 1fr);
+}
+.main {
+  min-width: 0;
+}
+
 /* Pantallas chicas (celular, CU-000-005-F): el menú lateral pasa a ser desplegable. */
 .boton-menu {
   display: none;

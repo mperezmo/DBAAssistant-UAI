@@ -5,24 +5,6 @@ document.addEventListener("alpine:init", () => {
 
   const api = window.DBA.api;
 
-  // Tarjetas de estado de servicios (mismos colores que el diseño).
-  Alpine.data("estadoServicios", () => ({
-    servicios: [],
-    estados: TEXTOS.estadosServicio,
-
-    async cargar() {
-      try {
-        this.servicios = (await api("GET", "/api/salud/servicios")).servicios;
-      } catch {
-        this.servicios = [];
-      }
-    },
-
-    color(estado) {
-      return { online: "var(--sage)", warning: "var(--mustard)" }[estado] || "var(--terracotta)";
-    },
-  }));
-
   Alpine.data("gestionUsuarios", () => ({
     usuarios: [],
     bajas: false,

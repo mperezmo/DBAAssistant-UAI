@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -12,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from app.api import salud
-from app.core import contexto, excepciones
+from app.core import contexto, excepciones, registro_http
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.core.registro import configurar_registro
@@ -31,6 +32,8 @@ from app.modulos.monitor import api as monitor
 from app.modulos.monitor.recolector import Recolector
 from app.modulos.sandbox import api as sandbox
 from app.modulos.sandbox.programador import Programador
+from app.modulos.soporte import api as soporte
+from app.modulos.soporte import historia as historia_aplicacion
 from app.modulos.web_push import api as web_push
 from app.modulos.workarounds import api as workarounds
 from app.modulos.workarounds import servicios as workarounds_servicios
@@ -63,6 +66,10 @@ async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
             log.warning("SQL Server no disponible (intento %s): %s", intento, error)
             await asyncio.sleep(ESPERA_ENTRE_INTENTOS_SEGUNDOS)
     await tenants.preparar_mongo_todo()
+    # Versión de la estructura de la base de cada tenant si cambió (Soporte).
+    await historia_aplicacion.registrar_estructura_todo(
+        await run_in_threadpool(tenants.tenants_activos)
+    )
     excepciones.iniciar(
         lambda: {
             t.slug: t.base_mongodb for t in tenants_repositorios.listar() if t.estado == "activo"
@@ -90,7 +97,9 @@ async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
 
 async def manejar_error_dominio(request: Request, error: ErrorDominio):
     """Errores de negocio: JSON para la API y página de error para el navegador."""
-    log.info("Error de dominio %s en %s: %s", error.codigo, request.url.path, error.detalle)
+    # El registro lo hace el middleware con el resto de las respuestas con error.
+    request.state.codigo_error = error.codigo
+    request.state.detalle_error = error.detalle
     estado = error.definicion.estado_http
     if request.url.path.startswith("/api/"):
         cuerpo = {"codigo": error.codigo, "mensaje": error.definicion.mensaje}
@@ -106,7 +115,8 @@ async def manejar_error_dominio(request: Request, error: ErrorDominio):
 
 
 async def registrar_contexto(request: Request, siguiente):
-    """Deja a mano el tenant (por el subdominio), la IP, la ruta y el idioma."""
+    """Deja a mano el tenant (por el subdominio), la IP, la ruta y el idioma, y registra
+    en la bitácora de logs las respuestas con error."""
     contexto.ip.set(request.client.host if request.client else None)
     contexto.ruta.set(request.url.path)
     # Hasta conocer al usuario, el idioma del navegador.
@@ -116,7 +126,15 @@ async def registrar_contexto(request: Request, siguiente):
             request.headers.get("host", ""), obtener_configuracion().dominio_base
         )
     )
-    return await siguiente(request)
+    inicio = time.perf_counter()
+    try:
+        respuesta = await siguiente(request)
+    except Exception as error:
+        registro_http.registrar(request, 500, inicio, error)
+        raise
+    if respuesta.status_code >= 400:
+        registro_http.registrar(request, respuesta.status_code, inicio)
+    return respuesta
 
 
 def crear_app() -> FastAPI:
@@ -142,6 +160,7 @@ def crear_app() -> FastAPI:
     app.include_router(auditoria.router)
     app.include_router(historico_schema.router)
     app.include_router(buenas_practicas.router)
+    app.include_router(soporte.router)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

@@ -12,6 +12,7 @@ from app.core.errores import ErrorDominio
 from app.identidad.dependencias import sesion_actual, tenant_actual
 from app.identidad.entidades import AMBIENTES, ROLES
 from app.modulos.monitor.entidades import METRICAS
+from app.modulos.soporte.entidades import TABLAS_CON_HISTORIA
 from app.tenants.entidades import Tenant
 from app.web.i18n import IDIOMAS, LOCALES, idioma_actual, traducir
 from app.web.menu import ICONOS, MENU
@@ -187,12 +188,25 @@ async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)
             "roles": ROLES,
             "ambientes": AMBIENTES,
             "textos_roles": {rol: traducir(f"rol.{rol}") for rol in ROLES},
-            "textos_servicios": {
-                e: traducir(f"servicios.estado.{e}") for e in ("online", "error", "warning")
-            },
             "textos_estados": {
                 e: traducir(f"estado.{e}") for e in ("invitado", "activo", "baja", "inactivo")
             },
+        },
+    )
+
+
+@router.get("/soporte", response_class=HTMLResponse)
+async def soporte(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    return await _pagina_de_modulo(
+        request,
+        tenant,
+        "soporte",
+        "paginas/soporte.html",
+        {
+            "textos_servicios": {
+                e: traducir(f"servicios.estado.{e}") for e in ("online", "error", "warning")
+            },
+            "tablas_con_historia": TABLAS_CON_HISTORIA,
         },
     )
 

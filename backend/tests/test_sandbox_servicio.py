@@ -329,6 +329,10 @@ def test_api_exige_token_y_delega(monkeypatch):
 
     assert cliente.get("/sandboxes/acme").status_code == 401
     assert cliente.get("/sandboxes/acme", headers=TOKEN).json() == {"existe": True}
+    # Salud para el panel de Soporte: responde si el motor de Docker responde.
+    monkeypatch.setattr(contenedores, "verificar", lambda: None)
+    assert cliente.get("/salud").status_code == 401
+    assert cliente.get("/salud", headers=TOKEN).json() == {"estado": "ok"}
     assert cliente.get("/sandboxes/ACME", headers=TOKEN).status_code == 422
     assert cliente.post("/sandboxes/acme", headers=TOKEN).json() == {"existe": True}
     sincronizado = cliente.post(

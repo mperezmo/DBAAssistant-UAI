@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from starlette.concurrency import run_in_threadpool
 
-from app.core import contexto
+from app.core import contexto, procesos
 from app.datos import cache
 from app.modulos.conexiones import repositorios as conexiones
 from app.modulos.conexiones.entidades import Conexion
@@ -43,11 +43,14 @@ class Programador:
 
     async def ejecutar(self) -> None:
         while True:
+            activo = False
             try:
-                if await self._tomar_candado():
+                activo = await self._tomar_candado()
+                if activo:
                     await self.revisar(datetime.now(UTC))
             except Exception:
                 log.exception("Falla en el programador del Sandbox.")
+            procesos.latido("programador_sandbox", INTERVALO_SEGUNDOS, activo)
             await asyncio.sleep(INTERVALO_SEGUNDOS)
 
     async def _tomar_candado(self) -> bool:

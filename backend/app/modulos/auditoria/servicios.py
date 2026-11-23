@@ -1,7 +1,10 @@
 """Casos de uso de Auditoría (CU-000-009 A, B, C y D).
 
 Tres bitácoras en MongoDB, retenidas 5 años: transacciones (lo ejecutado sobre las
-instancias), auditoría del sistema (seguridad y configuración) y excepciones (logs).
+instancias), auditoría del sistema (seguridad y configuración) y excepciones (logs de la
+aplicación: errores del código y respuestas HTTP con error). El menú Auditoría muestra la
+de transacciones; las otras dos son técnicas y se consultan desde Soporte (solo el
+Administrador). Este módulo es el motor común de consulta y exportación de las tres.
 """
 
 import csv
@@ -68,10 +71,12 @@ BITACORAS = {
     ),
     "excepciones": Bitacora(
         excepciones.COLECCION,
-        frozenset({"ADMINISTRADOR", "DBA"}),
+        frozenset({"ADMINISTRADOR"}),
         (
             ("auditoria.col.fecha", "fecha"),
             ("auditoria.col.nivel", "nivel"),
+            ("auditoria.col.origen", "origen_texto"),
+            ("auditoria.col.estado_http", "estado"),
             ("auditoria.col.modulo", "modulo"),
             ("auditoria.col.codigo", "codigo"),
             ("auditoria.col.usuario", "usuario"),
@@ -79,6 +84,10 @@ BITACORAS = {
         ),
     ),
 }
+# Qué bitácoras muestra cada pantalla.
+BITACORAS_AUDITORIA = ("transacciones",)
+BITACORAS_SOPORTE = ("excepciones", "sistema")
+ORIGENES_EXCEPCIONES = (excepciones.ORIGEN_HTTP, excepciones.ORIGEN_CODIGO)
 LIMITES_EXPORTACION = {"csv": 1_000_000, "pdf": 10_000}
 ROLES_CONFIGURAN_NIVEL = frozenset({"ADMINISTRADOR"})
 
@@ -91,10 +100,11 @@ class Filtros:
     ambiente: str | None = None
     tipo: str | None = None  # prefijo de la acción (o nivel, en excepciones)
     texto: str | None = None
+    origen: str | None = None  # solo excepciones: http o codigo
 
 
-def bitacoras_visibles(sesion: Sesion) -> list[str]:
-    return [nombre for nombre, b in BITACORAS.items() if sesion.rol in b.roles]
+def bitacoras_visibles(sesion: Sesion, grupo: tuple[str, ...]) -> list[str]:
+    return [nombre for nombre in grupo if sesion.rol in BITACORAS[nombre].roles]
 
 
 def _bitacora(sesion: Sesion, nombre: str) -> Bitacora:
@@ -137,6 +147,13 @@ def filtro_mongo(tenant: Tenant, nombre: str, f: Filtros) -> dict:
             filtro["nivel"] = f.tipo.upper()
         else:
             filtro["accion"] = {"$regex": f"^{re.escape(f.tipo)}\\."}
+    if f.origen and nombre == "excepciones":
+        if f.origen not in ORIGENES_EXCEPCIONES:
+            raise ErrorDominio("USR_VAL_002", "Origen inválido.")
+        # Los registros anteriores a los logs HTTP no tienen el campo: son del código.
+        filtro["origen"] = (
+            f.origen if f.origen == excepciones.ORIGEN_HTTP else {"$ne": excepciones.ORIGEN_HTTP}
+        )
     if f.texto and f.texto.strip():
         campos = {
             "transacciones": (
@@ -148,7 +165,7 @@ def filtro_mongo(tenant: Tenant, nombre: str, f: Filtros) -> dict:
                 "detalle.base",
             ),
             "sistema": ("accion", "detalle.alias", "detalle.email", "detalle.nombre"),
-            "excepciones": ("mensaje", "codigo", "modulo"),
+            "excepciones": ("mensaje", "codigo", "modulo", "ruta"),
         }[nombre]
         filtro["$or"] = [{campo: _contiene(f.texto)} for campo in campos]
     return filtro
@@ -208,9 +225,14 @@ def fila(nombre: str, d: dict) -> dict:
     """Registro de cualquier bitácora con los campos que muestra el listado."""
     base = {"id": str(d["_id"]), "ts": _fecha(d.get("ts")), "fecha": _fecha_local(d.get("ts"))}
     if nombre == "excepciones":
+        # Los registros previos a los logs HTTP no tienen origen: son del código.
+        origen = d.get("origen") or excepciones.ORIGEN_CODIGO
         return {
             **base,
             **{k: d.get(k) for k in ("nivel", "modulo", "codigo", "usuario", "mensaje", "ruta")},
+            "origen": origen,
+            "origen_texto": traducir(f"auditoria.origen.{origen}"),
+            "estado": (d.get("http") or {}).get("estado"),
         }
     detalle = d.get("detalle") or {}
     if nombre == "sistema":
@@ -270,14 +292,14 @@ async def listar(
     }
 
 
-async def totales(tenant: Tenant, sesion: Sesion) -> dict:
+async def totales(tenant: Tenant, sesion: Sesion, grupo: tuple[str, ...]) -> dict:
     return {
         nombre: await repositorios.contar(
             tenant.base_mongodb,
             BITACORAS[nombre].coleccion,
             filtro_mongo(tenant, nombre, Filtros()),
         )
-        for nombre in bitacoras_visibles(sesion)
+        for nombre in bitacoras_visibles(sesion, grupo)
     }
 
 

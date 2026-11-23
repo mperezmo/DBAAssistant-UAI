@@ -38,6 +38,11 @@ def _cliente() -> docker.DockerClient:
     return docker.from_env()
 
 
+def verificar() -> None:
+    """Falla si el motor de Docker no responde."""
+    _cliente().ping()
+
+
 def _nombre(clave: str) -> str:
     return configuracion().prefijo + validar_clave(clave)
 

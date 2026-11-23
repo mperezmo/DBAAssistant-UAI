@@ -28,6 +28,8 @@ def cadena_conexion(cfg: Configuracion, password: str, base: str) -> str:
         "PWD": f"{{{password}}}",
         "Encrypt": "yes",
         "TrustServerCertificate": "yes" if cfg.sqlserver_confiar_certificado else "no",
+        # Identifica a la aplicación en el historial de DDL y en las sesiones del motor.
+        "APP": f"{{{cfg.app_nombre}}}",
     }
     return ";".join(f"{clave}={valor}" for clave, valor in partes.items())
 

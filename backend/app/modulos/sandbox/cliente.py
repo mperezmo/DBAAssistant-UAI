@@ -29,6 +29,11 @@ async def _pedir(metodo: str, ruta: str, timeout: float, cuerpo: dict | None = N
         raise ErrorDominio("SBX_DCK_000", str(error)) from error
 
 
+async def salud() -> None:
+    """Falla si el servicio Sandbox o su acceso a Docker no responden."""
+    await _pedir("GET", "/salud", 5)
+
+
 async def estado(clave: str) -> dict:
     return await _pedir("GET", f"/sandboxes/{clave}", 10)
 

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+import pyodbc
 import pytest
 
 from app.core.errores import ErrorDominio
@@ -37,11 +38,30 @@ class _Conexion:
 
 
 RESPUESTAS = {
+    # Tabla temporal: período y tabla de historia (se consultan antes que las columnas).
+    "sys.periods": [
+        (
+            "dbo",
+            "pedidos",
+            "desde",
+            True,
+            "hasta",
+            True,
+            "historia",
+            "pedidos",
+            5,
+            "YEAR",
+        ),
+    ],
+    # Trigger de base de datos (DDL): no figura en sys.objects.
+    "sys.triggers": [("trg_ddl", "CREATE TRIGGER trg_ddl ON DATABASE  \nFOR DDL AS SELECT 1")],
     "default_constraints": [
         ("dbo", "clientes", "id", "int", 4, 10, 0, False, True, None, 1),
         ("dbo", "clientes", "nombre", "nvarchar", 200, 0, 0, True, False, None, 2),
         ("dbo", "clientes", "saldo", "decimal", 9, 12, 2, False, False, "((0))", 3),
         ("dbo", "pedidos", "cliente_id", "int", 4, 10, 0, False, False, None, 1),
+        ("dbo", "pedidos", "desde", "datetime2", 8, 27, 7, False, False, None, 2),
+        ("dbo", "pedidos", "hasta", "datetime2", 8, 27, 7, False, False, None, 3),
     ],
     "sys.indexes": [
         ("dbo", "clientes", "PK_clientes", True, True, "CLUSTERED", "id", False, False, 1, 1, None),
@@ -102,6 +122,7 @@ def test_captura_del_catalogo():
         "indice:dbo.clientes.IX_nombre",
         "vista:dbo.v_activos",
         "procedimiento:dbo.sp_x",
+        "trigger:trg_ddl",
     }
     clientes = objetos["tabla:dbo.clientes"]["definicion"]
     assert "[id] int IDENTITY NOT NULL" in clientes
@@ -116,11 +137,45 @@ def test_captura_del_catalogo():
         "CONSTRAINT [FK_pedidos_clientes] FOREIGN KEY ([cliente_id]) REFERENCES [dbo].[clientes]"
         " ([id]) ON DELETE CASCADE" in objetos["tabla:dbo.pedidos"]["definicion"]
     )
+    pedidos = objetos["tabla:dbo.pedidos"]["definicion"]
+    assert "[desde] datetime2(7) GENERATED ALWAYS AS ROW START HIDDEN NOT NULL" in pedidos
+    assert "[hasta] datetime2(7) GENERATED ALWAYS AS ROW END HIDDEN NOT NULL" in pedidos
+    assert "    PERIOD FOR SYSTEM_TIME ([desde], [hasta])," in pedidos
+    assert pedidos.endswith(
+        ") WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [historia].[pedidos],"
+        " HISTORY_RETENTION_PERIOD = 5 YEARS));"
+    )
+    assert objetos["trigger:trg_ddl"]["definicion"] == (
+        "CREATE TRIGGER trg_ddl ON DATABASE\nFOR DDL AS SELECT 1"
+    )
     # Los espacios finales que agrega el motor no cuentan como cambio.
     assert (
         objetos["vista:dbo.v_activos"]["definicion"]
         == "CREATE VIEW dbo.v_activos AS\nSELECT 1 AS x"
     )
+
+
+def test_captura_sin_tablas_temporales_en_versiones_anteriores():
+    """En SQL Server 2016 o anterior las consultas de versionado fallan: se omiten."""
+
+    class _CursorViejo(_Cursor):
+        def execute(self, sql):
+            if "sys.periods" in sql or "sys.triggers" in sql:
+                raise pyodbc.ProgrammingError("42S22", "Invalid column name")
+            return super().execute(sql)
+
+    class _ConexionVieja(_Conexion):
+        def cursor(self):
+            return _CursorViejo(self.respuestas)
+
+    objetos = captura.capturar(_ConexionVieja(RESPUESTAS))
+    assert "PERIOD" not in objetos["tabla:dbo.pedidos"]["definicion"]
+    assert "trigger:trg_ddl" not in objetos
+
+    # Retención infinita.
+    infinita = {**RESPUESTAS, "sys.periods": [(*RESPUESTAS["sys.periods"][0][:8], -1, "INFINITE")]}
+    definicion = captura.capturar(_Conexion(infinita))["tabla:dbo.pedidos"]["definicion"]
+    assert "HISTORY_RETENTION_PERIOD = INFINITE" in definicion
 
 
 def test_diferencias():

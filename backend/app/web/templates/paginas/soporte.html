@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+
+{% block miga %}{{ t("menu.soporte") }}{% endblock %}
+
+{% block contenido %}
+<div x-data="soporte()" x-init="iniciar()">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("soporte.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("soporte.titulo") }} <em>{{ t("soporte.titulo_enfasis") }}</em></h1>
+    <p class="page-subtitle">{{ t("soporte.subtitulo") }}</p>
+  </div>
+
+  <div class="mb-5 flex flex-wrap items-center gap-2" role="tablist">
+    {% for p in ["servicios", "bitacoras", "historia"] %}
+    <button class="btn btn-sm" role="tab" :class="pestana === '{{ p }}' ? 'btn-primary' : 'btn-ghost'" @click="elegir('{{ p }}')">{{ t("soporte.pestana." ~ p) }}</button>
+    {% endfor %}
+  </div>
+
+  <!-- Servicios, colas y procesos en segundo plano -->
+  <div x-show="pestana === 'servicios'" x-data="soporteServicios()" x-init="cargar()">
+    <div class="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <template x-for="s in servicios" :key="s.nombre">
+        <div class="card min-w-0 p-[18px]">
+          <div class="row mb-2.5">
+            <span class="size-2 rounded-full" :style="`background:${color(s.estado)}`"></span>
+            <strong class="text-sm" x-text="s.nombre"></strong>
+            <span class="flex-1"></span>
+            <span class="metric-mono text-[10px] uppercase tracking-[0.12em]" :style="`color:${color(s.estado)}`" x-text="TEXTOS.estadosServicio[s.estado]"></span>
+          </div>
+          <div class="truncate text-xs text-fg-muted">
+            <span x-text="s.detalle"></span><span x-show="s.latencia_ms !== null" x-text="` · ${s.latencia_ms} ms`"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-2">
+      <section class="card min-w-0">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow">{{ t("soporte.colas.eyebrow") }}</div>
+            <h3 class="card-title">{{ t("soporte.colas.titulo") }}</h3>
+          </div>
+        </div>
+        <p class="card-body text-sm text-fg-muted" x-show="cargado && !colas.length">{{ t("soporte.colas.sin_datos") }}</p>
+        <template x-for="c in colas" :key="c.nombre">
+          <div class="card-body space-y-3">
+            <div class="row">
+              <strong class="text-[13.5px]" x-text="TEXTOS.colas[c.nombre] || c.nombre"></strong>
+              <span class="flex-1"></span>
+              <span class="tag px-[7px] py-px text-[9.5px]" :class="c.escritor_activo ? 'tag-green' : ''" x-text="c.escritor_activo ? TEXTOS.escritorActivo : TEXTOS.escritorDetenido"></span>
+            </div>
+            <div class="h-1.5 overflow-hidden rounded-full" style="background: var(--bg-sunk)">
+              <div class="h-full rounded-full" :style="`width: ${Math.min(100, c.pendientes / c.capacidad * 100)}%; background: ${c.pendientes / c.capacidad > 0.8 ? 'var(--terracotta)' : 'var(--sage)'}`"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+              <div><div class="text-fg-muted">{{ t("soporte.colas.pendientes") }}</div><div class="metric-mono text-sm" x-text="`${numero(c.pendientes)} / ${numero(c.capacidad)}`"></div></div>
+              <div><div class="text-fg-muted">{{ t("soporte.colas.escritos") }}</div><div class="metric-mono text-sm" x-text="numero(c.escritos)"></div></div>
+              <div><div class="text-fg-muted">{{ t("soporte.colas.descartados") }}</div><div class="metric-mono text-sm" :style="c.descartados ? 'color: var(--terracotta)' : ''" x-text="numero(c.descartados)"></div></div>
+              <div><div class="text-fg-muted">{{ t("soporte.colas.fallidos") }}</div><div class="metric-mono text-sm" :style="c.fallidos ? 'color: var(--terracotta)' : ''" x-text="numero(c.fallidos)"></div></div>
+            </div>
+            <p class="text-xs text-fg-muted" x-show="c.ultima_falla" x-text="TEXTOS.ultimaFalla.replace('{fecha}', fecha(c.ultima_falla))"></p>
+          </div>
+        </template>
+        <p class="card-foot text-xs text-fg-muted">{{ t("soporte.colas.nota") }}</p>
+      </section>
+
+      <section class="card min-w-0">
+        <div class="card-head">
+          <div>
+            <div class="card-eyebrow">{{ t("soporte.procesos.eyebrow") }}</div>
+            <h3 class="card-title">{{ t("soporte.procesos.titulo") }}</h3>
+          </div>
+        </div>
+        <div class="divide-y divide-[var(--line)]">
+          <template x-for="p in procesos" :key="p.nombre">
+            <div class="flex items-center gap-3 px-5 py-3.5">
+              <span class="size-2 shrink-0 rounded-full" :style="`background:${colorProceso(p.estado)}`"></span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-[13.5px] font-medium" x-text="TEXTOS.procesos[p.nombre] || p.nombre"></span>
+                <span class="block truncate text-xs text-fg-muted" x-text="detalleProceso(p)"></span>
+              </span>
+              <span class="metric-mono text-[10px] uppercase tracking-[0.12em]" :style="`color:${colorProceso(p.estado)}`" x-text="TEXTOS.estadosProceso[p.estado] || p.estado"></span>
+            </div>
+          </template>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Bitácoras técnicas: auditoría del sistema y logs de la aplicación -->
+  {# Se carga con la página: el parcial registra su componente antes de que inicie Alpine. #}
+  <div x-show="pestana === 'bitacoras'" x-cloak>
+    {% with base_api="/api/soporte/bitacoras" %}{% include "parciales/bitacoras.html" %}{% endwith %}
+  </div>
+
+  <!-- Historia de la base de la aplicación -->
+  <template x-if="visitadas.historia">
+    <div x-show="pestana === 'historia'" x-data="historiaBase()" x-init="iniciar()">
+      <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+
+      <div class="mb-5 flex flex-wrap items-center gap-2">
+        {% for v in ["estructura", "ddl", "datos"] %}
+        <button class="btn btn-sm" :class="vista === '{{ v }}' ? 'btn-primary' : 'btn-ghost'" @click="cambiarVista('{{ v }}')">{{ t("soporte.historia." ~ v) }}</button>
+        {% endfor %}
+        <span class="flex-1"></span>
+        <span class="text-xs text-fg-muted" x-text="base"></span>
+      </div>
+
+      <!-- Estructura: versiones por migración o cambio detectado -->
+      <div class="grid gap-5 lg:grid-cols-[1fr_1.4fr]" x-show="vista === 'estructura'">
+        <section class="card min-w-0 lg:self-start">
+          <div class="card-head flex-wrap gap-2">
+            <div>
+              <div class="card-eyebrow">{{ t("soporte.estructura.eyebrow") }}</div>
+              <h3 class="card-title">{{ t("soporte.estructura.titulo") }}</h3>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-sm" :class="comparando ? 'btn-primary' : 'btn-ghost'" x-show="versiones.length > 1" @click="alternarComparacion()"
+                      x-text="comparando ? TEXTOS.cancelarComparacion : TEXTOS.comparar"></button>
+              <button class="btn btn-ghost btn-sm" :disabled="capturando" @click="capturar()">{{ t("soporte.estructura.capturar") }}</button>
+            </div>
+          </div>
+          <p class="px-5 pt-3 text-xs text-fg-muted" x-show="comparando" x-text="TEXTOS.ayudaComparar"></p>
+          <p class="px-5 pt-3 text-xs" x-show="aviso" x-text="aviso"></p>
+          <p class="card-body text-sm text-fg-muted" x-show="cargado && !versiones.length">{{ t("soporte.estructura.vacio") }}</p>
+          <div class="divide-y divide-[var(--line)]">
+            <template x-for="(v, i) in versiones" :key="v.version">
+              <button class="flex w-full items-center gap-3.5 px-5 py-3.5 text-left" :style="estaElegida(v) ? 'background: var(--bg-sunk)' : ''" @click="elegir(v)">
+                <span class="flex size-9 shrink-0 items-center justify-center rounded-full border font-serif text-[13px] font-medium"
+                      :style="i === 0 ? 'background: var(--accent); color: #fff; border-color: var(--accent)' : 'background: var(--bg-sunk); color: var(--fg-muted); border-color: var(--line-strong)'"
+                      x-text="v.version"></span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-[13.5px] font-medium">
+                    <span x-text="TEXTOS.origenes[v.origen] || v.origen"></span>
+                    <span class="tag tag-green ml-2 px-1.5 py-px text-[9.5px]" x-show="i === 0">{{ t("schema.actual") }}</span>
+                  </span>
+                  <span class="block truncate text-xs text-fg-muted" x-text="subtituloVersion(v)"></span>
+                </span>
+                <span class="metric-mono text-xs" :style="v.cambios ? 'color: var(--accent)' : 'color: var(--fg-faint)'"
+                      x-text="v.inicial ? TEXTOS.inicial : TEXTOS.cambios.replace('{n}', v.cambios)"></span>
+              </button>
+            </template>
+          </div>
+        </section>
+
+        <section class="card min-w-0" x-show="detalle" x-cloak>
+          <template x-if="detalle">
+            <div>
+              <div class="card-head flex-wrap gap-3">
+                <div>
+                  <div class="card-eyebrow" x-text="detalle.eyebrow"></div>
+                  <h3 class="card-title" x-text="detalle.titulo"></h3>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span class="tag" x-show="!detalle.inicial" x-text="TEXTOS.modificaciones.replace('{n}', detalle.cambios.length)"></span>
+                  <a class="btn btn-ghost btn-sm" x-show="detalle.script" :href="detalle.script">{% with nombre="download", tam=13 %}{% include "parciales/icono.html" %}{% endwith %} {{ t("soporte.estructura.descargar") }}</a>
+                </div>
+              </div>
+              <p class="card-body text-sm text-fg-muted" x-show="detalle.inicial">{{ t("soporte.estructura.inicial_detalle") }}</p>
+              <p class="card-body text-sm text-fg-muted" x-show="!detalle.inicial && !detalle.cambios.length">{{ t("schema.sin_diferencias") }}</p>
+              <div class="divide-y divide-[var(--line)]">
+                <template x-for="(c, i) in detalle.cambios" :key="i">
+                  <div>
+                    <button class="flex w-full items-center gap-3.5 px-5 py-3 text-left" @click="abierto = abierto === i ? null : i">
+                      <span class="metric-mono w-[18px] text-center text-base font-bold" :style="`color: ${COLORES[c.operacion]}`" x-text="SIGNOS[c.operacion]"></span>
+                      <span class="metric-mono min-w-0 flex-1 truncate text-[12.5px]" x-text="`${TEXTOS.tipos[c.tipo] || c.tipo} ${c.nombre}`"></span>
+                      <span class="text-xs text-fg-faint" x-text="TEXTOS.operaciones[c.operacion]"></span>
+                      <span x-text="abierto === i ? '▾' : '›'"></span>
+                    </button>
+                    <div class="grid gap-2 px-5 pb-4 md:grid-cols-2" x-show="abierto === i">
+                      <div class="min-w-0">
+                        <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("schema.antes") }}</div>
+                        <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="c.antes || '—'"></pre>
+                      </div>
+                      <div class="min-w-0">
+                        <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("schema.despues") }}</div>
+                        <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="c.despues || '—'"></pre>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </section>
+      </div>
+
+      <!-- Cambios de estructura registrados por el trigger DDL -->
+      <section class="card min-w-0" x-show="vista === 'ddl'">
+        <div class="card-head flex-wrap gap-3">
+          <div>
+            <div class="card-eyebrow" x-text="TEXTOS.ddlEyebrow.replace('{n}', numero(ddl.total))"></div>
+            <h3 class="card-title">{{ t("soporte.ddl.titulo") }}</h3>
+          </div>
+          <input class="rounded border border-line px-2 py-1.5 text-sm" placeholder="{{ t('soporte.ddl.buscar') }}" x-model.debounce.500ms="ddl.texto" @input="cargarDdl(1)">
+        </div>
+        <div class="overflow-x-auto">
+          <table class="data-table">
+            <thead><tr><th>{{ t("auditoria.col.fecha") }}</th><th>{{ t("soporte.ddl.evento") }}</th><th>{{ t("soporte.ddl.objeto") }}</th><th>{{ t("soporte.ddl.login") }}</th><th>{{ t("soporte.ddl.programa") }}</th></tr></thead>
+            <tbody>
+              <template x-for="r in ddl.registros" :key="r.id">
+                <tr class="cursor-pointer" @click="verDdl(r)">
+                  <td class="metric-mono whitespace-nowrap text-[11.5px] text-fg-faint" x-text="fecha(r.ts)"></td>
+                  <td><span class="tag px-[7px] py-px text-[9.5px]" x-text="r.evento"></span></td>
+                  <td class="metric-mono text-xs"><div class="max-w-[320px] truncate" x-text="[r.esquema, r.objeto].filter(Boolean).join('.') || '—'"></div></td>
+                  <td class="text-xs" x-text="r.login"></td>
+                  <td class="text-xs text-fg-muted"><div class="max-w-[220px] truncate" x-text="r.programa || '—'"></div></td>
+                </tr>
+              </template>
+              <tr x-show="ddl.cargado && !ddl.registros.length"><td colspan="5" class="text-center text-fg-muted">{{ t("soporte.ddl.vacio") }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot flex-wrap justify-between gap-2">
+          <span class="text-xs text-fg-muted">{{ t("soporte.ddl.nota") }}</span>
+          <div class="flex items-center gap-1.5">
+            <button class="btn btn-ghost btn-sm" :disabled="ddl.pagina <= 1" @click="cargarDdl(ddl.pagina - 1)">‹</button>
+            <span class="metric-mono text-[11px]" x-text="`${ddl.pagina} / ${ddl.paginas}`"></span>
+            <button class="btn btn-ghost btn-sm" :disabled="ddl.pagina >= ddl.paginas" @click="cargarDdl(ddl.pagina + 1)">›</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Datos: tablas temporales (solo lectura) -->
+      <section class="card min-w-0" x-show="vista === 'datos'">
+        <div class="card-head flex-wrap gap-3">
+          <div>
+            <div class="card-eyebrow">{{ t("soporte.datos.eyebrow") }}</div>
+            <h3 class="card-title">{{ t("soporte.datos.titulo") }}</h3>
+          </div>
+        </div>
+        <div class="grid gap-2 border-b border-line px-5 py-3 sm:grid-cols-2 lg:grid-cols-5">
+          <select class="rounded border border-line px-2 py-1.5 text-sm" x-model="datos.tabla" aria-label="{{ t('soporte.datos.tabla') }}">
+            {% for tabla in tablas_con_historia %}<option value="{{ tabla }}">{{ tabla }}</option>{% endfor %}
+          </select>
+          <select class="rounded border border-line px-2 py-1.5 text-sm" x-model="datos.modo" aria-label="{{ t('soporte.datos.modo') }}">
+            <option value="momento">{{ t("soporte.datos.modo_momento") }}</option>
+            <option value="cambios">{{ t("soporte.datos.modo_cambios") }}</option>
+          </select>
+          <input type="datetime-local" step="1" class="rounded border border-line px-2 py-1.5 text-sm" x-model="datos.momento" x-show="datos.modo === 'momento'" aria-label="{{ t('soporte.datos.momento') }}">
+          <input class="rounded border border-line px-2 py-1.5 text-sm" x-model="datos.clave" :placeholder="TEXTOS.clavePlaceholder" aria-label="{{ t('soporte.datos.clave') }}">
+          <button class="btn btn-primary btn-sm" :disabled="datos.cargando" @click="consultarDatos()">{{ t("soporte.datos.consultar") }}</button>
+        </div>
+        <template x-if="datos.resultado">
+          <div>
+            <p class="px-5 pt-3 text-xs text-fg-muted" x-text="resumenDatos()"></p>
+            <div class="max-h-[520px] overflow-auto">
+              <table class="data-table">
+                <thead><tr><template x-for="c in datos.resultado.columnas" :key="c"><th class="whitespace-nowrap" x-text="TEXTOS.columnasPeriodo[c] || c"></th></template></tr></thead>
+                <tbody>
+                  <template x-for="(fila, i) in datos.resultado.filas" :key="i">
+                    <tr :style="esVigente(fila) ? '' : 'background: var(--bg-sunk)'">
+                      <template x-for="(valor, j) in fila" :key="j">
+                        <td class="metric-mono text-[11.5px]"><div class="max-w-[260px] truncate" :title="celda(valor, j)" x-text="celda(valor, j)"></div></td>
+                      </template>
+                    </tr>
+                  </template>
+                  <tr x-show="!datos.resultado.filas.length"><td :colspan="datos.resultado.columnas.length" class="text-center text-fg-muted">{{ t("soporte.datos.vacio") }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+        <p class="card-foot text-xs text-fg-muted">{{ t("soporte.datos.nota") }}</p>
+      </section>
+
+      <!-- Detalle de un cambio de estructura -->
+      <template x-if="ddlDetalle">
+        <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-4 sm:py-8"
+             @click.self="ddlDetalle = null" @keydown.escape.window="ddlDetalle = null">
+          <div class="card mx-2 w-full max-w-3xl">
+            <div class="card-head">
+              <div>
+                <div class="card-eyebrow" x-text="`${fecha(ddlDetalle.ts)} · ${ddlDetalle.login}${ddlDetalle.equipo ? ' · ' + ddlDetalle.equipo : ''}`"></div>
+                <h3 class="card-title" x-text="`${ddlDetalle.evento} ${[ddlDetalle.esquema, ddlDetalle.objeto].filter(Boolean).join('.')}`"></h3>
+              </div>
+            </div>
+            <div class="card-body space-y-2 text-[13px]">
+              <div class="text-xs text-fg-muted" x-text="`${TEXTOS.programa}: ${ddlDetalle.programa || '—'}`"></div>
+              <pre class="bloque-sql max-h-96 overflow-auto p-3 font-mono text-xs" x-text="ddlDetalle.tsql || '—'"></pre>
+            </div>
+            <div class="card-foot justify-end">
+              <button class="btn btn-ghost btn-sm" @click="ddlDetalle = null">{{ t("auditoria.cerrar") }}</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>
+
+<script>
+  window.TEXTOS_SOPORTE = {
+    estadosServicio: {{ textos_servicios | tojson }},
+    colas: { bitacora_logs: {{ t("soporte.colas.bitacora_logs") | tojson }} },
+    escritorActivo: {{ t("soporte.colas.escritor_activo") | tojson }},
+    escritorDetenido: {{ t("soporte.colas.escritor_detenido") | tojson }},
+    ultimaFalla: {{ t("soporte.colas.ultima_falla") | tojson }},
+    procesos: { recolector: {{ t("soporte.procesos.recolector") | tojson }}, programador_sandbox: {{ t("soporte.procesos.programador_sandbox") | tojson }} },
+    estadosProceso: { {% for e in ["activo", "en_espera", "detenido", "desactivado", "sin_datos"] %}{{ e | tojson }}: {{ t("soporte.procesos.estado." ~ e) | tojson }},{% endfor %} },
+    ultimoLatido: {{ t("soporte.procesos.ultimo") | tojson }},
+    conexiones: {{ t("soporte.procesos.conexiones") | tojson }},
+    cadaSegundos: {{ t("soporte.procesos.cada") | tojson }},
+    origenes: { {% for o in ["inicial", "migracion", "detectado", "manual"] %}{{ o | tojson }}: {{ t("soporte.estructura.origen." ~ o) | tojson }},{% endfor %} },
+    migraciones: {{ t("soporte.estructura.migraciones") | tojson }},
+    inicial: {{ t("soporte.estructura.inicial") | tojson }},
+    sinCambios: {{ t("soporte.estructura.sin_cambios") | tojson }},
+    capturada: {{ t("soporte.estructura.capturada") | tojson }},
+    cambios: {{ t("schema.cambios") | tojson }},
+    modificaciones: {{ t("schema.modificaciones") | tojson }},
+    comparar: {{ t("schema.comparar") | tojson }},
+    cancelarComparacion: {{ t("schema.cancelar_comparacion") | tojson }},
+    ayudaComparar: {{ t("schema.ayuda_comparar") | tojson }},
+    estadoActual: {{ t("schema.estado_actual") | tojson }},
+    diffVersion: {{ t("schema.diff_version") | tojson }},
+    diffComparacion: {{ t("schema.diff_comparacion") | tojson }},
+    tituloComparacion: {{ t("schema.titulo_comparacion") | tojson }},
+    operaciones: { agregado: {{ t("schema.operacion.agregado") | tojson }}, eliminado: {{ t("schema.operacion.eliminado") | tojson }}, modificado: {{ t("schema.operacion.modificado") | tojson }} },
+    tipos: { {% for tipo in ["tabla", "indice", "vista", "procedimiento", "funcion", "trigger"] %}{{ tipo | tojson }}: {{ t("schema.tipo." ~ tipo) | tojson }},{% endfor %} },
+    ddlEyebrow: {{ t("soporte.ddl.eyebrow") | tojson }},
+    programa: {{ t("soporte.ddl.programa") | tojson }},
+    clavePlaceholder: {{ t("soporte.datos.clave") | tojson }},
+    columnasPeriodo: { valido_desde: {{ t("soporte.datos.valido_desde") | tojson }}, valido_hasta: {{ t("soporte.datos.valido_hasta") | tojson }} },
+    vigente: {{ t("soporte.datos.vigente") | tojson }},
+    resumenMomento: {{ t("soporte.datos.resumen_momento") | tojson }},
+    resumenCambios: {{ t("soporte.datos.resumen_cambios") | tojson }},
+    truncado: {{ t("soporte.datos.truncado") | tojson }},
+  };
+</script>
+<script src="/static/js/soporte.js?v={{ version_estaticos }}"></script>
+{% endblock %}

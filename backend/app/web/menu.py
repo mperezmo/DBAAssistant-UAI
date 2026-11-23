@@ -43,6 +43,7 @@ MENU: tuple[SeccionMenu, ...] = (
         (
             ItemMenu("conexiones", "menu.conexiones", "db", "/conexiones"),
             ItemMenu("admin", "menu.admin", "settings", "/admin"),
+            ItemMenu("soporte", "menu.soporte", "support", "/soporte"),
         ),
     ),
 )
@@ -66,6 +67,7 @@ ICONOS = {
         "M10 7 A3 3 0 1 0 10 13 A3 3 0 0 0 10 7 Z M10 2 V4 M10 16 V18 M2 10 H4 M16 10 H18 "
         "M4.2 4.2 L5.6 5.6 M14.4 14.4 L15.8 15.8 M4.2 15.8 L5.6 14.4 M14.4 5.6 L15.8 4.2"
     ),
+    "support": ("M10 2 L17 5 V10 C17 14 14 17 10 18 C6 17 3 14 3 10 V5 Z M7 10 L9 12 L13 8"),
     "db": (
         "M4 5 C4 3 6 2 10 2 C14 2 16 3 16 5 V15 C16 17 14 18 10 18 C6 18 4 17 4 15 Z "
         "M4 5 C4 7 6 8 10 8 C14 8 16 7 16 5 M4 10 C4 12 6 13 10 13 C14 13 16 12 16 10"
