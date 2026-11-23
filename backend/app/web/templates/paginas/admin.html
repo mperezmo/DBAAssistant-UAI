@@ -32,48 +32,50 @@
     </div>
   </template>
 
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>{{ t("usuarios.col.usuario") }}</th>
-        <th>{{ t("usuarios.col.rol") }}</th>
-        <th>{{ t("usuarios.col.ambientes") }}</th>
-        <th>{{ t("usuarios.col.estado") }}</th>
-        <th x-text="bajas ? '{{ t('usuarios.col.purga') }}' : '{{ t('usuarios.col.ultimo_ingreso') }}'"></th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <template x-for="u in usuarios" :key="u.id">
+  <div class="overflow-x-auto">
+    <table class="data-table">
+      <thead>
         <tr>
-          <td>
-            <strong class="text-[13px]" x-text="u.nombre || u.email"></strong>
-            <div class="font-mono text-[11px] text-fg-faint" x-text="u.email"></div>
-          </td>
-          <td><span class="tag" x-text="roles[u.rol]"></span></td>
-          <td class="metric-mono text-[11.5px]" x-text="u.ambientes.join(', ') || '—'"></td>
-          <td><span class="tag" :class="claseEstado(u.estado)" x-text="estados[u.estado]"></span></td>
-          <td class="metric-mono text-[11.5px] text-fg-faint"
-              x-text="bajas ? u.dias_para_purga + ' {{ t('usuarios.dias') }}' : fecha(u.ultimo_ingreso)"></td>
-          <td class="text-right whitespace-nowrap">
-            <template x-if="!bajas">
-              <span>
-                <button class="btn btn-ghost btn-sm" x-show="u.estado === 'invitado'" @click="reenviar(u)">{{ t("usuarios.reenviar") }}</button>
-                <button class="btn btn-ghost btn-sm" @click="abrirEdicion(u)">{{ t("usuarios.editar") }}</button>
-                <button class="btn btn-ghost btn-sm" @click="darBaja(u)">{{ t("usuarios.baja") }}</button>
-              </span>
-            </template>
-            <template x-if="bajas">
-              <button class="btn btn-ghost btn-sm" @click="rehabilitar(u)">{{ t("usuarios.rehabilitar") }}</button>
-            </template>
-          </td>
+          <th>{{ t("usuarios.col.usuario") }}</th>
+          <th>{{ t("usuarios.col.rol") }}</th>
+          <th>{{ t("usuarios.col.ambientes") }}</th>
+          <th>{{ t("usuarios.col.estado") }}</th>
+          <th x-text="bajas ? '{{ t('usuarios.col.purga') }}' : '{{ t('usuarios.col.ultimo_ingreso') }}'"></th>
+          <th></th>
         </tr>
-      </template>
-      <tr x-show="cargado && usuarios.length === 0">
-        <td colspan="6" class="text-center text-fg-muted">{{ t("usuarios.vacio") }}</td>
-      </tr>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <template x-for="u in usuarios" :key="u.id">
+          <tr>
+            <td>
+              <strong class="text-[13px]" x-text="u.nombre || u.email"></strong>
+              <div class="text-xs text-fg-faint" x-text="u.email"></div>
+            </td>
+            <td><span class="tag" x-text="roles[u.rol]"></span></td>
+            <td class="text-xs" x-text="u.ambientes.join(', ') || '—'"></td>
+            <td><span class="tag" :class="claseEstado(u.estado)" x-text="estados[u.estado]"></span></td>
+            <td class="numero text-xs text-fg-faint"
+                x-text="bajas ? u.dias_para_purga + ' {{ t('usuarios.dias') }}' : fecha(u.ultimo_ingreso)"></td>
+            <td class="text-right whitespace-nowrap">
+              <template x-if="!bajas">
+                <span>
+                  <button class="btn btn-ghost btn-sm" x-show="u.estado === 'invitado'" @click="reenviar(u)">{{ t("usuarios.reenviar") }}</button>
+                  <button class="btn btn-ghost btn-sm" @click="abrirEdicion(u)">{{ t("usuarios.editar") }}</button>
+                  <button class="btn btn-ghost btn-sm" @click="darBaja(u)">{{ t("usuarios.baja") }}</button>
+                </span>
+              </template>
+              <template x-if="bajas">
+                <button class="btn btn-ghost btn-sm" @click="rehabilitar(u)">{{ t("usuarios.rehabilitar") }}</button>
+              </template>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="cargado && usuarios.length === 0">
+          <td colspan="6" class="text-center text-fg-muted">{{ t("usuarios.vacio") }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
   <!-- Formulario de alta / edición -->
   <template x-if="formulario">

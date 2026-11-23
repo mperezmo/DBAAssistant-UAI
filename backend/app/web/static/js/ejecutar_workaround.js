@@ -1,4 +1,4 @@
-// Ejecución de un workaround: destino, diagnóstico, confirmación y progreso en vivo.
+// Ejecución de una remediación: destino, diagnóstico, confirmación y progreso en vivo.
 document.addEventListener("alpine:init", () => {
   const api = window.DBA.api;
   const CLAVE_PENDIENTE = "dba.workarounds.ejecutar";
@@ -13,7 +13,7 @@ document.addEventListener("alpine:init", () => {
     TEXTOS_EJ: window.TEXTOS_EJ,
     abierto: false, w: null, conexiones: [], bases: [],
     conexionId: "", base: "", alertaId: null, sids: [], servicio: "", baseOffline: "", motivo: "",
-    inicio: "", jobId: "",
+    inicio: "", jobId: "", confirmacion: "",
     diag: null, cargando: false, mensaje: "", enviando: false, ejecucion: null,
 
     init() {
@@ -30,7 +30,7 @@ document.addEventListener("alpine:init", () => {
         abierto: true, w: null, bases: [], diag: null, mensaje: "", ejecucion: null, enviando: false,
         conexionId: datos.conexion_id || "", base: datos.base || "", alertaId: datos.alerta_id || null,
         sids: datos.sids || [], servicio: datos.servicio || "", baseOffline: datos.base_offline || "", motivo: "",
-        inicio: datos.inicio || "", jobId: datos.job_id || "",
+        inicio: datos.inicio || "", jobId: datos.job_id || "", confirmacion: datos.confirmacion || "",
       });
       try {
         const [w, monitor] = await Promise.all([
@@ -42,13 +42,17 @@ document.addEventListener("alpine:init", () => {
         this.conexiones = monitor.conexiones;
         if (this.conexionId) await this.cambioConexion(true);
       } catch (error) {
-        this.mensaje = error.message;
+        this.mensaje = window.DBA.aviso(error);
       }
     },
 
     cerrar() {
       this.abierto = false;
       if (this.ejecucion) window.dispatchEvent(new CustomEvent("workaround-ejecutado"));
+    },
+
+    conexionElegida() {
+      return this.conexiones.find((c) => c.id === this.conexionId) || null;
     },
 
     conexionesAplicables() {
@@ -58,13 +62,16 @@ document.addEventListener("alpine:init", () => {
     async cambioConexion(conservarBase = false) {
       this.diag = null;
       this.mensaje = "";
-      if (!conservarBase) this.base = "";
+      if (!conservarBase) {
+        this.base = "";
+        this.confirmacion = "";
+      }
       if (!this.conexionId) return;
       if (this.w.requiere_base) {
         try {
           this.bases = (await api("GET", `/api/workarounds/conexiones/${this.conexionId}/bases`)).bases;
         } catch (error) {
-          this.mensaje = error.message;
+          this.mensaje = window.DBA.aviso(error);
           return;
         }
         if (!this.base) return;
@@ -101,7 +108,7 @@ document.addEventListener("alpine:init", () => {
           return this.diagnosticar();
         }
       } catch (error) {
-        this.mensaje = error.message;
+        this.mensaje = window.DBA.aviso(error);
       }
       this.cargando = false;
     },
@@ -126,8 +133,10 @@ document.addEventListener("alpine:init", () => {
       return this.diag.pasos.map((p) => p.comando);
     },
 
+    // En PROD, además, hay que escribir el nombre de la instancia (el alias de la conexión).
     puedeEjecutar() {
-      return this.diag && this.pasosVisibles().length > 0;
+      if (!this.diag || !this.pasosVisibles().length) return false;
+      return !this.diag.prod || this.confirmacion.trim() === this.conexionElegida()?.alias;
     },
 
     async ejecutar() {
@@ -137,17 +146,18 @@ document.addEventListener("alpine:init", () => {
         const r = await api("POST", `/api/workarounds/${this.w.id}/ejecutar`, this.cuerpo());
         await this.seguir(r.ejecucion_id);
       } catch (error) {
-        if (error.codigo === "AMB_VAL_000" && window.confirm(this.TEXTOS_EJ.confirmarMfa)) {
+        // El modal ya avisó que en PROD se pide el segundo factor: no se vuelve a preguntar.
+        if (error.codigo === "AMB_VAL_000" && (this.diag?.prod || window.confirm(this.TEXTOS_EJ.confirmarMfa))) {
           const guardar = () => sessionStorage.setItem(CLAVE_PENDIENTE, JSON.stringify({
             workaround: this.w.id, conexion_id: this.conexionId, base: this.base,
             alerta_id: this.alertaId, sids: this.sids, servicio: this.servicio, base_offline: this.baseOffline,
-            inicio: this.inicio, job_id: this.jobId,
+            inicio: this.inicio, job_id: this.jobId, confirmacion: this.confirmacion,
           }));
           this.enviando = false;
           if (await window.DBA.segundoFactor(location.pathname + location.search, guardar)) await this.ejecutar();
           return;
         }
-        this.mensaje = error.message;
+        this.mensaje = window.DBA.aviso(error);
       }
       this.enviando = false;
     },
@@ -168,7 +178,7 @@ document.addEventListener("alpine:init", () => {
         this.mensaje = this.TEXTOS_EJ.autorizacionPedida;
         this.motivo = "";
       } catch (error) {
-        this.mensaje = error.message;
+        this.mensaje = window.DBA.aviso(error);
       }
     },
   }));

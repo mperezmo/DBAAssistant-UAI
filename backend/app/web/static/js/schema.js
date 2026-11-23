@@ -23,7 +23,7 @@ document.addEventListener("alpine:init", () => {
       try {
         this.conexiones = (await api("GET", "/api/schema/conexiones")).conexiones;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
       if (!this.conexiones.length) return;
@@ -39,7 +39,7 @@ document.addEventListener("alpine:init", () => {
         this.base = this.bases[0] || "";
         await this.cargarVersiones();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -57,7 +57,7 @@ document.addEventListener("alpine:init", () => {
         this.error = null;
         if (this.versiones.length) await this.elegir(this.versiones[0]);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -86,7 +86,7 @@ document.addEventListener("alpine:init", () => {
           descarga: null,
         };
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -112,12 +112,12 @@ document.addEventListener("alpine:init", () => {
           descarga: `${this.ruta()}/comparar.sql?${params}`,
         };
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—";
+      return window.DBA.fecha(iso);
     },
     pieVersion() {
       const v = this.vista.version;

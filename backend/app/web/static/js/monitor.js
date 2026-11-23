@@ -14,33 +14,29 @@ document.addEventListener("alpine:init", () => {
   const PORCENTAJES = ["cpu", "memoria", "disco"];
 
   // Geometría del medidor semicircular y del gráfico (mismas medidas que el diseño).
-  const CX = 100, CY = 100, R = 72;
+  const CX = 100, CY = 100;
   const W = 1100, H = 240, P = 30;
 
+  // Series del gráfico: colores de esmalte distinguibles entre sí.
   const COLORES = {
-    cpu: "var(--blue-700)", memoria: "var(--terracotta)", disco: "var(--sage)",
-    latencia: "var(--blue-300)", sesiones: "var(--mustard)", bloqueos: "var(--ink-500)",
-    deadlocks: "var(--danger)", conexiones_seg: "var(--gray-500)",
+    cpu: "var(--color-primary)", memoria: "var(--color-danger)", disco: "var(--color-ok)",
+    latencia: "var(--color-info)", sesiones: "var(--color-warn-fill)", bloqueos: "var(--gray-700)",
+    deadlocks: "#7A3E8E", conexiones_seg: "var(--gray-400)",
   };
 
-  const punto = (angulo, radio = R) => {
-    const a = (angulo * Math.PI) / 180;
-    return [CX + radio * Math.cos(a), CY + radio * Math.sin(a)];
+  // Instrumento: semicírculo de radio 80 con centro en (100, 100). Marcas cada 10 % por fuera
+  // del arco; las de 0, 50 y 100 % son más largas.
+  const RADIO_ARCO = 80, LARGO_AGUJA = 62;
+  const sobreArco = (porcentaje, radio) => {
+    const a = Math.PI * (1 - porcentaje / 100);
+    return [CX + radio * Math.cos(a), CY - radio * Math.sin(a)];
   };
-
-  const arco = (inicio, fin) => {
-    if (fin <= inicio) return "";
-    const [x1, y1] = punto(inicio);
-    const [x2, y2] = punto(fin);
-    return `M${x1},${y1} A${R},${R} 0 0,1 ${x2},${y2}`;
-  };
-
   const MARCAS = Array.from({ length: 11 }, (_, i) => {
-    const angulo = -180 + i * 18;
-    const [x1, y1] = punto(angulo, i % 5 === 0 ? R - 12 : R - 6);
-    const [x2, y2] = punto(angulo);
-    return `M${x1},${y1} L${x2},${y2}`;
+    const [x1, y1] = sobreArco(i * 10, RADIO_ARCO + 11);
+    const [x2, y2] = sobreArco(i * 10, RADIO_ARCO + (i % 5 === 0 ? 20 : 16));
+    return `M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)}`;
   }).join(" ");
+  const COLOR_ESTADO = { critical: "var(--color-danger)", warning: "var(--color-warn-fill)", ok: "var(--color-ok)" };
 
   const leer = (clave) => {
     try { return localStorage.getItem(clave); } catch { return null; }
@@ -48,7 +44,7 @@ document.addEventListener("alpine:init", () => {
   const recordar = (clave, valor) => {
     try { localStorage.setItem(clave, valor); } catch { /* sin almacenamiento local */ }
   };
-  const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString(window.DBA.locale) : "—");
+  const hora = (iso) => window.DBA.horaSegundos(iso);
   const numero = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
 
   Alpine.data("monitor", () => ({
@@ -67,7 +63,7 @@ document.addEventListener("alpine:init", () => {
         this.conexiones = r.conexiones;
         this.puedeConfigurar = r.puede_configurar;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
       if (!this.conexiones.length) return;
@@ -103,7 +99,7 @@ document.addEventListener("alpine:init", () => {
         this.actual = await api("GET", `/api/monitor/${this.conexionId}`);
         this.error = null;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -113,7 +109,7 @@ document.addEventListener("alpine:init", () => {
         this.serie = await api("GET", `/api/monitor/${this.conexionId}/serie?rango=${this.rango}&metricas=${metricas}`);
         this.errorSerie = null;
       } catch (error) {
-        this.errorSerie = error.message;
+        this.errorSerie = window.DBA.aviso(error);
       }
     },
 
@@ -122,7 +118,7 @@ document.addEventListener("alpine:init", () => {
         this.costosas = (await api("GET", `/api/monitor/${this.conexionId}/consultas-costosas`)).consultas;
         this.errorCostosas = null;
       } catch (error) {
-        this.errorCostosas = error.message;
+        this.errorCostosas = window.DBA.aviso(error);
       }
     },
 
@@ -141,53 +137,78 @@ document.addEventListener("alpine:init", () => {
       return this.actual?.unidades?.[metrica] ?? "";
     },
     formato(v) {
-      if (v === null || v === undefined) return "—";
-      return Number.isInteger(v) ? v.toLocaleString(window.DBA.locale) : v.toLocaleString(window.DBA.locale, { maximumFractionDigits: 1 });
+      return window.DBA.numero(v, 1);
     },
 
     color(metrica, porDefecto) {
       const v = this.valor(metrica);
       const u = this.umbral(metrica);
       if (v === null) return "var(--fg-faint)";
-      if (u.critical !== null && u.critical !== undefined && v >= u.critical) return "var(--terracotta)";
-      if (u.warning !== null && u.warning !== undefined && v >= u.warning) return "var(--mustard)";
-      return u.warning !== null && u.warning !== undefined ? "var(--sage)" : porDefecto;
+      if (u.critical !== null && u.critical !== undefined && v >= u.critical) return "var(--color-danger)";
+      if (u.warning !== null && u.warning !== undefined && v >= u.warning) return "var(--color-warn)";
+      return porDefecto;
     },
     colorContador(metrica) {
       return this.color(metrica, "var(--fg)");
     },
 
-    arco,
     marcas: () => MARCAS,
 
-    medidor(metrica) {
+    // Estado del instrumento según los umbrales de la conexión.
+    estadoMedidor(metrica) {
       const v = this.valor(metrica);
       const u = this.umbral(metrica);
-      // Los porcentajes van de 0 a 100; el resto se escala para que el umbral critical
-      // quede al 90% del recorrido.
-      const maximo = PORCENTAJES.includes(metrica)
-        ? 100
-        : Math.max(u.critical ? u.critical / 0.9 : 0, (v || 0) * 1.1, 1);
-      const angulo = (x) => -180 + Math.min(Math.max(x / maximo, 0), 1) * 180;
-      return {
-        color: this.color(metrica, "var(--accent)"),
-        relleno: v === null ? "" : arco(-180, angulo(v)),
-        zonaWarning: u.warning != null ? arco(angulo(u.warning), angulo(u.critical)) : "",
-        zonaCritical: u.critical != null ? arco(angulo(u.critical), 0) : "",
-        aguja: punto(angulo(v || 0), R - 18),
-      };
+      if (v === null) return null;
+      if (u.critical !== null && u.critical !== undefined && v >= u.critical) return "critical";
+      if (u.warning !== null && u.warning !== undefined && v >= u.warning) return "warning";
+      return "ok";
+    },
+    claseEstadoMedidor(metrica) {
+      return { critical: "tag-red", warning: "tag-yellow", ok: "tag-green" }[this.estadoMedidor(metrica)] || "";
+    },
+    textoEstadoMedidor(metrica) {
+      return TEXTOS.estadosMedidor[this.estadoMedidor(metrica) || "sin_datos"];
+    },
+    colorMedidor(metrica) {
+      return COLOR_ESTADO[this.estadoMedidor(metrica)] || "var(--color-primary)";
+    },
+    // Los porcentajes van de 0 a 100; el resto se escala para que el umbral crítico quede
+    // al 90 % del recorrido (o a 100 si no hay umbral).
+    escalaMedidor(metrica) {
+      if (PORCENTAJES.includes(metrica)) return 100;
+      const u = this.umbral(metrica);
+      return Math.max(u.critical ? u.critical / 0.9 : 100, (this.valor(metrica) || 0) * 1.1);
+    },
+    porcentaje(metrica) {
+      const v = this.valor(metrica) || 0;
+      return Math.min(Math.max((v / this.escalaMedidor(metrica)) * 100, 0), 100);
+    },
+    aguja(metrica) {
+      return sobreArco(this.porcentaje(metrica), LARGO_AGUJA);
+    },
+    detalleMedidor(metrica) {
+      if (metrica === "disco") return this.textoVolumenes();
+      if (PORCENTAJES.includes(metrica)) {
+        const u = this.umbral(metrica);
+        return u.warning != null ? TEXTOS.umbralMedidor.replace("{valor}", window.DBA.numero(u.warning, 1)) : "";
+      }
+      return TEXTOS.escalaMedidor.replace("{maximo}", window.DBA.numero(this.escalaMedidor(metrica), 0)).replace("{unidad}", this.unidad(metrica));
     },
 
     textoEstado() {
       if (!this.actual || this.actual.estado === "sin_datos") return TEXTOS.sinLecturas;
       const prefijo = this.actual.estado === "ok" ? TEXTOS.enVivo : TEXTOS.sinConexion;
-      return `${prefijo} ${hora(this.actual.ultima_lectura)}`;
+      return `${prefijo} · ${hora(this.actual.ultima_lectura)}`;
     },
     textoObsoleto() {
       return TEXTOS.obsoleto.replace("{hora}", hora(this.actual?.ultima_lectura));
     },
+    // Un volumen: "55,4 GB libres"; varios: "/datos: 78 % usado · 55,4 GB libres — ...".
     textoVolumenes() {
-      return (this.actual?.volumenes || []).map((v) => `${v.volumen} ${v.uso}% · ${v.libre_gb} GB libres`).join(" — ");
+      const volumenes = this.actual?.volumenes || [];
+      if (volumenes.length === 1) return TEXTOS.discoLibre.replace("{libre}", window.DBA.numero(volumenes[0].libre_gb, 1));
+      return volumenes.map((v) => TEXTOS.discoVolumen.replace("{volumen}", v.volumen)
+        .replace("{uso}", window.DBA.numero(v.uso, 1)).replace("{libre}", window.DBA.numero(v.libre_gb, 1))).join(" — ");
     },
 
     // --- Histórico ------------------------------------------------------------------
@@ -319,7 +340,7 @@ document.addEventListener("alpine:init", () => {
         const params = new URLSearchParams({ base: b.base });
         this.detalleBackup.filas = (await api("GET", `/api/monitor/${this.conexionId}/backups/historial?${params}`)).backups;
       } catch (error) {
-        this.detalleBackup.error = error.message;
+        this.detalleBackup.error = window.DBA.aviso(error);
       }
       this.detalleBackup.cargando = false;
     },
@@ -355,7 +376,7 @@ document.addEventListener("alpine:init", () => {
       try {
         this.detalleJob.ejecuciones = (await api("GET", `/api/monitor/${this.conexionId}/jobs/${j.id}`)).ejecuciones;
       } catch (error) {
-        this.detalleJob.error = error.message;
+        this.detalleJob.error = window.DBA.aviso(error);
       }
       this.detalleJob.cargando = false;
     },
@@ -369,7 +390,7 @@ document.addEventListener("alpine:init", () => {
       try {
         d.explicacion = await api("POST", `/api/monitor/${this.conexionId}/jobs/${d.job.id}/explicar`);
       } catch (error) {
-        d.error = error.message;
+        d.error = window.DBA.aviso(error);
       }
       d.explicando = false;
     },
@@ -387,7 +408,7 @@ document.addEventListener("alpine:init", () => {
         }
         await this.cargarQueryStore();
       } catch (error) {
-        this.qs.error = error.message;
+        this.qs.error = window.DBA.aviso(error);
       }
     },
     async cargarQueryStore() {
@@ -398,7 +419,7 @@ document.addEventListener("alpine:init", () => {
         this.qs.datos = await api("GET", `/api/monitor/${this.conexionId}/query-store/consultas?${params}`);
         this.qs.error = null;
       } catch (error) {
-        this.qs.error = error.message;
+        this.qs.error = window.DBA.aviso(error);
       }
       this.qs.cargando = false;
     },
@@ -439,7 +460,7 @@ document.addEventListener("alpine:init", () => {
         this.detalleConsulta.datos = await api("GET", `/api/monitor/${this.conexionId}/query-store/consulta?${params}`);
         this.detalleConsulta.consulta = { ...c, ...this.detalleConsulta.datos };
       } catch (error) {
-        this.detalleConsulta.error = error.message;
+        this.detalleConsulta.error = window.DBA.aviso(error);
       }
       this.detalleConsulta.cargando = false;
     },
@@ -475,7 +496,7 @@ document.addEventListener("alpine:init", () => {
         this.edicion = null;
         await this.refrescarActual();
       } catch (error) {
-        e.mensaje = error.message;
+        e.mensaje = window.DBA.aviso(error);
         e.guardando = false;
       }
     },

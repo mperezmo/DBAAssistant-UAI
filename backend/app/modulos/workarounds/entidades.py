@@ -5,6 +5,11 @@ from datetime import datetime
 
 CATEGORIAS = ("performance", "espacio", "mantenimiento", "servicio")
 CRITICIDADES = ("info", "warning", "critical")
+# Riesgo de ejecutar una remediación: bajo (sin impacto o solo lectura), medio (impacto de
+# rendimiento) o alto (afecta la disponibilidad o corta sesiones). Las propias lo toman de
+# la criticidad que les asignó quien las creó.
+RIESGOS = ("bajo", "medio", "alto")
+RIESGO_POR_CRITICIDAD = {"info": "bajo", "warning": "medio", "critical": "alto"}
 ESTADOS_EJECUCION = ("en_curso", "exitosa", "fallida", "revertida")
 ORIGENES = ("web", "mobile", "automatica")
 # Eventos de alerta que admiten ejecución automática de un integrado apto.

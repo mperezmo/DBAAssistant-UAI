@@ -1,5 +1,15 @@
 // Componente Alpine de la pantalla de conexiones (CU-000-000).
 document.addEventListener("alpine:init", () => {
+  // Tiempo transcurrido corto en el idioma de la interfaz: "hace 2 min", "hace 3 h".
+  const hace = (iso) => {
+    const segundos = Math.round((new Date(iso) - Date.now()) / 1000);
+    const formato = new Intl.RelativeTimeFormat(window.DBA.locale, { numeric: "auto", style: "short" });
+    if (Math.abs(segundos) < 60) return formato.format(segundos, "second");
+    if (Math.abs(segundos) < 3600) return formato.format(Math.round(segundos / 60), "minute");
+    if (Math.abs(segundos) < 86400) return formato.format(Math.round(segundos / 3600), "hour");
+    return formato.format(Math.round(segundos / 86400), "day");
+  };
+
   const TEXTOS = window.TEXTOS_CONEXIONES;
   const api = window.DBA.api;
   // Acción pendiente mientras el usuario confirma el segundo factor en Auth0.
@@ -33,6 +43,7 @@ document.addEventListener("alpine:init", () => {
       : TEXTOS.winrmSinServicios;
 
   Alpine.data("gestionConexiones", () => ({
+    TEXTOS,
     conexiones: [],
     cargado: false,
     formulario: null,
@@ -100,7 +111,7 @@ document.addEventListener("alpine:init", () => {
         f.mensaje = textoResultado(r);
         f.mensajeError = false;
       } catch (error) {
-        f.mensaje = error.message;
+        f.mensaje = window.DBA.aviso(error);
         f.mensajeError = true;
       }
       f.probando = false;
@@ -111,9 +122,22 @@ document.addEventListener("alpine:init", () => {
       try {
         const r = await api("POST", "/api/conexiones/probar", { ...c, id: c.id });
         this.pruebas[c.id] = { estado: "ok", texto: textoResultado(r) };
+        Object.assign(c, { ultima_prueba_ok: true, ultima_prueba_en: new Date().toISOString() });
       } catch (error) {
         this.pruebas[c.id] = { estado: "error", texto: error.message };
+        Object.assign(c, { ultima_prueba_ok: false, ultima_prueba_en: new Date().toISOString() });
       }
+    },
+
+    // Última prueba guardada: "Sin probar", "OK · hace 2 min" o "Falló".
+    textoPrueba(c) {
+      if (c.ultima_prueba_ok === null || c.ultima_prueba_ok === undefined) return TEXTOS.sinProbar;
+      if (!c.ultima_prueba_ok) return TEXTOS.fallo;
+      return `${TEXTOS.ok} · ${hace(c.ultima_prueba_en)}`;
+    },
+    clasePrueba(c) {
+      if (c.ultima_prueba_ok === null || c.ultima_prueba_ok === undefined) return "";
+      return c.ultima_prueba_ok ? "tag-green" : "tag-red";
     },
 
     async probarWinrmFormulario() {
@@ -125,7 +149,7 @@ document.addEventListener("alpine:init", () => {
         f.mensaje = textoWinrm(r);
         f.mensajeError = false;
       } catch (error) {
-        f.mensaje = error.message;
+        f.mensaje = window.DBA.aviso(error);
         f.mensajeError = true;
       }
       f.probando = f.probandoWinrm = false;
@@ -149,7 +173,7 @@ document.addEventListener("alpine:init", () => {
         this.formulario = null;
         await this.cargar();
       } catch (error) {
-        f.mensaje = error.message;
+        f.mensaje = window.DBA.aviso(error);
         f.mensajeError = true;
       }
     },

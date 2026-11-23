@@ -340,4 +340,4 @@ async def test_api_schema(historia):
     assert navegador.get(f"{ruta}/comparar?desde=1").json()["resumen"]["eliminado"] == 2
     descarga = navegador.get(f"{ruta}/comparar.sql?desde=1&hasta=actual")
     assert descarga.status_code == 200 and "ELIMINADO" in descarga.text
-    assert "Línea de" in navegador.get("/schema").text
+    assert "Historial de esquema" in navegador.get("/schema").text

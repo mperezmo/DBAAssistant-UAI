@@ -44,6 +44,35 @@ window.DBA = {
   idioma: document.documentElement.lang || "es",
   locale: document.documentElement.dataset.locale || "es-AR",
 
+  // Formatos comunes a todas las pantallas: separadores del idioma (55,4 · 10.000) y
+  // horas siempre en 24 h. dd/MM/yyyy HH:mm:ss en detalles, HH:mm en listas.
+  numero(valor, decimales = 1) {
+    if (valor === null || valor === undefined || valor === "" || Number.isNaN(Number(valor))) return "—";
+    return new Intl.NumberFormat(this.locale, { maximumFractionDigits: decimales }).format(Number(valor));
+  },
+  _fechaHora(iso, opciones) {
+    if (!iso) return "—";
+    const fecha = iso instanceof Date ? iso : new Date(iso);
+    if (Number.isNaN(fecha.getTime())) return "—";
+    return new Intl.DateTimeFormat(this.locale, { hourCycle: "h23", ...opciones }).format(fecha).replace(", ", " ");
+  },
+  fecha(iso) {
+    return this._fechaHora(iso, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  },
+  fechaCorta(iso) {
+    return this._fechaHora(iso, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  },
+  hora(iso) {
+    return this._fechaHora(iso, { hour: "2-digit", minute: "2-digit" });
+  },
+  horaSegundos(iso) {
+    return this._fechaHora(iso, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  },
+  // Singular o plural según la cantidad: las claves de texto traen las dos formas.
+  plural(n, uno, varios) {
+    return (Number(n) === 1 ? uno : varios).replace("{n}", this.numero(n, 0));
+  },
+
   // Confirmación con segundo factor para una acción sensible. Si el usuario tiene una
   // passkey en este dispositivo, la resuelve la biometría sin salir de la app y devuelve
   // true (quien llama reintenta la acción). Si no, o si la cancela, va a Auth0: antes se
@@ -66,6 +95,19 @@ window.DBA = {
     return false;
   },
 
+  // Error de una llamada listo para mostrar: el texto es el mensaje para la persona y
+  // lleva aparte el código técnico (HTTP 500, IA_API_000) para "Detalle técnico". Es un
+  // String para que las pantallas lo sigan mostrando con x-text.
+  aviso(error) {
+    const textos = window.DBA_TEXTOS || {};
+    const red = error instanceof TypeError;
+    const texto = new String(red ? textos.sinConexion || error.message : error?.message || String(error));
+    texto.codigo = red ? "NET" : error?.codigo ?? null;
+    texto.estado = error?.estado ?? null;
+    texto.servidor = red || (error?.estado ?? 0) >= 500;
+    return texto;
+  },
+
   async api(metodo, ruta, cuerpo) {
     // Un FormData (archivos) viaja como multipart: el navegador arma el Content-Type.
     const formulario = cuerpo instanceof FormData;
@@ -85,14 +127,18 @@ window.DBA = {
       try {
         datos = await respuesta.json();
       } catch {
-        // Respuesta sin JSON (por ejemplo, el proxy rechazó un archivo demasiado grande).
-        datos = { mensaje: respuesta.statusText || String(respuesta.status), codigo: respuesta.status };
+        // Respuesta sin JSON (por ejemplo, un error interno o el proxy rechazó un archivo
+        // demasiado grande): se muestra un mensaje humano y el estado HTTP como detalle.
+        datos = { mensaje: null, codigo: `HTTP ${respuesta.status}` };
       }
     }
     if (!respuesta.ok) {
-      const error = new Error(`${datos.mensaje} (${datos.codigo})`);
-      error.codigo = datos.codigo;
-      error.datos = datos.datos;
+      const textos = window.DBA_TEXTOS || {};
+      const generico = respuesta.status >= 500 ? textos.servidor : textos.solicitud;
+      const error = new Error(datos?.mensaje || generico || respuesta.statusText);
+      error.codigo = datos?.codigo ?? `HTTP ${respuesta.status}`;
+      error.estado = respuesta.status;
+      error.datos = datos?.datos;
       throw error;
     }
     return datos;

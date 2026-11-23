@@ -28,11 +28,22 @@ CABECERA = {"X-Solicitud": "dba"}
 class RepositorioConexionesFalso:
     def __init__(self):
         self.conexiones = {}
+        self.pruebas = []
 
     def instalar(self, monkeypatch):
-        for nombre in ("listar", "obtener", "existe_alias", "guardar", "eliminar"):
+        for nombre in (
+            "listar",
+            "obtener",
+            "existe_alias",
+            "guardar",
+            "eliminar",
+            "registrar_prueba",
+        ):
             monkeypatch.setattr(repositorios, nombre, getattr(self, nombre))
         return self
+
+    def registrar_prueba(self, base, tenant_id, conexion_id, exitosa):
+        self.pruebas.append((conexion_id, exitosa))
 
     def listar(self, base, tenant_id):
         return sorted(self.conexiones.values(), key=lambda c: c.alias)
@@ -195,6 +206,31 @@ async def test_probar_informa_la_falla(entorno):
     assert error.value.codigo == "CON_DB_000"
 
 
+async def test_probar_registra_el_resultado_solo_en_conexiones_guardadas(entorno):
+    guardada = await servicios.crear(TENANT, _actor(), _datos())
+
+    await servicios.probar(TENANT, _datos(), None)
+    await servicios.probar(TENANT, _datos(password_sql=None), guardada.id)
+    with pytest.raises(ErrorDominio):
+        await servicios.probar(TENANT, _datos(password_sql="mala"), guardada.id)
+
+    assert entorno["repo"].pruebas == [(guardada.id, True), (guardada.id, False)]
+
+
+async def test_advertencias_de_sa_y_mismo_servidor_en_otro_ambiente(entorno):
+    prod = await servicios.crear(TENANT, _actor(), _datos(usuario_sql=" SA "))
+    dev = await servicios.crear(TENANT, _actor(), _datos(alias="ERP-DEV", ambiente="DEV"))
+    otra = await servicios.crear(
+        TENANT, _actor(), _datos(alias="CRM-DEV", host="sql02", ambiente="DEV")
+    )
+
+    avisos = servicios.advertencias([prod, dev, otra])
+
+    assert avisos[prod.id] == {"usa_sa": True, "mismo_servidor": ["ERP-DEV"]}
+    assert avisos[dev.id] == {"usa_sa": False, "mismo_servidor": ["ERP-PROD-01"]}
+    assert avisos[otra.id] == {"usa_sa": False, "mismo_servidor": []}
+
+
 async def test_eliminar_prod_exige_segundo_factor_reciente(entorno):
     conexion = await servicios.crear(TENANT, _actor(), _datos())
 
@@ -268,6 +304,8 @@ async def test_api_crud_sin_exponer_contrasenas(entorno):
 
     listado = navegador.get("/api/conexiones").json()["conexiones"]
     assert [c["alias"] for c in listado] == ["ERP-PROD-01"]
+    assert listado[0]["usa_sa"] is False and listado[0]["mismo_servidor"] == []
+    assert listado[0]["ultima_prueba_en"] is None and listado[0]["ultima_prueba_ok"] is None
 
     cambios = {**ENTRADA, "alias": "ERP-PROD-02", "password_sql": None}
     modificada = navegador.patch(f"/api/conexiones/{cuerpo['id']}", json=cambios, headers=CABECERA)

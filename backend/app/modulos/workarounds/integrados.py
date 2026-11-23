@@ -39,6 +39,10 @@ class Integrado:
     ambientes: tuple[str, ...] = AMBIENTES
     transaccional: bool = False
 
+    @property
+    def riesgo(self) -> str:
+        return RIESGO_INTEGRADOS[self.id]
+
     # Nombre y descripción en el idioma de quien los ve (workarounds.integrado.<id>.*).
     @property
     def nombre(self) -> str:
@@ -48,6 +52,24 @@ class Integrado:
     def descripcion(self) -> str:
         return traducir(f"workarounds.integrado.{self.id}.descripcion")
 
+
+# Riesgo de cada integrado: alto si corta sesiones o toca la disponibilidad (servicio,
+# Agent, base online), medio si afecta el rendimiento mientras corre, bajo si no impacta.
+RIESGO_INTEGRADOS = {
+    "kill_bloqueos": "alto",
+    "shrink_log": "medio",
+    "rebuild_indices": "medio",
+    "update_statistics": "bajo",
+    "limpiar_plan_cache": "medio",
+    "checkpoint": "bajo",
+    "iniciar_servicio": "alto",
+    "base_online": "alto",
+    "programar_backup_full": "bajo",
+    "programar_backup_log": "bajo",
+    "reintentar_job": "medio",
+    "iniciar_agente": "alto",
+    "activar_query_store": "bajo",
+}
 
 CATALOGO: dict[str, Integrado] = {
     i.id: i

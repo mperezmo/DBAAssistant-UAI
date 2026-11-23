@@ -5,7 +5,7 @@
   <div class="mb-5 flex flex-wrap items-center gap-2">
     <template x-for="b in bitacoras" :key="b">
       <button class="btn btn-sm" :class="b === actual ? 'btn-primary' : 'btn-ghost'" @click="elegir(b)" x-show="bitacoras.length > 1"
-              x-text="`${TEXTOS.bitacoras[b]} · ${(totales[b] ?? 0).toLocaleString()}`"></button>
+              x-text="`${TEXTOS.bitacoras[b]} · ${(totales[b] ?? 0).toLocaleString(window.DBA.locale)}`"></button>
     </template>
     <span class="flex-1"></span>
     <button class="btn btn-ghost btn-sm" :disabled="exportando" @click="exportar('pdf')">
@@ -16,7 +16,7 @@
     </button>
   </div>
 
-  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+  {% include "parciales/aviso_error.html" %}
 
   <section class="card" x-show="actual" x-cloak>
     <div class="card-head flex-wrap gap-3">
@@ -63,30 +63,30 @@
         <tbody>
           <template x-for="r in registros" :key="r.id">
             <tr class="cursor-pointer" @click="ver(r)">
-              <td class="metric-mono whitespace-nowrap text-[11.5px] text-fg-faint" x-text="fecha(r.ts)"></td>
+              <td class="numero whitespace-nowrap text-xs text-fg-faint" x-text="fecha(r.ts)"></td>
               <template x-if="actual !== 'excepciones'">
                 <td><strong class="text-[13px]" x-text="r.usuario"></strong></td>
               </template>
               <template x-if="actual !== 'excepciones'">
-                <td class="metric-mono text-[11.5px] text-fg-muted" x-text="r.ip || '—'"></td>
+                <td class="metric-mono text-xs text-fg-muted" x-text="r.ip || '—'"></td>
               </template>
               <template x-if="actual !== 'excepciones'">
-                <td><span class="tag px-[7px] py-px text-[9.5px]" x-text="r.accion"></span></td>
+                <td><span class="tag px-[7px] py-px text-xs" x-text="r.accion"></span></td>
               </template>
               <template x-if="actual === 'transacciones'">
                 <td class="metric-mono max-w-[280px] truncate text-xs" x-text="r.entidad || '—'"></td>
               </template>
               <template x-if="actual === 'transacciones'">
-                <td class="metric-mono text-xs" x-text="r.filas != null ? Number(r.filas).toLocaleString() : '—'"></td>
+                <td class="numero text-xs" x-text="r.filas != null ? Number(r.filas).toLocaleString(window.DBA.locale) : '—'"></td>
               </template>
               <template x-if="actual === 'transacciones'">
-                <td><span class="metric-mono text-[11px] font-semibold uppercase" :style="`color: ${colorResultado(r.resultado)}`" x-text="r.resultado_texto"></span></td>
+                <td><span class="metric-mono text-xs font-semibold uppercase" :style="`color: ${colorResultado(r.resultado)}`" x-text="r.resultado_texto"></span></td>
               </template>
               <template x-if="actual === 'sistema'">
                 <td class="metric-mono max-w-[420px] truncate text-xs text-fg-muted" x-text="r.resumen"></td>
               </template>
               <template x-if="actual === 'excepciones'">
-                <td><span class="metric-mono text-[11px] font-semibold" :style="`color: ${colorNivel(r.nivel)}`" x-text="r.nivel"></span></td>
+                <td><span class="metric-mono text-xs font-semibold" :style="`color: ${colorNivel(r.nivel)}`" x-text="r.nivel"></span></td>
               </template>
               <template x-if="actual === 'excepciones'">
                 <td class="metric-mono whitespace-nowrap text-xs" :style="r.origen === 'http' && r.estado >= 500 ? 'color: var(--terracotta)' : ''" x-text="origen(r)"></td>
@@ -113,7 +113,7 @@
       <span x-text="textoPaginacion()"></span>
       <div class="flex items-center gap-1.5">
         <button class="btn btn-ghost btn-sm" :disabled="pagina <= 1" @click="irA(pagina - 1)">‹</button>
-        <span class="metric-mono text-[11px]" x-text="`${pagina} / ${paginas}`"></span>
+        <span class="metric-mono text-xs" x-text="`${pagina} / ${paginas}`"></span>
         <button class="btn btn-ghost btn-sm" :disabled="pagina >= paginas" @click="irA(pagina + 1)">›</button>
       </div>
     </div>
@@ -140,12 +140,12 @@
         <template x-if="detalle.documento?.traza">
           <div>
             <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("auditoria.traza") }}</div>
-            <pre class="bloque-sql max-h-64 overflow-auto p-3 font-mono text-[11px]" x-text="detalle.documento.traza"></pre>
+            <pre class="bloque-sql max-h-64 overflow-auto p-3 font-mono text-xs" x-text="detalle.documento.traza"></pre>
           </div>
         </template>
         <div>
           <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("auditoria.registro_completo") }}</div>
-          <pre class="bloque-sql max-h-80 overflow-auto p-3 font-mono text-[11px]" x-text="JSON.stringify(detalle.documento, null, 2)"></pre>
+          <pre class="bloque-sql max-h-80 overflow-auto p-3 font-mono text-xs" x-text="JSON.stringify(detalle.documento, null, 2)"></pre>
         </div>
       </div>
       <div class="card-foot justify-end">

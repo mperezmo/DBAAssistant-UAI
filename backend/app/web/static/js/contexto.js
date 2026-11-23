@@ -28,7 +28,7 @@ document.addEventListener("alpine:init", () => {
         this.conexiones = r.conexiones;
         this.puedeEditar = r.puede_editar;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
       if (!this.conexiones.length) return;
@@ -45,8 +45,12 @@ document.addEventListener("alpine:init", () => {
       return this.conexiones.find((c) => c.id === this.conexionId);
     },
     subtitulo() {
-      return TEXTOS.subtitulo.replace("{tablas}", this.tablas().length)
-        .replace("{terminos}", this.datos.terminos.length).replace("{reglas}", this.datos.reglas.length);
+      const c = TEXTOS.conteos;
+      const conteos = [
+        [this.tablas().length, c.tablas], [this.datos.sensibles.length, c.sensibles],
+        [this.datos.terminos.length, c.terminos], [this.datos.reglas.length, c.reglas],
+      ].map(([n, [uno, varios]]) => window.DBA.plural(n, uno, varios));
+      return `${TEXTOS.subtitulo} ${conteos.join(" · ")}.`;
     },
 
     async cambioConexion() {
@@ -64,7 +68,7 @@ document.addEventListener("alpine:init", () => {
         if (!this.bases().includes(this.base)) this.base = this.bases()[0] || "";
         await this.cargar();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.leyendoEsquema = false;
     },
@@ -76,7 +80,7 @@ document.addEventListener("alpine:init", () => {
         this.datos = await api("GET", `/api/contexto/conexiones/${this.conexionId}?${params}`);
         this.refrescarDocumentoAbierto();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -160,7 +164,7 @@ document.addEventListener("alpine:init", () => {
         this.formulario = null;
         await this.cargar();
       } catch (error) {
-        f.mensaje = error.message;
+        f.mensaje = window.DBA.aviso(error);
         f.guardando = false;
       }
     },
@@ -178,7 +182,7 @@ document.addEventListener("alpine:init", () => {
       return TEXTOS.detalleDocumento.replace("{paginas}", d.paginas).replace("{tamano}", this.tamano(d.bytes));
     },
     cargadoPor(d) {
-      const fecha = d.cargado_en ? new Date(d.cargado_en).toLocaleString(window.DBA.locale) : "—";
+      const fecha = window.DBA.fecha(d.cargado_en);
       return TEXTOS.cargado.replace("{usuario}", d.cargado_por).replace("{fecha}", fecha);
     },
     mensajeError(d) {
@@ -202,7 +206,7 @@ document.addEventListener("alpine:init", () => {
         await this.cargar();
         this.verDocumento(this.vigente(nuevo));
       } catch (error) {
-        this.mensajeSubida = error.message;
+        this.mensajeSubida = window.DBA.aviso(error);
       }
       this.subiendo = false;
     },
@@ -278,7 +282,7 @@ document.addEventListener("alpine:init", () => {
         Object.assign(d, guardado, { borrador: guardado.resumen, mensaje: TEXTOS.guardado, exito: true });
         await this.cargar();
       } catch (error) {
-        d.mensaje = error.message;
+        d.mensaje = window.DBA.aviso(error);
         d.exito = false;
       }
       d.guardando = false;
@@ -292,7 +296,7 @@ document.addEventListener("alpine:init", () => {
         await this.cargar();
         this.verDocumento(this.vigente(regenerado));
       } catch (error) {
-        d.mensaje = error.message;
+        d.mensaje = window.DBA.aviso(error);
         d.exito = false;
       }
     },
@@ -305,7 +309,7 @@ document.addEventListener("alpine:init", () => {
         this.documento = null;
         await this.cargar();
       } catch (error) {
-        d.mensaje = error.message;
+        d.mensaje = window.DBA.aviso(error);
         d.exito = false;
       }
     },
@@ -318,7 +322,7 @@ document.addEventListener("alpine:init", () => {
         this.formulario = null;
         await this.cargar();
       } catch (error) {
-        f.mensaje = error.message;
+        f.mensaje = window.DBA.aviso(error);
       }
     },
   }));

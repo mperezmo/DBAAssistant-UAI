@@ -7,7 +7,8 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
 1. **Fidelidad al diagrama de arquitectura** (`docs/arquitectura.png`). Todo desvío se
    consulta antes y se documenta en `docs/arquitectura.md`.
 2. **No asumir.** Ante una duda funcional o técnica, se consulta antes de implementar.
-3. El diseño visual de referencia es `design/DBA Assistant.html`.
+3. El diseño visual de referencia es `design/rediseno-2026/` (sistema "años 50
+   corporativo"); `design/DBA Assistant.html` queda como antecedente.
 4. Todo en **español**: código, comentarios, documentación y commits. Los textos de la
    interfaz van en `backend/app/web/i18n/` (`es.json` y `en.json`, siempre con las mismas
    claves y marcadores; una prueba lo verifica).
@@ -107,6 +108,18 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
   - historia de la base de la aplicación: tablas temporales (datos a través del tiempo, 5
     años), trigger DDL (cada cambio de estructura, también desde SSMS) y versiones de la
     estructura por migración o cambio detectado, comparables y descargables como script.
+- **Sprint 15 (en `dev`, pendiente de QA):** rediseño visual y correcciones de la revisión:
+  - sistema visual nuevo (`design/rediseno-2026/`): paleta, tipografías Jost, Libre Franklin
+    e IBM Plex Mono, botones, badges, pestañas, medidores y aviso de error con reintento;
+  - estado general del Inicio derivado de las alertas abiertas y filtro por ambiente;
+  - riesgo de cada remediación (bajo, medio, alto), separado de la severidad de la alerta,
+    y confirmación en PROD escribiendo el nombre de la instancia;
+  - Conexiones: última prueba guardada (migración 015) y avisos por login `sa` y por el
+    mismo servidor registrado en otro ambiente;
+  - formatos locales (números, fechas en 24 h, plurales), renombres (Remediaciones,
+    Historial de esquema, Registros, Base interna de la aplicación) y estados vacíos que
+    explican qué hacer;
+  - ninguna pantalla con desplazamiento horizontal en el celular.
 - **Pendiente:** despliegue en Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.

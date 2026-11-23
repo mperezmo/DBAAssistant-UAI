@@ -12,7 +12,7 @@
     <p class="page-subtitle" x-text="subtitulo()"></p>
   </div>
 
-  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+  {% include "parciales/aviso_error.html" %}
   <p class="mb-4 text-sm text-fg-muted" x-show="cargado && !conexiones.length" x-cloak>{{ t("contexto.sin_conexiones") }}</p>
 
   <div class="mb-5 flex flex-wrap items-center gap-2.5" x-show="conexiones.length" x-cloak>
@@ -31,7 +31,7 @@
     <p class="w-full text-sm text-danger" x-show="mensajeSubida" x-text="mensajeSubida"></p>
   </div>
 
-  <div class="grid gap-5 lg:grid-cols-[auto_minmax(0,1fr)]" x-show="conexiones.length" x-cloak>
+  <div class="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[auto_minmax(0,1fr)]" x-show="conexiones.length" x-cloak>
     <section class="card min-w-[220px] lg:self-start">
       <div class="card-head"><h3 class="card-title">{{ t("contexto.categorias") }}</h3></div>
       <div class="py-2">
@@ -40,7 +40,7 @@
                   :style="categoria === c ? 'background: var(--blue-100); color: var(--accent-strong); font-weight: 500; border-left: 2px solid var(--accent)' : 'border-left: 2px solid transparent'"
                   @click="categoria = c">
             <span x-text="TEXTOS.categorias[c]"></span>
-            <span class="metric-mono text-[11px] text-fg-faint" x-text="datos[c].length"></span>
+            <span class="numero text-xs text-fg-faint" x-text="datos[c].length"></span>
           </button>
         </template>
       </div>
@@ -63,11 +63,11 @@
           <tbody>
             <template x-for="s in datos.sensibles" :key="s.id">
               <tr :class="puedeEditar ? 'cursor-pointer' : ''" @click="editar('sensibles', s)">
-                <td><span class="tag tag-blue px-1.5 py-px text-[9.5px]" x-text="s.base"></span></td>
+                <td><span class="tag tag-blue px-1.5 py-px text-xs" x-text="s.base"></span></td>
                 <td class="metric-mono" x-text="s.tabla"></td>
                 <td class="text-xs text-fg-muted" x-text="s.columnas.join(', ') || '—'"></td>
                 <td><div class="flex flex-wrap gap-1"><template x-for="r in restricciones(s)" :key="r"><span class="tag tag-yellow" x-text="r"></span></template></div></td>
-                <td class="metric-mono text-[11.5px]" x-text="s.roles_consulta.map((r) => TEXTOS.roles[r]).join(', ')"></td>
+                <td class="text-xs" x-text="s.roles_consulta.map((r) => TEXTOS.roles[r]).join(', ')"></td>
                 <td>›</td>
               </tr>
             </template>
@@ -95,8 +95,8 @@
         <template x-for="g in terminosFiltrados()" :key="g.id">
           <div class="rounded-sm border border-line p-3.5" :class="puedeEditar ? 'cursor-pointer' : ''" @click="editar('terminos', g)">
             <div class="mb-1.5 font-serif text-[15px] font-medium" x-text="g.termino"></div>
-            <div class="metric-mono text-[11.5px] leading-normal text-fg-muted" x-text="`${g.base}.${g.entidad}${g.descripcion ? ' · ' + g.descripcion : ''}`"></div>
-            <div class="mt-1.5 text-[11px] text-fg-faint" x-show="g.sinonimos.length" x-text="`${TEXTOS.sinonimos}: ${g.sinonimos.join(', ')}`"></div>
+            <div class="metric-mono text-xs leading-normal text-fg-muted" x-text="`${g.base}.${g.entidad}${g.descripcion ? ' · ' + g.descripcion : ''}`"></div>
+            <div class="mt-1.5 text-xs text-fg-faint" x-show="g.sinonimos.length" x-text="`${TEXTOS.sinonimos}: ${g.sinonimos.join(', ')}`"></div>
           </div>
         </template>
         <p class="text-sm text-fg-muted" x-show="!terminosFiltrados().length">{{ t("contexto.vacio") }}</p>
@@ -122,7 +122,7 @@
               <tr :class="[puedeEditar ? 'cursor-pointer' : '', r.activa ? '' : 'opacity-50']" @click="editar('reglas', r)">
                 <td class="text-[13px]" x-text="r.descripcion"></td>
                 <td class="text-xs text-fg-muted" x-text="ambito(r)"></td>
-                <td class="metric-mono text-[11px]" x-text="r.acciones.join(', ')"></td>
+                <td class="metric-mono text-xs" x-text="r.acciones.join(', ')"></td>
                 <td x-text="TEXTOS.prioridades[r.prioridad]"></td>
                 <td><span class="tag" :class="r.efecto === 'bloquear' ? 'tag-red' : 'tag-yellow'" x-text="TEXTOS.efectos[r.efecto]"></span></td>
                 <td>›</td>
@@ -147,12 +147,12 @@
         <template x-for="d in datos.documentos" :key="d.id">
           <button type="button" class="rounded-sm border border-line p-3.5 text-left hover:border-line-strong" @click="verDocumento(d)">
             <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
-              <span class="tag px-1.5 py-px text-[9.5px]" :class="claseEstado(d)" x-text="TEXTOS.estados[d.estado]"></span>
-              <span class="tag tag-blue px-1.5 py-px text-[9.5px]" x-show="pendientes(d).length" x-text="TEXTOS.conPropuestas.replace('{n}', pendientes(d).length)"></span>
-              <span class="tag px-1.5 py-px text-[9.5px]" x-show="d.editado" x-text="TEXTOS.editado"></span>
+              <span class="tag px-1.5 py-px text-xs" :class="claseEstado(d)" x-text="TEXTOS.estados[d.estado]"></span>
+              <span class="tag tag-blue px-1.5 py-px text-xs" x-show="pendientes(d).length" x-text="TEXTOS.conPropuestas.replace('{n}', pendientes(d).length)"></span>
+              <span class="tag px-1.5 py-px text-xs" x-show="d.editado" x-text="TEXTOS.editado"></span>
             </div>
             <div class="break-all font-serif text-[15px] font-medium" x-text="d.nombre"></div>
-            <div class="metric-mono mt-1.5 text-[11px] text-fg-faint" x-text="`${d.base || TEXTOS.todasBases} · ${detalleDocumento(d)}`"></div>
+            <div class="mt-1.5 text-xs text-fg-faint" x-text="`${d.base || TEXTOS.todasBases} · ${detalleDocumento(d)}`"></div>
           </button>
         </template>
         <p class="text-sm text-fg-muted" x-show="!datos.documentos.length">{{ t("contexto.documentos.vacio") }}</p>
@@ -169,7 +169,7 @@
         <div class="min-w-0">
           <div class="card-eyebrow" x-text="documento.base || TEXTOS.todasBases"></div>
           <h3 class="card-title break-all" x-text="documento.nombre"></h3>
-          <div class="metric-mono mt-1 text-[11px] text-fg-faint" x-text="`${detalleDocumento(documento)} · ${cargadoPor(documento)}`"></div>
+          <div class="mt-1 text-xs text-fg-faint" x-text="`${detalleDocumento(documento)} · ${cargadoPor(documento)}`"></div>
         </div>
         <a class="btn btn-ghost btn-sm" :href="`/api/contexto/documentos/${documento.id}/archivo`" target="_blank" rel="noopener">{{ t("contexto.documentos.ver_pdf") }}</a>
       </div>
@@ -185,7 +185,7 @@
             </div>
             <div x-show="documento.tablas.length">
               <div class="mb-1.5 text-xs font-medium text-fg-muted">{{ t("contexto.documentos.tablas") }}</div>
-              <div class="flex flex-wrap gap-1.5"><template x-for="tb in documento.tablas" :key="tb"><span class="tag metric-mono px-1.5 py-px text-[10.5px]" x-text="tb"></span></template></div>
+              <div class="flex flex-wrap gap-1.5"><template x-for="tb in documento.tablas" :key="tb"><span class="tag metric-mono px-1.5 py-px text-xs" x-text="tb"></span></template></div>
             </div>
             <!-- Propuestas de la IA: al aceptarlas pasan al Glosario o a las Reglas -->
             <div x-show="documento.propuestas?.length">
@@ -196,8 +196,8 @@
                   <div class="flex flex-wrap items-start justify-between gap-2 rounded-sm border border-line p-3">
                     <div class="min-w-0 flex-1">
                       <div class="mb-1 flex flex-wrap items-center gap-1.5">
-                        <span class="tag px-1.5 py-px text-[9.5px]" :class="claseUnaPropuesta(p)" x-text="tipoPropuesta(p)"></span>
-                        <span class="metric-mono break-all text-[11px] text-fg-faint" x-text="alcancePropuesta(p)"></span>
+                        <span class="tag px-1.5 py-px text-xs" :class="claseUnaPropuesta(p)" x-text="tipoPropuesta(p)"></span>
+                        <span class="metric-mono break-all text-xs text-fg-faint" x-text="alcancePropuesta(p)"></span>
                       </div>
                       <div class="text-[13.5px] font-medium" x-text="p.tipo === 'termino' ? p.datos.termino : p.datos.descripcion"></div>
                       <div class="mt-0.5 text-[12.5px] text-fg-muted" x-show="p.tipo === 'termino' && p.datos.descripcion" x-text="p.datos.descripcion"></div>
@@ -210,7 +210,7 @@
                   </div>
                 </template>
                 <p class="text-xs text-fg-faint" x-show="!pendientes(documento).length">{{ t("contexto.documentos.propuestas_sin_pendientes") }}</p>
-                <p class="metric-mono text-[11px] text-fg-faint" x-show="resueltas(documento)" x-text="resueltas(documento)"></p>
+                <p class="text-xs text-fg-faint" x-show="resueltas(documento)" x-text="resueltas(documento)"></p>
               </div>
             </div>
           </div>
@@ -353,6 +353,12 @@
 <script>
   window.TEXTOS_CONTEXTO = {
     subtitulo: {{ t("contexto.subtitulo") | tojson }},
+    conteos: {
+      tablas: [{{ t("contexto.conteo.tabla") | tojson }}, {{ t("contexto.conteo.tablas") | tojson }}],
+      sensibles: [{{ t("contexto.conteo.sensible") | tojson }}, {{ t("contexto.conteo.sensibles") | tojson }}],
+      terminos: [{{ t("contexto.conteo.termino") | tojson }}, {{ t("contexto.conteo.terminos") | tojson }}],
+      reglas: [{{ t("contexto.conteo.regla") | tojson }}, {{ t("contexto.conteo.reglas") | tojson }}],
+    },
     leyendo: {{ t("contexto.leyendo_esquema") | tojson }},
     actualizarEsquema: {{ t("contexto.actualizar_esquema") | tojson }},
     terminosDefinidos: {{ t("contexto.terminos.titulo") | tojson }},

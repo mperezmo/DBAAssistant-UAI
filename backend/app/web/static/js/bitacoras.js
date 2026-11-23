@@ -21,7 +21,7 @@ document.addEventListener("alpine:init", () => {
         const pedida = new URLSearchParams(location.search).get("bitacora");
         await this.elegir(this.bitacoras.includes(pedida) ? pedida : this.bitacoras[0]);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -51,7 +51,7 @@ document.addEventListener("alpine:init", () => {
         Object.assign(this, { registros: r.registros, total: r.total, pagina: r.pagina, paginas: r.paginas });
         this.error = null;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
     },
@@ -60,7 +60,7 @@ document.addEventListener("alpine:init", () => {
       try {
         this.detalle = await api("GET", `${base}/${this.actual}/registros/${r.id}`);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -86,7 +86,7 @@ document.addEventListener("alpine:init", () => {
           URL.revokeObjectURL(enlace.href);
         }
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.exportando = false;
     },
@@ -95,12 +95,12 @@ document.addEventListener("alpine:init", () => {
       try {
         this.nivel = (await api("PUT", `${base}/excepciones/nivel`, { nivel: this.nivel })).nivel;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—";
+      return window.DBA.fecha(iso);
     },
     textoFiltros() {
       const activos = Object.entries(this.filtros).filter(([, v]) => v && String(v).trim()).map(([, v]) => v);

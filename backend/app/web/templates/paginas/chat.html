@@ -36,7 +36,14 @@
     </div>
 
     <div class="space-y-[18px] px-[22px] py-5" x-ref="mensajes">
-      <p class="text-sm text-fg-muted" x-show="!mensajes.length">{{ t("chat.vacio") }}</p>
+      <div x-show="!mensajes.length && !traduciendo">
+        <p class="m-0 mb-3 text-sm text-fg-muted">{{ t("chat.vacio") }}</p>
+        <div class="flex flex-col items-start gap-2">
+          {% for n in range(1, 4) %}
+          <button type="button" class="btn btn-ghost btn-sm h-auto max-w-full whitespace-normal py-1.5 text-left font-normal" @click="usarEjemplo({{ t('chat.ejemplo.' ~ n) | tojson | forceescape }})">{{ t("chat.ejemplo." ~ n) }}</button>
+          {% endfor %}
+        </div>
+      </div>
       <template x-for="m in mensajes" :key="m.id">
         <div>
           <template x-if="m.rol === 'usuario'">
@@ -52,8 +59,8 @@
                     <div class="mb-3 flex flex-wrap items-center gap-2">
                       <span class="tag tag-blue" x-text="m.base"></span>
                       <span class="tag" x-show="revision(m)?.tipo" :class="revision(m)?.tipo === 'SELECT' ? 'tag-green' : 'tag-yellow'" x-text="TEXTOS.tipos[revision(m)?.tipo] || revision(m)?.tipo"></span>
-                      <span class="tag px-1.5 py-px text-[9.5px]" :class="m.confianza >= 80 ? 'tag-green' : m.confianza >= 50 ? 'tag-yellow' : 'tag-red'" x-text="`${m.confianza}% ${TEXTOS.confianza}`"></span>
-                      <span class="text-[11px] text-fg-faint">{{ t("chat.fuente_automatica") }}</span>
+                      <span class="tag px-1.5 py-px text-xs" :class="m.confianza >= 80 ? 'tag-green' : m.confianza >= 50 ? 'tag-yellow' : 'tag-red'" x-text="`${m.confianza}% ${TEXTOS.confianza}`"></span>
+                      <span class="text-xs text-fg-faint">{{ t("chat.fuente_automatica") }}</span>
                     </div>
 
                     <!-- Lectura: lo principal es el resultado -->
@@ -64,7 +71,7 @@
                       <span class="text-ok">✓</span>
                       <div class="flex-1" x-text="resumenEjecucion(m)"></div>
                       <button class="btn btn-ghost btn-sm" x-show="m.ejecucion?.tipo === 'SELECT'" :disabled="ocupado" @click="ejecutar(m, true)">{{ t("chat.ver_resultado") }}</button>
-                      <span class="metric-mono text-[11px] text-fg-faint" x-text="hora(m.ejecucion?.ts)"></span>
+                      <span class="numero text-xs text-fg-faint" x-text="hora(m.ejecucion?.ts)"></span>
                     </div>
 
                     <!-- Modificación: qué se va a hacer, en palabras, antes de confirmarla -->
@@ -88,7 +95,7 @@
                           <span class="text-fg-muted">{{ t("chat.mod.condicion") }}</span>
                           <code class="font-mono" x-text="revision(m).modificacion.condicion"></code>
                         </p>
-                        <p class="mt-1 text-[11px] text-fg-faint" x-show="revision(m).modificacion.filas_estimadas != null">{{ t("chat.mod.estimado") }}</p>
+                        <p class="mt-1 text-xs text-fg-faint" x-show="revision(m).modificacion.filas_estimadas != null">{{ t("chat.mod.estimado") }}</p>
                         <div class="mt-3 flex flex-wrap gap-2" x-show="revision(m).directo">
                           <button class="btn btn-primary btn-sm" :disabled="ocupado" @click="ejecutar(m)">
                             {% with nombre="play", tam=13 %}{% include "parciales/icono.html" %}{% endwith %}
@@ -117,7 +124,7 @@
 
                     <!-- La consulta, plegada: el usuario la abre si la quiere ver -->
                     <details class="mt-3 rounded border border-line" :open="consultaAbierta(m)">
-                      <summary class="cursor-pointer select-none px-3 py-2 font-mono text-[11px] uppercase tracking-[0.06em] text-fg-muted" x-text="`${TEXTOS.query} · ${lineas(m)} ${lineas(m) === 1 ? TEXTOS.linea : TEXTOS.lineas}`"></summary>
+                      <summary class="cursor-pointer select-none px-3 py-2 font-mono text-xs uppercase tracking-[0.06em] text-fg-muted" x-text="`${TEXTOS.query} · ${lineas(m)} ${lineas(m) === 1 ? TEXTOS.linea : TEXTOS.lineas}`"></summary>
                       <div class="border-t border-line p-3">
                         <div class="bloque-sql">
                           <pre class="m-0 max-h-60 overflow-auto p-3.5 font-mono text-xs leading-relaxed" x-show="edicion?.id !== m.id" x-text="m.sql"></pre>
@@ -145,7 +152,7 @@
                 <div class="burbuja-resumen mt-3 flex flex-wrap items-center gap-2.5" x-show="m.ejecucion && m.ejecucion.tipo !== 'SELECT'">
                   <span class="text-ok">✓</span>
                   <div class="flex-1" x-text="resumenEjecucion(m)"></div>
-                  <span class="metric-mono text-[11px] text-fg-faint" x-text="hora(m.ejecucion?.ts)"></span>
+                  <span class="numero text-xs text-fg-faint" x-text="hora(m.ejecucion?.ts)"></span>
                 </div>
                 <div class="burbuja-resumen mt-3 flex flex-wrap items-center gap-2.5" x-show="m.sandbox">
                   <span :class="m.sandbox?.estado === 'ok' ? 'text-ok' : 'text-danger'" x-text="m.sandbox?.estado === 'ok' ? '✓' : '✕'"></span>
@@ -167,17 +174,17 @@
     <!-- Composer -->
     <div class="border-t border-line px-[18px] pb-4 pt-3.5" style="background: var(--bg-sunk)">
       <div class="rounded border px-3 py-2.5" style="border-color: var(--line-strong); background: var(--bg-elev)">
-        <textarea class="min-h-11 w-full resize-none border-0 bg-transparent text-sm leading-normal outline-none" x-model="texto"
+        <textarea class="min-h-11 w-full resize-none border-0 bg-transparent text-sm leading-normal outline-none" x-model="texto" x-ref="composer"
                   placeholder="{{ t('chat.placeholder') }}" @keydown.enter="atajo($event)"></textarea>
         <div class="mt-1.5 flex flex-wrap items-center gap-2.5">
-          <span class="text-[11.5px] text-fg-faint">✓ {{ t("chat.elige_base") }}</span>
+          <span class="text-xs text-fg-faint">✓ {{ t("chat.elige_base") }}</span>
           <span class="flex-1"></span>
-          <span class="hidden font-mono text-[10.5px] text-fg-faint sm:inline"><span class="kbd">Ctrl</span> + <span class="kbd">↵</span></span>
+          <span class="hidden font-mono text-xs text-fg-faint sm:inline"><span class="kbd">Ctrl</span> + <span class="kbd">↵</span></span>
           <button class="btn btn-primary btn-sm" :disabled="traduciendo || !texto.trim() || !conexionId" @click="enviar()">{{ t("chat.traducir") }} →</button>
         </div>
       </div>
       <p class="mt-2 text-sm text-danger" x-show="error" x-text="error"></p>
-      <div class="mt-2 flex flex-wrap gap-3.5 text-[11px] text-fg-faint">
+      <div class="mt-2 flex flex-wrap gap-3.5 text-xs text-fg-faint">
         <span>● {{ t("chat.nota.ia") }}</span><span>● {{ t("chat.nota.mfa") }}</span><span>● {{ t("chat.nota.auditado") }}</span>
       </div>
     </div>

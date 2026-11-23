@@ -73,7 +73,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : TEXTOS.nunca;
+      return iso ? window.DBA.fecha(iso) : TEXTOS.nunca;
     },
   }));
 });

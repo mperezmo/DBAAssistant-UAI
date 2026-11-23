@@ -10,7 +10,7 @@
     <p class="page-subtitle" x-text="TEXTOS.subtitulo.replace('{n}', versiones.length)"></p>
   </div>
 
-  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+  {% include "parciales/aviso_error.html" %}
   <p class="mb-4 text-sm text-fg-muted" x-show="cargado && !conexiones.length" x-cloak>{{ t("schema.sin_conexiones") }}</p>
 
   <div class="mb-5 flex flex-wrap items-center gap-2.5" x-show="conexiones.length" x-cloak>
@@ -43,7 +43,7 @@
                   x-text="v.version"></span>
             <span class="min-w-0 flex-1">
               <span class="block text-[13.5px] font-medium">v.<span x-text="v.version"></span>
-                <span class="tag tag-green ml-2 px-1.5 py-px text-[9.5px]" x-show="i === 0">{{ t("schema.actual") }}</span>
+                <span class="tag tag-green ml-2 px-1.5 py-px text-xs" x-show="i === 0">{{ t("schema.actual") }}</span>
               </span>
               <span class="block truncate text-xs text-fg-muted" x-text="`${fecha(v.ts)} · ${v.usuario}`"></span>
             </span>
@@ -82,11 +82,11 @@
                 <div class="grid gap-2 px-5 pb-4 md:grid-cols-2" x-show="abierto === i">
                   <div>
                     <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("schema.antes") }}</div>
-                    <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="c.antes || '—'"></pre>
+                    <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-xs" x-text="c.antes || '—'"></pre>
                   </div>
                   <div>
                     <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("schema.despues") }}</div>
-                    <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="c.despues || '—'"></pre>
+                    <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-xs" x-text="c.despues || '—'"></pre>
                   </div>
                 </div>
               </div>

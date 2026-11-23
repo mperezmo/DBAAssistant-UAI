@@ -25,7 +25,7 @@ document.addEventListener("alpine:init", () => {
         this.conexiones = (await api("GET", "/api/chat/conexiones")).conexiones;
         await this.cargarHilos();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
       const recordada = leer(CLAVE_CONEXION);
@@ -68,7 +68,7 @@ document.addEventListener("alpine:init", () => {
         this.conexionId = hilo.conexion_id;
         history.replaceState(null, "", `/chat?hilo=${hilo.id}`);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
         this.nuevo();
       }
     },
@@ -88,8 +88,14 @@ document.addEventListener("alpine:init", () => {
         this.nuevo();
         await this.cargarHilos();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
+    },
+
+    // Consulta de ejemplo del hilo vacío: se carga en el campo para revisarla antes de enviar.
+    usarEjemplo(texto) {
+      this.texto = texto;
+      this.$nextTick(() => this.$refs.composer.focus());
     },
 
     atajo(evento) {
@@ -121,7 +127,7 @@ document.addEventListener("alpine:init", () => {
         if (r.respuesta.error_ejecucion) this.errores = { ...this.errores, [r.respuesta.id]: r.respuesta.error_ejecucion.mensaje };
         this.$nextTick(() => this.$refs.mensajes.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.traduciendo = false;
     },
@@ -248,7 +254,7 @@ document.addEventListener("alpine:init", () => {
         : `${TEXTOS.sandboxError} ${s.error || ""}`;
     },
     hora(iso) {
-      return iso ? new Date(iso).toLocaleTimeString(window.DBA.locale) : "";
+      return iso ? window.DBA.hora(iso) : "";
     },
 
     // --- Resultados: orden, filtros por columna y paginado local (sin re-ejecutar) ---

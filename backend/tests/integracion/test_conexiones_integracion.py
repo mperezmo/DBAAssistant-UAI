@@ -52,6 +52,8 @@ async def test_conexion_real_crear_probar_y_eliminar(prefijo_aislado, clave):
     assert [c.alias for c in await servicios.listar(tenant)] == ["LOCAL-DEV"]
     # Probar la conexión guardada sin reescribir la contraseña.
     assert (await servicios.probar(tenant, _datos(None), conexion.id)).version == resultado.version
+    probada = (await servicios.listar(tenant))[0]
+    assert probada.ultima_prueba_ok is True and probada.ultima_prueba_en is not None
 
     await servicios.eliminar(tenant, actor, conexion.id)
     assert await servicios.listar(tenant) == []

@@ -26,7 +26,7 @@ document.addEventListener("alpine:init", () => {
       try {
         this.conexiones = (await api("GET", "/api/monitor")).conexiones;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
         return;
       }
       if (!this.conexiones.length) return;
@@ -65,7 +65,7 @@ document.addEventListener("alpine:init", () => {
         this.estado = await api("GET", `/api/sandbox/conexiones/${this.conexionId}`);
         this.error = null;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -94,11 +94,11 @@ document.addEventListener("alpine:init", () => {
     antiguedad(iso) {
       if (!iso) return "—";
       const horas = Math.max(0, (Date.now() - new Date(iso).getTime()) / 3600000);
-      const texto = horas < 1 ? `${Math.round(horas * 60)} min` : `${horas.toFixed(1)} h`;
+      const texto = horas < 1 ? `${Math.round(horas * 60)} min` : `${window.DBA.numero(horas, 1)} h`;
       return TEXTOS.hace.replace("{tiempo}", texto);
     },
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—";
+      return window.DBA.fecha(iso);
     },
     puedeEjecutar() {
       return !this.ejecutando && this.base && this.sql.trim();
@@ -108,7 +108,7 @@ document.addEventListener("alpine:init", () => {
       try {
         this.estado = await api("POST", `/api/sandbox/conexiones/${this.conexionId}/sincronizar`);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -122,7 +122,7 @@ document.addEventListener("alpine:init", () => {
         this.resultado = { ...r, solo_sintaxis: soloSintaxis };
         if (!soloSintaxis) await this.cargarHistorial();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.ejecutando = false;
     },
@@ -136,7 +136,7 @@ document.addEventListener("alpine:init", () => {
         this.historial = r.registros;
         this.puedePromover = r.puede_promover;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -152,7 +152,7 @@ document.addEventListener("alpine:init", () => {
         this.base = registro.base;
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -161,7 +161,7 @@ document.addEventListener("alpine:init", () => {
       try {
         this.promocion.datos = await api("POST", `/api/sandbox/historial/${r.id}/previa`);
       } catch (error) {
-        this.promocion.mensaje = error.message;
+        this.promocion.mensaje = window.DBA.aviso(error);
       }
     },
 
@@ -181,7 +181,7 @@ document.addEventListener("alpine:init", () => {
           }
           return;
         }
-        p.mensaje = error.message;
+        p.mensaje = window.DBA.aviso(error);
       }
       p.enviando = false;
     },

@@ -49,7 +49,7 @@ def test_condiciones_por_umbrales():
     por_clave = {c.clave: c for c in resultado}
     assert set(por_clave) == {"umbral:cpu", "umbral:disco", "umbral:sesiones"}
     assert por_clave["umbral:cpu"].severidad == "critical" and por_clave["umbral:cpu"].push
-    assert por_clave["umbral:cpu"].titulo == "CPU por encima del umbral critical"
+    assert por_clave["umbral:cpu"].titulo == "CPU por encima del umbral"
     assert por_clave["umbral:disco"].severidad == "warning" and not por_clave["umbral:disco"].push
     assert por_clave["umbral:disco"].descripcion == "Espacio en disco en 80%; umbral 75%."
     assert por_clave["umbral:sesiones"].umbral == 5
@@ -479,7 +479,10 @@ async def test_api_alertas_por_rol(alertas):
         "warning": 0,
         "critical": 1,
     }
-    assert consulta.get(f"/api/alertas/{alerta.id}").json()["titulo"] == "Instancia sin conexión"
+    detalle = consulta.get(f"/api/alertas/{alerta.id}").json()
+    assert detalle["titulo"] == "Instancia sin conexión"
+    sugerido = detalle["workaround_sugerido"]
+    assert sugerido["id"] == "iniciar_servicio" and sugerido["riesgo"] == "alto"
     denegado = consulta.post(
         f"/api/alertas/{alerta.id}/atender",
         json={"accion": "manual", "comentario": "x"},

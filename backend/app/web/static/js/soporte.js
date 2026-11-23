@@ -8,8 +8,8 @@ document.addEventListener("alpine:init", () => {
   const REFRESCO_MS = 10000;
   const FIN_DE_LOS_TIEMPOS = 9999;
 
-  const fecha = (iso) => (iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—");
-  const numero = (n) => Number(n ?? 0).toLocaleString(window.DBA.locale);
+  const fecha = (iso) => window.DBA.fecha(iso);
+  const numero = (n) => window.DBA.numero(n ?? 0, 0);
   // Valor para un campo datetime-local: la hora local, sin zona.
   const ahoraLocal = () => {
     const ahora = new Date();
@@ -65,6 +65,12 @@ document.addEventListener("alpine:init", () => {
     color(estado) {
       return { online: "var(--sage)", warning: "var(--mustard)" }[estado] || "var(--terracotta)";
     },
+    claseEstado(estado) {
+      return { online: "tag-green", warning: "tag-yellow" }[estado] || "tag-red";
+    },
+    claseProceso(estado) {
+      return { activo: "tag-green", en_espera: "tag-yellow", desactivado: "", sin_datos: "" }[estado] ?? "tag-red";
+    },
     colorProceso(estado) {
       return { activo: "var(--sage)", en_espera: "var(--mustard)", desactivado: "var(--fg-faint)", sin_datos: "var(--fg-faint)" }[estado] || "var(--terracotta)";
     },
@@ -108,7 +114,7 @@ document.addEventListener("alpine:init", () => {
         this.versiones = r.versiones;
         if (this.versiones.length && !this.comparando) await this.elegir(this.versiones[0]);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
     },
@@ -121,7 +127,7 @@ document.addEventListener("alpine:init", () => {
         this.aviso = r.version ? TEXTOS.capturada.replace("{version}", r.version) : TEXTOS.sinCambios;
         await this.cargarVersiones();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.capturando = false;
     },
@@ -157,7 +163,7 @@ document.addEventListener("alpine:init", () => {
           script: `/api/soporte/estructura/${r.version}/script`,
         };
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -181,7 +187,7 @@ document.addEventListener("alpine:init", () => {
           script: null,
         };
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -194,7 +200,7 @@ document.addEventListener("alpine:init", () => {
         Object.assign(this.ddl, { registros: r.registros, total: r.total, pagina: r.pagina, paginas: r.paginas });
         this.error = null;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.ddl.cargado = true;
     },
@@ -203,7 +209,7 @@ document.addEventListener("alpine:init", () => {
       try {
         this.ddlDetalle = await api("GET", `/api/soporte/ddl/${r.id}`);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -223,7 +229,7 @@ document.addEventListener("alpine:init", () => {
         this.datos.consultado = this.datos.modo === "momento" ? params.get("momento") : null;
         this.error = null;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.datos.cargando = false;
     },

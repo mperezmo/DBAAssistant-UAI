@@ -48,9 +48,12 @@ class PruebaEntrada(ConexionEntrada):
         return DatosConexion(**self.model_dump(exclude={"id"}))
 
 
-def _a_json(c: Conexion) -> dict:
+def _a_json(c: Conexion, avisos: dict | None = None) -> dict:
     """Representación pública: nunca incluye contraseñas, ni cifradas."""
     return {
+        **(avisos or {}),
+        "ultima_prueba_en": c.ultima_prueba_en.isoformat() + "Z" if c.ultima_prueba_en else None,
+        "ultima_prueba_ok": c.ultima_prueba_ok,
         "id": c.id,
         "alias": c.alias,
         "host": c.host,
@@ -72,7 +75,9 @@ def _a_json(c: Conexion) -> dict:
 @router.get("")
 async def listar(ctx=contexto) -> dict:
     tenant, _ = ctx
-    return {"conexiones": [_a_json(c) for c in await servicios.listar(tenant)]}
+    conexiones = await servicios.listar(tenant)
+    avisos = servicios.advertencias(conexiones)
+    return {"conexiones": [_a_json(c, avisos[c.id]) for c in conexiones]}
 
 
 @router.post("", status_code=201)

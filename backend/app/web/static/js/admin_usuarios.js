@@ -53,7 +53,7 @@ document.addEventListener("alpine:init", () => {
         this.formulario = null;
         await this.cargar();
       } catch (error) {
-        this.formulario.error = error.message;
+        this.formulario.error = window.DBA.aviso(error);
       }
     },
 
@@ -91,7 +91,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     fecha(iso) {
-      return iso ? new Date(iso + "Z").toLocaleString(window.DBA.locale) : TEXTOS.nunca;
+      return iso ? window.DBA.fecha(iso + "Z") : TEXTOS.nunca;
     },
   }));
 });

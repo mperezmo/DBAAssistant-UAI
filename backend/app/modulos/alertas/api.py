@@ -60,7 +60,13 @@ def _sugerido(a: Alerta) -> dict | None:
         return None
     workaround_id, parametros = sugerido
     i = integrados.CATALOGO[workaround_id]
-    return {"id": i.id, "codigo": i.codigo, "nombre": i.nombre, "parametros": parametros}
+    return {
+        "id": i.id,
+        "codigo": i.codigo,
+        "nombre": i.nombre,
+        "riesgo": i.riesgo,
+        "parametros": parametros,
+    }
 
 
 def _alerta(a: Alerta) -> dict:

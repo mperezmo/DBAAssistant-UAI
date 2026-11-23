@@ -10,9 +10,9 @@
     <p class="page-subtitle">{{ t("soporte.subtitulo") }}</p>
   </div>
 
-  <div class="mb-5 flex flex-wrap items-center gap-2" role="tablist">
+  <div class="pestanas mb-6" role="tablist">
     {% for p in ["servicios", "bitacoras", "historia"] %}
-    <button class="btn btn-sm" role="tab" :class="pestana === '{{ p }}' ? 'btn-primary' : 'btn-ghost'" @click="elegir('{{ p }}')">{{ t("soporte.pestana." ~ p) }}</button>
+    <button type="button" role="tab" :class="pestana === '{{ p }}' && 'activo'" :aria-selected="pestana === '{{ p }}'" @click="elegir('{{ p }}')">{{ t("soporte.pestana." ~ p) }}</button>
     {% endfor %}
   </div>
 
@@ -25,7 +25,7 @@
             <span class="size-2 rounded-full" :style="`background:${color(s.estado)}`"></span>
             <strong class="text-sm" x-text="s.nombre"></strong>
             <span class="flex-1"></span>
-            <span class="metric-mono text-[10px] uppercase tracking-[0.12em]" :style="`color:${color(s.estado)}`" x-text="TEXTOS.estadosServicio[s.estado]"></span>
+            <span class="tag" :class="claseEstado(s.estado)" x-text="TEXTOS.estadosServicio[s.estado]"></span>
           </div>
           <div class="truncate text-xs text-fg-muted">
             <span x-text="s.detalle"></span><span x-show="s.latencia_ms !== null" x-text="` · ${s.latencia_ms} ms`"></span>
@@ -48,16 +48,16 @@
             <div class="row">
               <strong class="text-[13.5px]" x-text="TEXTOS.colas[c.nombre] || c.nombre"></strong>
               <span class="flex-1"></span>
-              <span class="tag px-[7px] py-px text-[9.5px]" :class="c.escritor_activo ? 'tag-green' : ''" x-text="c.escritor_activo ? TEXTOS.escritorActivo : TEXTOS.escritorDetenido"></span>
+              <span class="tag px-[7px] py-px text-xs" :class="c.escritor_activo ? 'tag-green' : ''" x-text="c.escritor_activo ? TEXTOS.escritorActivo : TEXTOS.escritorDetenido"></span>
             </div>
             <div class="h-1.5 overflow-hidden rounded-full" style="background: var(--bg-sunk)">
               <div class="h-full rounded-full" :style="`width: ${Math.min(100, c.pendientes / c.capacidad * 100)}%; background: ${c.pendientes / c.capacidad > 0.8 ? 'var(--terracotta)' : 'var(--sage)'}`"></div>
             </div>
             <div class="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-              <div><div class="text-fg-muted">{{ t("soporte.colas.pendientes") }}</div><div class="metric-mono text-sm" x-text="`${numero(c.pendientes)} / ${numero(c.capacidad)}`"></div></div>
-              <div><div class="text-fg-muted">{{ t("soporte.colas.escritos") }}</div><div class="metric-mono text-sm" x-text="numero(c.escritos)"></div></div>
-              <div><div class="text-fg-muted">{{ t("soporte.colas.descartados") }}</div><div class="metric-mono text-sm" :style="c.descartados ? 'color: var(--terracotta)' : ''" x-text="numero(c.descartados)"></div></div>
-              <div><div class="text-fg-muted">{{ t("soporte.colas.fallidos") }}</div><div class="metric-mono text-sm" :style="c.fallidos ? 'color: var(--terracotta)' : ''" x-text="numero(c.fallidos)"></div></div>
+              <div><div class="text-fg-muted">{{ t("soporte.colas.pendientes") }}</div><div class="numero text-sm" x-text="`${numero(c.pendientes)} / ${numero(c.capacidad)}`"></div></div>
+              <div><div class="text-fg-muted">{{ t("soporte.colas.escritos") }}</div><div class="numero text-sm" x-text="numero(c.escritos)"></div></div>
+              <div><div class="text-fg-muted">{{ t("soporte.colas.descartados") }}</div><div class="numero text-sm" :style="c.descartados ? 'color: var(--terracotta)' : ''" x-text="numero(c.descartados)"></div></div>
+              <div><div class="text-fg-muted">{{ t("soporte.colas.fallidos") }}</div><div class="numero text-sm" :style="c.fallidos ? 'color: var(--terracotta)' : ''" x-text="numero(c.fallidos)"></div></div>
             </div>
             <p class="text-xs text-fg-muted" x-show="c.ultima_falla" x-text="TEXTOS.ultimaFalla.replace('{fecha}', fecha(c.ultima_falla))"></p>
           </div>
@@ -80,7 +80,7 @@
                 <span class="block text-[13.5px] font-medium" x-text="TEXTOS.procesos[p.nombre] || p.nombre"></span>
                 <span class="block truncate text-xs text-fg-muted" x-text="detalleProceso(p)"></span>
               </span>
-              <span class="metric-mono text-[10px] uppercase tracking-[0.12em]" :style="`color:${colorProceso(p.estado)}`" x-text="TEXTOS.estadosProceso[p.estado] || p.estado"></span>
+              <span class="tag" :class="claseProceso(p.estado)" x-text="TEXTOS.estadosProceso[p.estado] || p.estado"></span>
             </div>
           </template>
         </div>
@@ -97,12 +97,15 @@
   <!-- Historia de la base de la aplicación -->
   <template x-if="visitadas.historia">
     <div x-show="pestana === 'historia'" x-data="historiaBase()" x-init="iniciar()">
-      <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+      <p class="mb-4 mt-0 max-w-3xl text-sm text-fg-muted">{{ t("soporte.historia.subtitulo") }}</p>
+      {% include "parciales/aviso_error.html" %}
 
       <div class="mb-5 flex flex-wrap items-center gap-2">
-        {% for v in ["estructura", "ddl", "datos"] %}
-        <button class="btn btn-sm" :class="vista === '{{ v }}' ? 'btn-primary' : 'btn-ghost'" @click="cambiarVista('{{ v }}')">{{ t("soporte.historia." ~ v) }}</button>
-        {% endfor %}
+        <div class="segmentado" role="group">
+          {% for v in ["estructura", "ddl", "datos"] %}
+          <button type="button" :class="vista === '{{ v }}' && 'activo'" :aria-pressed="vista === '{{ v }}'" @click="cambiarVista('{{ v }}')">{{ t("soporte.historia." ~ v) }}</button>
+          {% endfor %}
+        </div>
         <span class="flex-1"></span>
         <span class="text-xs text-fg-muted" x-text="base"></span>
       </div>
@@ -133,11 +136,11 @@
                 <span class="min-w-0 flex-1">
                   <span class="block text-[13.5px] font-medium">
                     <span x-text="TEXTOS.origenes[v.origen] || v.origen"></span>
-                    <span class="tag tag-green ml-2 px-1.5 py-px text-[9.5px]" x-show="i === 0">{{ t("schema.actual") }}</span>
+                    <span class="tag tag-green ml-2 px-1.5 py-px text-xs" x-show="i === 0">{{ t("schema.actual") }}</span>
                   </span>
                   <span class="block truncate text-xs text-fg-muted" x-text="subtituloVersion(v)"></span>
                 </span>
-                <span class="metric-mono text-xs" :style="v.cambios ? 'color: var(--accent)' : 'color: var(--fg-faint)'"
+                <span class="text-xs" :style="v.cambios ? 'color: var(--accent)' : 'color: var(--fg-faint)'"
                       x-text="v.inicial ? TEXTOS.inicial : TEXTOS.cambios.replace('{n}', v.cambios)"></span>
               </button>
             </template>
@@ -171,11 +174,11 @@
                     <div class="grid gap-2 px-5 pb-4 md:grid-cols-2" x-show="abierto === i">
                       <div class="min-w-0">
                         <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("schema.antes") }}</div>
-                        <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="c.antes || '—'"></pre>
+                        <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-xs" x-text="c.antes || '—'"></pre>
                       </div>
                       <div class="min-w-0">
                         <div class="mb-1 text-xs font-medium text-fg-muted">{{ t("schema.despues") }}</div>
-                        <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="c.despues || '—'"></pre>
+                        <pre class="bloque-sql max-h-72 overflow-auto p-3 font-mono text-xs" x-text="c.despues || '—'"></pre>
                       </div>
                     </div>
                   </div>
@@ -201,8 +204,8 @@
             <tbody>
               <template x-for="r in ddl.registros" :key="r.id">
                 <tr class="cursor-pointer" @click="verDdl(r)">
-                  <td class="metric-mono whitespace-nowrap text-[11.5px] text-fg-faint" x-text="fecha(r.ts)"></td>
-                  <td><span class="tag px-[7px] py-px text-[9.5px]" x-text="r.evento"></span></td>
+                  <td class="numero whitespace-nowrap text-xs text-fg-faint" x-text="fecha(r.ts)"></td>
+                  <td><span class="tag px-[7px] py-px text-xs" x-text="r.evento"></span></td>
                   <td class="metric-mono text-xs"><div class="max-w-[320px] truncate" x-text="[r.esquema, r.objeto].filter(Boolean).join('.') || '—'"></div></td>
                   <td class="text-xs" x-text="r.login"></td>
                   <td class="text-xs text-fg-muted"><div class="max-w-[220px] truncate" x-text="r.programa || '—'"></div></td>
@@ -216,7 +219,7 @@
           <span class="text-xs text-fg-muted">{{ t("soporte.ddl.nota") }}</span>
           <div class="flex items-center gap-1.5">
             <button class="btn btn-ghost btn-sm" :disabled="ddl.pagina <= 1" @click="cargarDdl(ddl.pagina - 1)">‹</button>
-            <span class="metric-mono text-[11px]" x-text="`${ddl.pagina} / ${ddl.paginas}`"></span>
+            <span class="numero text-xs" x-text="`${ddl.pagina} / ${ddl.paginas}`"></span>
             <button class="btn btn-ghost btn-sm" :disabled="ddl.pagina >= ddl.paginas" @click="cargarDdl(ddl.pagina + 1)">›</button>
           </div>
         </div>
@@ -252,7 +255,7 @@
                   <template x-for="(fila, i) in datos.resultado.filas" :key="i">
                     <tr :style="esVigente(fila) ? '' : 'background: var(--bg-sunk)'">
                       <template x-for="(valor, j) in fila" :key="j">
-                        <td class="metric-mono text-[11.5px]"><div class="max-w-[260px] truncate" :title="celda(valor, j)" x-text="celda(valor, j)"></div></td>
+                        <td class="metric-mono text-xs"><div class="max-w-[260px] truncate" :title="celda(valor, j)" x-text="celda(valor, j)"></div></td>
                       </template>
                     </tr>
                   </template>

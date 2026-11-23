@@ -12,7 +12,7 @@ from app.core.errores import ErrorDominio
 from app.datos import winrm
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.workarounds import ejecutor, integrados, repositorios, servicios
-from app.modulos.workarounds.entidades import Automatizacion, Paso, Propio
+from app.modulos.workarounds.entidades import RIESGOS, Automatizacion, Paso, Propio
 from tests.test_conexiones import (
     CABECERA,
     TENANT,
@@ -148,6 +148,13 @@ def test_sugerido_para_alertas():
     assert integrados.sugerido_para("evento:instancia") == ("iniciar_servicio", {})
     assert integrados.sugerido_para("evento:base:Ventas") == ("base_online", {"base": "Ventas"})
     assert integrados.sugerido_para("umbral:cpu") is None
+
+
+def test_riesgo_de_cada_integrado():
+    assert set(integrados.RIESGO_INTEGRADOS) == {i.id for i in integrados.CATALOGO.values()}
+    assert set(integrados.RIESGO_INTEGRADOS.values()) <= set(RIESGOS)
+    assert integrados.CATALOGO["kill_bloqueos"].riesgo == "alto"
+    assert integrados.CATALOGO["update_statistics"].riesgo == "bajo"
 
 
 # --- Ventana de mantenimiento -------------------------------------------------------
@@ -786,6 +793,7 @@ async def test_api_workarounds(wk, monkeypatch):
 
     biblioteca = navegador.get("/api/workarounds").json()
     assert biblioteca["permisos"]["crear"] is True and len(biblioteca["workarounds"]) == 13
+    assert all(w["riesgo"] in RIESGOS for w in biblioteca["workarounds"])
     assert navegador.get("/api/workarounds/kill_bloqueos").json()["codigo"] == "WK-01"
     assert navegador.get(f"/api/workarounds/conexiones/{conexion.id}/bases").json() == {
         "bases": ["ERP"]
@@ -814,6 +822,7 @@ async def test_api_workarounds(wk, monkeypatch):
         "validar_conexion_id": conexion.id,
     }
     creado = navegador.post("/api/workarounds", json=propio, headers=CABECERA).json()
+    assert creado["riesgo"] == "bajo"
     actualizado = navegador.put(
         f"/api/workarounds/{creado['id']}", json=propio, headers=CABECERA
     ).json()

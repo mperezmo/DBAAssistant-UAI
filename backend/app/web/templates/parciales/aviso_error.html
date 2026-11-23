@@ -1,0 +1,18 @@
+{# Aviso de error de una llamada a la API (ErrorNotice): título humano, causa, Reintentar y
+   el código técnico plegado. Lee "error" del componente (ver DBA.aviso en api.js); llama a
+   reintentar() si el componente lo define y, si no, recarga la página. Opcional:
+   titulo_error, el título propio de la pantalla. #}
+<div class="aviso-error mb-5" x-show="error" x-cloak role="alert">
+  <span class="aviso-error-icono" aria-hidden="true">!</span>
+  <div class="min-w-0 flex-1">
+    <p class="aviso-error-titulo">{{ titulo_error or t("error.aviso.titulo") }}</p>
+    <p class="m-0 text-sm text-fg-muted" x-text="error"></p>
+    <div class="mt-3 flex flex-wrap items-center gap-4">
+      <button type="button" class="btn btn-primary btn-sm" @click="typeof reintentar === 'function' ? reintentar() : window.location.reload()">{{ t("error.aviso.reintentar") }}</button>
+      <details x-show="error?.codigo">
+        <summary>{{ t("error.aviso.detalle") }}</summary>
+        <code class="metric-mono text-[13px]" x-text="error?.codigo"></code>
+      </details>
+    </div>
+  </div>
+</div>

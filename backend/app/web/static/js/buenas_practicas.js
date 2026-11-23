@@ -25,7 +25,7 @@ document.addEventListener("alpine:init", () => {
         this.conexiones = (await api("GET", "/api/buenas-practicas/conexiones")).conexiones;
         await this.cargar();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
       if (!this.conexiones.length) return;
@@ -53,7 +53,7 @@ document.addEventListener("alpine:init", () => {
         this.error = null;
       } catch (error) {
         this.bases = [];
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -67,7 +67,7 @@ document.addEventListener("alpine:init", () => {
         await this.cargar();
         await this.abrir(informe.id);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.analizando = false;
     },
@@ -84,7 +84,7 @@ document.addEventListener("alpine:init", () => {
           await this.cargar();
         }
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -110,14 +110,14 @@ document.addEventListener("alpine:init", () => {
         this.reglas.push(regla);
         this.textoRegla = "";
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
     async guardarRegla(r, cambios) {
       try {
         Object.assign(r, await api("PUT", `/api/buenas-practicas/reglas/${r.id}`, { texto: r.texto, activa: r.activa, ...cambios }));
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
     async eliminarRegla(r) {
@@ -126,12 +126,12 @@ document.addEventListener("alpine:init", () => {
         await api("DELETE", `/api/buenas-practicas/reglas/${r.id}`);
         this.reglas = this.reglas.filter((x) => x.id !== r.id);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
     fecha(iso) {
-      return iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—";
+      return window.DBA.fecha(iso);
     },
     claseEstado(estado) {
       return { listo: "tag-green", en_curso: "tag-yellow", error: "tag-red", interrumpido: "tag-red" }[estado] || "";

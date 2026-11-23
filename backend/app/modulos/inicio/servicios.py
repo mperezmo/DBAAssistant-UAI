@@ -73,6 +73,29 @@ def disponibilidad(
     return round(sum(porcentajes) / len(porcentajes), 1)
 
 
+def estado_general(alertas: list[dict], ambientes: list[str]) -> dict:
+    """Estado del panel derivado de las alertas abiertas: nunca "operativo" con una crítica.
+
+    critico: al menos una alerta crítica; observaciones: solo advertencias; operativo: ninguna
+    de las dos (las informativas no cambian el estado).
+    """
+    criticas = [a for a in alertas if a["severidad"] == "critical"]
+    advertencias = [a for a in alertas if a["severidad"] == "warning"]
+    if criticas:
+        nivel = "critico"
+    elif advertencias:
+        nivel = "observaciones"
+    else:
+        nivel = "operativo"
+    return {
+        "nivel": nivel,
+        # En el orden de los ambientes (PROD, TESTING, DEV), sin repetir.
+        "ambientes_criticos": [
+            ambiente for ambiente in ambientes if any(a["ambiente"] == ambiente for a in criticas)
+        ],
+    }
+
+
 async def _estado_actual(tenant: Tenant, ids: list[str]) -> dict:
     online = sesiones = bloqueos = backups = jobs = 0
     try:
@@ -159,7 +182,11 @@ async def resumen(
         "alertas": {
             "activas": sum(a["cantidad"] for a in alertas),
             "criticas": sum(a["cantidad"] for a in alertas if a["severidad"] == "critical"),
+            "advertencias": sum(a["cantidad"] for a in alertas if a["severidad"] == "warning"),
         },
+        "estado": estado_general(
+            alertas, [a for a in ("PROD", "TESTING", "DEV") if a in ambientes]
+        ),
         "salud": {
             "disponibilidad": disponibilidad(conexiones, caidas, mes, ahora),
             "total": len(conexiones),

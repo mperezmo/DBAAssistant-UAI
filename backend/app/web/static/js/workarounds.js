@@ -4,7 +4,7 @@ document.addEventListener("alpine:init", () => {
   const api = window.DBA.api;
   const CLAVE_AUTOMATIZACION = "dba.workarounds.automatizacion";
 
-  const fecha = (iso) => (iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—");
+  const fecha = (iso) => window.DBA.fecha(iso);
   const formularioVacio = () => ({
     id: null, nombre: "", descripcion: "", categoria: "mantenimiento", criticidad: "info",
     ambientes: ["DEV", "TESTING"], roles: ["ADMINISTRADOR", "DBA"], transaccional: true, condicion: "", pasos: [""],
@@ -41,7 +41,7 @@ document.addEventListener("alpine:init", () => {
         this.lista = r.workarounds;
         this.permisos = r.permisos;
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
     },
@@ -79,6 +79,9 @@ document.addEventListener("alpine:init", () => {
     claseCriticidad(c) {
       return { critical: "tag-red", warning: "tag-yellow", info: "tag-blue" }[c];
     },
+    claseRiesgo(r) {
+      return { alto: "tag-red", medio: "tag-yellow", bajo: "tag-green" }[r] || "";
+    },
     claseEstado(e) {
       return { exitosa: "tag-green", fallida: "tag-red", revertida: "tag-red", en_curso: "tag-blue" }[e];
     },
@@ -89,7 +92,7 @@ document.addEventListener("alpine:init", () => {
       try {
         this.detalle = await api("GET", `/api/workarounds/${w.id}`);
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -105,7 +108,7 @@ document.addEventListener("alpine:init", () => {
         v.bases = estado.bases.filter((b) => b.estado === "ok").map((b) => b.base);
         if (!v.bases.length) v.mensaje = TEXTOS.sinBasesSandbox;
       } catch (error) {
-        v.mensaje = error.message;
+        v.mensaje = window.DBA.aviso(error);
       }
     },
 
@@ -122,7 +125,7 @@ document.addEventListener("alpine:init", () => {
         await this.cargar();
       } catch (error) {
         v.ok = false;
-        v.mensaje = error.message;
+        v.mensaje = window.DBA.aviso(error);
       }
       v.enviando = false;
     },
@@ -152,7 +155,7 @@ document.addEventListener("alpine:init", () => {
       try {
         f.bases = (await api("GET", `/api/workarounds/conexiones/${f.validar_conexion_id}/bases`)).bases;
       } catch (error) {
-        f.mensaje = error.message;
+        f.mensaje = window.DBA.aviso(error);
       }
     },
 
@@ -174,7 +177,7 @@ document.addEventListener("alpine:init", () => {
         await this.cargar();
         this.detalle = guardado;
       } catch (error) {
-        f.mensaje = error.message;
+        f.mensaje = window.DBA.aviso(error);
         f.guardando = false;
       }
     },
@@ -186,7 +189,7 @@ document.addEventListener("alpine:init", () => {
         this.detalle = null;
         await this.cargar();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -204,7 +207,7 @@ document.addEventListener("alpine:init", () => {
           this.ejecuciones = (await api("GET", "/api/workarounds/ejecuciones")).ejecuciones;
         }
       } catch (error) {
-        this.mensajePanel = error.message;
+        this.mensajePanel = window.DBA.aviso(error);
       }
     },
 
@@ -218,7 +221,7 @@ document.addEventListener("alpine:init", () => {
           if (await window.DBA.segundoFactor("/workarounds")) await this.resolver(a, aprobar);
           return;
         }
-        this.mensajePanel = error.message;
+        this.mensajePanel = window.DBA.aviso(error);
       }
     },
 
@@ -243,7 +246,7 @@ document.addEventListener("alpine:init", () => {
           if (await window.DBA.segundoFactor("/workarounds", guardar)) await this.crearAutomatizacion();
           return;
         }
-        this.mensajePanel = error.message;
+        this.mensajePanel = window.DBA.aviso(error);
       }
     },
 
@@ -252,7 +255,7 @@ document.addEventListener("alpine:init", () => {
         await api("DELETE", `/api/workarounds/automatizaciones/${a.id}`);
         await this.abrirPanel("automatizaciones");
       } catch (error) {
-        this.mensajePanel = error.message;
+        this.mensajePanel = window.DBA.aviso(error);
       }
     },
   }));

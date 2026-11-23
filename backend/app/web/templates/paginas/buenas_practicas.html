@@ -12,10 +12,10 @@
     <p class="page-subtitle">{{ t("bp.subtitulo") }}</p>
   </div>
 
-  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+  {% with titulo_error=t("bp.error.titulo") %}{% include "parciales/aviso_error.html" %}{% endwith %}
   <p class="mb-4 text-sm text-fg-muted" x-show="cargado && !conexiones.length" x-cloak>{{ t("bp.sin_conexiones") }}</p>
 
-  <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+  <div class="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
     <div class="space-y-5">
       <!-- Nuevo análisis (CU-000-007-A) -->
       <section class="card">
@@ -83,7 +83,17 @@
             </div>
             <div class="card-body space-y-3 text-[13px]">
               <p class="text-fg-muted" x-show="informe.estado === 'en_curso'">{{ t("bp.informe.en_curso") }}</p>
-              <p class="text-danger" x-show="informe.error" x-text="TEXTOS.errores[informe.error] || informe.error"></p>
+              <div class="aviso-error !p-4 !shadow-none" x-show="informe.error" role="alert">
+                <span class="aviso-error-icono" aria-hidden="true">!</span>
+                <div class="min-w-0 flex-1">
+                  <p class="aviso-error-titulo !text-base">{{ t("bp.error.informe_titulo") }}</p>
+                  <p class="m-0 text-sm text-fg-muted" x-text="TEXTOS.errores[informe.error] || TEXTOS.errorGenerico"></p>
+                  <details class="mt-2">
+                    <summary>{{ t("error.aviso.detalle") }}</summary>
+                    <code class="metric-mono text-[13px]" x-text="informe.error"></code>
+                  </details>
+                </div>
+              </div>
               <p x-show="informe.resumen" x-text="informe.resumen"></p>
               <div class="flex flex-wrap gap-2" x-show="informe.estado === 'listo'">
                 <span class="tag tag-red" x-text="`${informe.conteo.alta} ${TEXTOS.severidades.alta}`"></span>
@@ -120,7 +130,7 @@
             </div>
             <details class="border-t border-line px-5 py-3 text-xs" x-show="(informe.hallazgos || []).length">
               <summary class="cursor-pointer text-fg-muted" x-text="`${TEXTOS.datosMedidos} · ${(informe.hallazgos || []).length}`"></summary>
-              <pre class="bloque-sql mt-2 max-h-72 overflow-auto p-3 font-mono text-[11px]" x-text="JSON.stringify(informe.hallazgos, null, 2)"></pre>
+              <pre class="bloque-sql mt-2 max-h-72 overflow-auto p-3 font-mono text-xs" x-text="JSON.stringify(informe.hallazgos, null, 2)"></pre>
             </details>
           </div>
         </template>
@@ -140,11 +150,11 @@
             <tbody>
               <template x-for="i in informes" :key="i.id">
                 <tr class="cursor-pointer" :style="informe?.id === i.id ? 'background: var(--bg-sunk)' : ''" @click="abrir(i.id)">
-                  <td class="metric-mono whitespace-nowrap" x-text="fecha(i.ts)"></td>
+                  <td class="numero whitespace-nowrap" x-text="fecha(i.ts)"></td>
                   <td x-text="`${i.conexion_alias} · ${i.base}`"></td>
                   <td x-text="i.usuario"></td>
                   <td><span class="tag" :class="claseEstado(i.estado)" x-text="TEXTOS.estados[i.estado]"></span></td>
-                  <td class="metric-mono" x-text="i.estado === 'listo' ? `${i.conteo.alta} / ${i.conteo.media} / ${i.conteo.baja}` : '—'"></td>
+                  <td class="numero whitespace-nowrap" x-text="i.estado === 'listo' ? `${i.conteo.alta} / ${i.conteo.media} / ${i.conteo.baja}` : '—'"></td>
                 </tr>
               </template>
               <tr x-show="!informes.length"><td colspan="5" class="text-center text-fg-muted">{{ t("bp.informes.vacio") }}</td></tr>
@@ -172,6 +182,7 @@
     severidades: { {% for s in ["alta", "media", "baja"] %}{{ s | tojson }}: {{ t("bp.severidad." ~ s) | tojson }},{% endfor %} },
     tipos: { {% for tipo in tipos + ["regla"] %}{{ tipo | tojson }}: {{ t("bp.tipo." ~ tipo) | tojson }},{% endfor %} },
     errores: { IA_API_000: {{ t("bp.error.ia") | tojson }}, MNT_DAT_000: {{ t("bp.error.metricas") | tojson }} },
+    errorGenerico: {{ t("bp.error.generico") | tojson }},
   };
 </script>
 <script src="/static/js/buenas_practicas.js?v={{ version_estaticos }}"></script>

@@ -7,7 +7,7 @@ previa en un sandbox.
 
 La arquitectura de referencia está en [`docs/arquitectura.png`](docs/arquitectura.png)
 y su correspondencia con el código en [`docs/arquitectura.md`](docs/arquitectura.md).
-El diseño visual de referencia es [`design/DBA Assistant.html`](design/DBA%20Assistant.html).
+El diseño visual de referencia es [`design/rediseno-2026/`](design/rediseno-2026/README.md).
 
 ## Stack
 

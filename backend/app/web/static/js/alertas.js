@@ -5,8 +5,8 @@ document.addEventListener("alpine:init", () => {
   const REFRESCO_MS = 10000;
   const ORDEN = { critical: 0, warning: 1, info: 2 };
 
-  const fecha = (iso) => (iso ? new Date(iso).toLocaleString(window.DBA.locale) : "—");
-  const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString(window.DBA.locale, { hour: "2-digit", minute: "2-digit" }) : "");
+  const fecha = (iso) => window.DBA.fecha(iso);
+  const hora = (iso) => (iso ? window.DBA.hora(iso) : "");
 
   // La clave pública VAPID viaja en base64url; PushManager la necesita en bytes.
   const bytesDeClave = (base64url) => {
@@ -18,10 +18,10 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("alertas", () => ({
     TEXTOS,
     alertas: [], desestimadas: [], cargado: false, error: null,
-    estado: "activa", severidades: ["critical", "warning", "info"], ambiente: "", origen: "",
+    estado: "activa", severidad: "", ambiente: "", origen: "",
     permisos: { configurar: false, atender: false },
     seleccionada: null,
-    atencion: { accion: "manual", comentario: "", duracion: "24h", hasta: "", mensaje: "", enviando: false },
+    atencion: { accion: "manual", comentario: "", duracion: "24h", hasta: "", mensaje: "", enviando: false, abierta: false },
     conexiones: [],
     reglas: { abierto: false, lista: [], formulario: null, mensaje: "" },
     push: { disponible: false, suscripto: false, procesando: false, mensaje: "", error: false, clave: "" },
@@ -57,7 +57,7 @@ document.addEventListener("alpine:init", () => {
           if (actual) this.seleccionada = actual;
         }
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
       this.cargado = true;
     },
@@ -73,29 +73,31 @@ document.addEventListener("alpine:init", () => {
       if (this.filtradas().length) this.seleccionar(this.filtradas()[0]);
     },
 
-    alternarSeveridad(severidad) {
-      this.severidades = this.severidades.includes(severidad)
-        ? this.severidades.filter((s) => s !== severidad)
-        : [...this.severidades, severidad];
-    },
-
     filtradas() {
       return this.alertas
-        .filter((a) => this.severidades.includes(a.severidad))
+        .filter((a) => !this.severidad || a.severidad === this.severidad)
         .filter((a) => !this.ambiente || a.ambiente === this.ambiente)
         .filter((a) => !this.origen || a.origen === this.origen);
     },
 
     subtitulo() {
-      const activas = this.estado === "activa" ? this.alertas.length : null;
+      if (this.estado !== "activa" || !this.cargado) return TEXTOS.subtitulo;
       const criticas = this.alertas.filter((a) => a.severidad === "critical").length;
-      if (activas === null) return "";
-      return TEXTOS.subtitulo.replace("{activas}", activas).replace("{criticas}", criticas);
+      const cantidades = [
+        window.DBA.plural(this.alertas.length, TEXTOS.subtituloActiva, TEXTOS.subtituloActivas),
+        window.DBA.plural(criticas, TEXTOS.subtituloCritica, TEXTOS.subtituloCriticas),
+      ];
+      return `${cantidades.join(" · ")}. ${TEXTOS.subtitulo}`;
+    },
+
+    abrirAtencion(accion) {
+      const misma = this.atencion.abierta && (accion === "desestimar") === (this.atencion.accion === "desestimar");
+      this.atencion = { ...this.atencion, accion, abierta: !misma, mensaje: "" };
     },
 
     seleccionar(alerta, tocada = false) {
       this.seleccionada = alerta;
-      this.atencion = { accion: "manual", comentario: "", duracion: "24h", hasta: "", mensaje: "", enviando: false };
+      this.atencion = { accion: "manual", comentario: "", duracion: "24h", hasta: "", mensaje: "", enviando: false, abierta: false };
       // En el celular el detalle queda debajo de la lista: se lleva a la vista al tocarla.
       if (tocada && window.matchMedia("(max-width: 1023px)").matches) {
         this.$nextTick(() => this.$refs.detalle?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -106,14 +108,27 @@ document.addEventListener("alpine:init", () => {
       return { critical: "tag-red", warning: "tag-yellow", info: "tag-blue" }[s];
     },
     colorSeveridad(s) {
-      return { critical: "var(--terracotta)", warning: "var(--mustard)", info: "var(--accent)" }[s];
+      return { critical: "var(--color-danger)", warning: "var(--color-warn)", info: "var(--color-info)" }[s];
+    },
+    // Encabezado del detalle: relleno del color de la severidad, con texto blanco.
+    colorEncabezado(s) {
+      return { critical: "var(--color-danger)", warning: "var(--color-warn)", info: "var(--color-info)" }[s];
+    },
+    claseAmbiente(a) {
+      return { PROD: "tag-red", TESTING: "tag-yellow", DEV: "tag-green" }[a] || "";
+    },
+    claseRiesgo(r) {
+      return { alto: "tag-red", medio: "tag-yellow", bajo: "tag-green" }[r] || "";
+    },
+    fechaCorta(iso) {
+      return window.DBA.fechaCorta(iso);
     },
     textoEstado(a) {
       if (a.estado === "atendida") return TEXTOS.estadoAtendida;
       return a.normalizada ? `${TEXTOS.estadoNormalizada} ${fecha(a.normalizada_en)}` : TEXTOS.estadoActiva;
     },
     medida(valor, unidad) {
-      const numero = Number.isInteger(valor) ? valor : Number(valor).toFixed(1);
+      const numero = window.DBA.numero(valor, 1);
       return `${numero}${unidad ? ` ${unidad}` : ""}`;
     },
     fecha,
@@ -154,7 +169,7 @@ document.addEventListener("alpine:init", () => {
         await this.cargar();
         if (this.filtradas().length) this.seleccionar(this.filtradas()[0]);
       } catch (error) {
-        a.mensaje = error.message;
+        a.mensaje = window.DBA.aviso(error);
         a.enviando = false;
       }
     },
@@ -165,7 +180,7 @@ document.addEventListener("alpine:init", () => {
         await api("POST", `/api/alertas/desestimadas/${d.id}/reactivar`);
         await this.cargar();
       } catch (error) {
-        this.error = error.message;
+        this.error = window.DBA.aviso(error);
       }
     },
 
@@ -180,7 +195,7 @@ document.addEventListener("alpine:init", () => {
         this.reglas.lista = reglas.reglas;
         this.conexiones = monitor.conexiones;
       } catch (error) {
-        this.reglas.mensaje = error.message;
+        this.reglas.mensaje = window.DBA.aviso(error);
       }
     },
 
@@ -218,7 +233,7 @@ document.addEventListener("alpine:init", () => {
         this.reglas.formulario = null;
         this.reglas.lista = (await api("GET", "/api/alertas/reglas")).reglas;
       } catch (error) {
-        f.mensaje = error.message;
+        f.mensaje = window.DBA.aviso(error);
         f.guardando = false;
       }
     },
@@ -230,7 +245,7 @@ document.addEventListener("alpine:init", () => {
         this.reglas.lista = this.reglas.lista.filter((x) => x.id !== r.id);
         await this.cargar();
       } catch (error) {
-        this.reglas.mensaje = error.message;
+        this.reglas.mensaje = window.DBA.aviso(error);
       }
     },
 

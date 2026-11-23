@@ -1,98 +1,112 @@
 {% extends "base.html" %}
 
 {% set acciones = [
-  ("chat", "/chat", "chat"),
-  ("workarounds", "/workarounds", "play"),
-  ("monitor", "/monitor", "monitor"),
-  ("sandbox", "/sandbox", "sandbox"),
+  ("chat", "/chat"),
+  ("workarounds", "/workarounds"),
+  ("monitor", "/monitor"),
+  ("sandbox", "/sandbox"),
 ] %}
 
 {% block miga %}{{ t("inicio.titulo") }}{% endblock %}
 
 {% block contenido %}
 <div x-data="inicio()" x-init="iniciar()">
-  <div class="page-head flex flex-wrap items-start justify-between gap-3">
-    <div>
+  <div class="page-head flex flex-wrap items-end justify-between gap-4">
+    <div class="min-w-0">
       <div class="page-eyebrow" x-text="encabezado()"></div>
-      <p class="page-subtitle mt-2" x-html="subtitulo()"></p>
+      <h1 class="page-title">{{ t("inicio.titulo_pagina") }}</h1>
+      <p class="page-subtitle" x-text="subtitulo()"></p>
     </div>
-    <select class="rounded border border-line px-3 py-2 text-sm" x-model="ambiente" @change="cambiarAmbiente()" aria-label="{{ t('inicio.ambiente') }}">
-      <option value="TODOS">{{ t("inicio.todos_ambientes") }}</option>
-      {% for a in ambientes %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
-    </select>
+    <div class="segmentado" role="group" aria-label="{{ t('inicio.ambiente') }}">
+      <button type="button" :class="ambiente === 'TODOS' && 'activo'" :aria-pressed="ambiente === 'TODOS'" @click="elegirAmbiente('TODOS')">{{ t("inicio.todos") }}</button>
+      {% for a in ["PROD", "TESTING", "DEV"] %}
+      <button type="button" :class="ambiente === '{{ a }}' && 'activo'" :aria-pressed="ambiente === '{{ a }}'" @click="elegirAmbiente('{{ a }}')">{{ a }}</button>
+      {% endfor %}
+    </div>
   </div>
 
-  <p class="mb-4 text-sm text-danger" x-show="error" x-text="error"></p>
+  {% include "parciales/aviso_error.html" %}
 
-  <!-- Indicadores -->
-  <div class="mb-5 grid gap-4 sm:grid-cols-2" :class="datos?.workarounds ? 'lg:grid-cols-3' : ''">
-    <div class="card p-[18px]">
-      <div class="mb-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("inicio.instancias") }}</div>
-      <div class="metric-large" style="color: var(--accent)" x-text="datos ? datos.instancias.total : '—'"></div>
-      <div class="mt-1.5 text-xs text-fg-muted" x-text="datos ? TEXTOS.nuevasMes.replace('{n}', datos.instancias.nuevas_mes) : ''"></div>
+  <!-- Estado general e indicadores principales -->
+  <div class="mb-6 grid gap-4 sm:grid-cols-2" :class="datos?.workarounds ? 'xl:grid-cols-4' : 'xl:grid-cols-3'">
+    <section class="card card-estado flex flex-col gap-2 p-5" :class="`estado-${claseEstado()}`" aria-live="polite">
+      <div class="card-eyebrow">{{ t("inicio.estado.eyebrow") }}</div>
+      <template x-if="!datos"><span class="esqueleto h-8 w-40 opacity-40"></span></template>
+      <template x-if="datos">
+        <div class="flex flex-col gap-2">
+          <h2 class="m-0 font-display text-[28px] font-medium leading-tight" x-text="TEXTOS.estados[datos.estado.nivel]"></h2>
+          <p class="m-0 text-sm" x-text="detalleEstado()"></p>
+          <div class="mt-1 flex flex-wrap items-center gap-3">
+            <a href="/alertas" class="btn btn-blanco btn-sm">{{ t("inicio.estado.ver_alertas") }}</a>
+            <span class="text-[13px]" x-text="textoDisponibilidad()"></span>
+          </div>
+        </div>
+      </template>
+    </section>
+
+    <div class="card p-5">
+      <div class="card-eyebrow">{{ t("inicio.instancias") }}</div>
+      <div class="metric-large my-3" x-text="datos ? numero(datos.instancias.total) : '—'"></div>
+      <div class="text-sm font-medium" :class="datos && datos.salud.online < datos.salud.total ? 'text-danger' : 'text-ok'"
+           x-text="datos ? TEXTOS.enLinea.replace('{online}', datos.salud.online).replace('{total}', datos.salud.total) : ''"></div>
     </div>
-    <a class="card block p-[18px]" href="/alertas">
-      <div class="mb-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("inicio.alertas") }}</div>
-      <div class="metric-large" style="color: var(--terracotta)" x-text="datos ? datos.alertas.activas : '—'"></div>
-      <div class="mt-1.5 text-xs text-fg-muted" x-text="datos ? textoCriticas() : ''"></div>
+
+    <a class="card block p-5 transition-colors hover:bg-[var(--color-paper)]" href="/alertas">
+      <div class="card-eyebrow">{{ t("inicio.alertas") }}</div>
+      <div class="metric-large my-3" x-text="datos ? numero(datos.alertas.activas) : '—'"></div>
+      <div class="text-sm font-medium" :class="datos?.alertas.criticas ? 'text-danger' : datos?.alertas.advertencias ? 'text-warn' : 'text-ok'" x-text="datos ? detalleAlertas() : ''"></div>
     </a>
-    <a class="card block p-[18px]" href="/workarounds" x-show="datos?.workarounds" x-cloak>
-      <div class="mb-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{{ t("inicio.workarounds") }}</div>
-      <div class="metric-large" style="color: var(--mustard)" x-text="datos?.workarounds?.disponibles ?? '—'"></div>
-      <div class="mt-1.5 text-xs text-fg-muted" x-text="datos?.workarounds ? TEXTOS.nuevosMes.replace('{n}', datos.workarounds.nuevos_mes) : ''"></div>
+
+    <a class="card block p-5 transition-colors hover:bg-[var(--color-paper)]" href="/workarounds" x-show="datos?.workarounds" x-cloak>
+      <div class="card-eyebrow">{{ t("inicio.workarounds") }}</div>
+      <div class="metric-large my-3" x-text="numero(datos?.workarounds?.disponibles)"></div>
+      <div class="text-sm font-medium text-fg-muted">{{ t("inicio.workarounds_detalle") }}</div>
     </a>
   </div>
 
-  <div class="grid gap-5 lg:grid-cols-[2fr_1fr]">
+  <div class="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
     <!-- Acciones rápidas -->
-    <section class="card">
+    <section class="card min-w-0">
       <div class="card-head">
         <div>
           <div class="card-eyebrow">{{ t("inicio.acciones.eyebrow") }}</div>
-          <h3 class="card-title">{{ t("inicio.acciones.titulo") }}</h3>
+          <h2 class="card-title">{{ t("inicio.acciones.titulo") }}</h2>
         </div>
-        <span class="tag">{{ t("inicio.acciones.segun_rol") }}</span>
+        <span class="text-sm text-fg-muted">{{ t("inicio.acciones.segun_rol") }}</span>
       </div>
-      <div class="divide-y divide-[var(--line)]">
-        {% for id, ruta, icono in acciones if sesion.puede_ver(id) %}
-        <a href="{{ ruta }}" class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-[var(--bg-sunk)]">
-          <span class="flex size-10 shrink-0 items-center justify-center rounded-sm" style="background: var(--blue-100); color: var(--accent-strong)">
-            {% with nombre=icono, tam=18 %}{% include "parciales/icono.html" %}{% endwith %}
-          </span>
+      <div class="divide-y divide-[var(--color-surface-sunk)]">
+        {% for id, ruta in acciones if sesion.puede_ver(id) %}
+        <a href="{{ ruta }}" class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-[var(--color-paper)]">
+          <span class="numero flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-tint text-[15px] text-primary">{{ loop.index }}</span>
           <span class="min-w-0 flex-1">
-            <span class="mb-0.5 block text-sm font-medium">{{ t("inicio.accion." ~ id ~ ".titulo") }}</span>
-            <span class="block text-[12.5px] text-fg-muted">{{ t("inicio.accion." ~ id ~ ".descripcion") }}</span>
+            <span class="block text-[15px] font-medium">{{ t("inicio.accion." ~ id ~ ".titulo") }}</span>
+            <span class="block text-[13px] text-fg-muted">{{ t("inicio.accion." ~ id ~ ".descripcion") }}</span>
           </span>
-          {% with nombre="arrow", tam=16 %}{% include "parciales/icono.html" %}{% endwith %}
+          <span class="text-primary" aria-hidden="true">→</span>
         </a>
         {% endfor %}
       </div>
     </section>
 
-    <!-- Salud general -->
-    <section class="card-deco lg:self-start">
-      <div class="card-deco-inner">
-        <div class="mb-2 font-mono text-[10px] uppercase tracking-[0.15em] text-fg-faint">{{ t("inicio.salud.titulo") }}</div>
-        <div class="metric-large" :style="`color: ${colorDisponibilidad()}`">
-          <span x-text="disponibilidad()"></span><span class="text-2xl text-fg-muted" x-show="datos?.salud.disponibilidad !== null">%</span>
-        </div>
-        <div class="mt-1 font-mono text-[11px] text-fg-muted">{{ t("inicio.salud.sla") }}</div>
-        <div class="ornament">∗ ∗ ∗</div>
-        <div class="grid grid-cols-[1fr_auto] gap-x-3.5 gap-y-2.5 text-[13px]">
-          <span class="text-fg-muted">{{ t("inicio.salud.online") }}</span>
-          <strong class="metric-mono" :class="datos && datos.salud.online < datos.salud.total ? 'text-danger' : ''" x-text="datos ? `${datos.salud.online} / ${datos.salud.total}` : '—'"></strong>
-          <span class="text-fg-muted">{{ t("inicio.salud.latencia") }}</span>
-          <strong class="metric-mono" x-text="datos?.salud.latencia_p95 != null ? `${datos.salud.latencia_p95.toLocaleString()} ms` : '—'"></strong>
-          <span class="text-fg-muted">{{ t("inicio.salud.sesiones") }}</span>
-          <strong class="metric-mono" x-text="datos ? datos.salud.sesiones.toLocaleString() : '—'"></strong>
-          <span class="text-fg-muted">{{ t("inicio.salud.bloqueos") }}</span>
-          <strong class="metric-mono" :style="datos?.salud.bloqueos_prolongados ? 'color: var(--mustard)' : ''" x-text="datos ? datos.salud.bloqueos_prolongados : '—'"></strong>
-          <span class="text-fg-muted">{{ t("inicio.salud.backups") }}</span>
-          <strong class="metric-mono" :style="datos?.salud.backups_atrasados ? 'color: var(--mustard)' : ''" x-text="datos ? datos.salud.backups_atrasados : '—'"></strong>
-          <span class="text-fg-muted">{{ t("inicio.salud.jobs") }}</span>
-          <strong class="metric-mono" :class="datos?.salud.jobs_con_falla ? 'text-danger' : ''" x-text="datos ? datos.salud.jobs_con_falla : '—'"></strong>
+    <!-- Indicadores de la última hora -->
+    <section class="card min-w-0 lg:self-start">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow">{{ t("inicio.indicadores.eyebrow") }}</div>
+          <h2 class="card-title">{{ t("inicio.indicadores.titulo") }}</h2>
         </div>
       </div>
+      <dl class="m-0 divide-y divide-[var(--color-surface-sunk)]">
+        <template x-for="i in indicadores()" :key="i.clave">
+          <div class="flex min-h-12 items-center gap-3 px-5 py-2.5">
+            <dt class="flex-1 text-sm">
+              <span x-text="i.texto"></span>
+            </dt>
+            <span class="tag" :class="i.badge === 'critico' ? 'tag-red' : 'tag-yellow'" x-show="i.badge" x-text="TEXTOS.badges[i.badge]"></span>
+            <dd class="numero m-0 min-w-12 text-right text-[20px]" :class="i.badge === 'critico' ? 'text-danger' : ''" x-text="i.valor"></dd>
+          </div>
+        </template>
+      </dl>
     </section>
   </div>
 </div>
@@ -100,17 +114,34 @@
 <script>
   window.TEXTOS_INICIO = {
     eyebrow: {{ t("inicio.eyebrow") | tojson }},
-    resumen: {{ t("inicio.resumen") | tojson }},
-    todos: {{ t("inicio.todos_ambientes_texto") | tojson }},
+    todos: {{ t("inicio.todos_ambientes") | tojson }},
     alertasPendientes: {{ t("inicio.alertas_pendientes") | tojson }},
+    alertaPendiente: {{ t("inicio.alerta_pendiente") | tojson }},
     sinAlertas: {{ t("inicio.sin_alertas") | tojson }},
     promociones: {{ t("inicio.promociones") | tojson }},
     sinInstancias: {{ t("inicio.vacio.texto") | tojson }},
-    nuevasMes: {{ t("inicio.nuevas_mes") | tojson }},
-    nuevosMes: {{ t("inicio.nuevos_mes") | tojson }},
+    estados: { critico: {{ t("inicio.estado.critico") | tojson }}, observaciones: {{ t("inicio.estado.observaciones") | tojson }}, operativo: {{ t("inicio.estado.operativo") | tojson }} },
+    detalleCriticas: {{ t("inicio.estado.detalle_criticas") | tojson }},
+    detalleCritica: {{ t("inicio.estado.detalle_critica") | tojson }},
+    detalleAdvertencias: {{ t("inicio.estado.detalle_advertencias") | tojson }},
+    detalleAdvertencia: {{ t("inicio.estado.detalle_advertencia") | tojson }},
+    detalleOperativo: {{ t("inicio.estado.detalle_operativo") | tojson }},
+    disponibilidad: {{ t("inicio.estado.disponibilidad") | tojson }},
+    enLinea: {{ t("inicio.en_linea") | tojson }},
     criticas: {{ t("inicio.criticas") | tojson }},
     criticaUna: {{ t("inicio.critica") | tojson }},
+    advertencias: {{ t("inicio.advertencias") | tojson }},
+    advertenciaUna: {{ t("inicio.advertencia") | tojson }},
     sinCriticas: {{ t("inicio.sin_criticas") | tojson }},
+    badges: { critico: {{ t("inicio.badge.critico") | tojson }}, advertencia: {{ t("inicio.badge.advertencia") | tojson }} },
+    indicadores: {
+      online: {{ t("inicio.salud.online") | tojson }},
+      latencia: {{ t("inicio.salud.latencia") | tojson }},
+      sesiones: {{ t("inicio.salud.sesiones") | tojson }},
+      bloqueos: {{ t("inicio.salud.bloqueos") | tojson }},
+      backups: {{ t("inicio.salud.backups") | tojson }},
+      jobs: {{ t("inicio.salud.jobs") | tojson }},
+    },
   };
 </script>
 <script src="/static/js/inicio.js?v={{ version_estaticos }}"></script>

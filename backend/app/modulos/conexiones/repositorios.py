@@ -7,7 +7,8 @@ from app.modulos.conexiones.entidades import Conexion
 COLUMNAS = (
     "id, tenant_id, alias, host, puerto, instancia, ambiente, usuario_sql,"
     " password_sql_cifrada, winrm_usuario, winrm_password_cifrada, winrm_puerto, winrm_https,"
-    " ventana_inicio, ventana_fin, zona_horaria, sandbox_sincronizacion"
+    " ventana_inicio, ventana_fin, zona_horaria, sandbox_sincronizacion,"
+    " ultima_prueba_en, ultima_prueba_ok"
 )
 
 
@@ -30,7 +31,21 @@ def _a_entidad(fila) -> Conexion:
         ventana_fin=fila.ventana_fin,
         zona_horaria=fila.zona_horaria,
         sandbox_sincronizacion=fila.sandbox_sincronizacion,
+        ultima_prueba_en=fila.ultima_prueba_en,
+        ultima_prueba_ok=None if fila.ultima_prueba_ok is None else bool(fila.ultima_prueba_ok),
     )
+
+
+def registrar_prueba(base: str, tenant_id: str, conexion_id: str, exitosa: bool) -> None:
+    with sqlserver.conectar(base) as conexion:
+        conexion.cursor().execute(
+            """UPDATE dbo.conexion SET ultima_prueba_en = SYSUTCDATETIME(), ultima_prueba_ok = ?
+               WHERE tenant_id = ? AND id = ?""",
+            exitosa,
+            tenant_id,
+            conexion_id,
+        )
+        conexion.commit()
 
 
 def listar(base: str, tenant_id: str) -> list[Conexion]:

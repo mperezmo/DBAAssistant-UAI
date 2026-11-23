@@ -25,48 +25,58 @@
     <div class="card-body text-sm" :class="aviso.error ? 'text-danger' : 'text-ok'" x-text="aviso.texto"></div>
   </template>
 
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>{{ t("conexiones.col.alias") }}</th>
-        <th>{{ t("conexiones.col.servidor") }}</th>
-        <th>{{ t("conexiones.col.ambiente") }}</th>
-        <th>{{ t("conexiones.col.usuario") }}</th>
-        <th>{{ t("conexiones.col.windows") }}</th>
-        <th>{{ t("conexiones.col.prueba") }}</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <template x-for="c in conexiones" :key="c.id">
+  <div class="overflow-x-auto">
+    <table class="data-table">
+      <thead>
         <tr>
-          <td class="metric-mono text-[12px] font-semibold" x-text="c.alias"></td>
-          <td class="metric-mono text-[11.5px] text-fg-muted" x-text="servidor(c)"></td>
-          <td><span class="tag" :class="claseAmbiente(c.ambiente)" x-text="c.ambiente"></span></td>
-          <td class="metric-mono text-[11.5px]" x-text="c.usuario_sql"></td>
-          <td class="metric-mono text-[11.5px] text-fg-faint"
-              x-text="c.tiene_winrm ? `${c.winrm_usuario} · ${c.winrm_puerto}` : '{{ t('conexiones.sin_winrm') }}'"></td>
-          <td class="text-[11.5px]">
-            <span x-show="pruebas[c.id]?.estado === 'probando'" class="text-fg-faint">{{ t("conexiones.probando") }}</span>
-            <span x-show="pruebas[c.id]?.estado === 'ok'" class="tag tag-green" :title="pruebas[c.id]?.texto">{{ t("conexiones.ok") }}</span>
-            <span x-show="pruebas[c.id]?.estado === 'error'" class="tag tag-red" :title="pruebas[c.id]?.texto">CON_DB_000</span>
-            <span x-show="pruebasWinrm[c.id]?.estado === 'probando'" class="text-fg-faint">{{ t("conexiones.probando") }}</span>
-            <span x-show="pruebasWinrm[c.id]?.estado === 'ok'" class="tag tag-green" :title="pruebasWinrm[c.id]?.texto">WinRM</span>
-            <span x-show="pruebasWinrm[c.id]?.estado === 'error'" class="tag tag-red" :title="pruebasWinrm[c.id]?.texto">WRM_000</span>
-          </td>
-          <td class="text-right whitespace-nowrap">
-            <button class="btn btn-ghost btn-sm" @click="probarGuardada(c)">{{ t("conexiones.probar") }}</button>
-            <button class="btn btn-ghost btn-sm" x-show="c.tiene_winrm" @click="probarWinrmGuardada(c)">{{ t("conexiones.probar_winrm") }}</button>
-            <button class="btn btn-ghost btn-sm" @click="abrirEdicion(c)">{{ t("conexiones.editar") }}</button>
-            <button class="btn btn-ghost btn-sm" @click="eliminar(c)">{{ t("conexiones.eliminar") }}</button>
-          </td>
+          <th>{{ t("conexiones.col.alias") }}</th>
+          <th>{{ t("conexiones.col.servidor") }}</th>
+          <th>{{ t("conexiones.col.ambiente") }}</th>
+          <th>{{ t("conexiones.col.usuario") }}</th>
+          <th>{{ t("conexiones.col.windows") }}</th>
+          <th>{{ t("conexiones.col.prueba") }}</th>
+          <th></th>
         </tr>
-      </template>
-      <tr x-show="cargado && conexiones.length === 0">
-        <td colspan="7" class="text-center text-fg-muted">{{ t("conexiones.vacio") }}</td>
-      </tr>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <template x-for="c in conexiones" :key="c.id">
+          <tr>
+            <td>
+              <span class="block font-semibold" x-text="c.alias"></span>
+              <span class="tag tag-yellow mt-1" x-show="c.mismo_servidor?.length" :title="TEXTOS.mismoServidorAyuda"
+                    x-text="TEXTOS.mismoServidor.replace('{alias}', (c.mismo_servidor || []).join(', '))"></span>
+            </td>
+            <td class="metric-mono text-[13px] text-fg-muted" x-text="servidor(c)"></td>
+            <td><span class="tag" :class="claseAmbiente(c.ambiente)" x-text="c.ambiente"></span></td>
+            <td>
+              <span class="metric-mono block text-[13px]" x-text="c.usuario_sql"></span>
+              <span class="tag tag-yellow mt-1" x-show="c.usa_sa" title="{{ t('conexiones.usa_sa_ayuda') }}">{{ t("conexiones.usa_sa") }}</span>
+            </td>
+            <td class="text-xs">
+              <span class="metric-mono" x-show="c.tiene_winrm" x-text="`${c.winrm_usuario} · ${c.winrm_puerto}`"></span>
+              <span class="text-fg-faint" x-show="!c.tiene_winrm">{{ t("conexiones.sin_winrm") }}</span>
+            </td>
+            <td class="text-xs">
+              <span x-show="pruebas[c.id]?.estado === 'probando'" class="text-fg-faint">{{ t("conexiones.probando") }}</span>
+              <span x-show="pruebas[c.id]?.estado !== 'probando'" class="tag" :class="clasePrueba(c)" :title="pruebas[c.id]?.texto || ''" x-text="textoPrueba(c)"></span>
+              <span x-show="pruebasWinrm[c.id]?.estado === 'probando'" class="text-fg-faint">{{ t("conexiones.probando") }}</span>
+              <span x-show="pruebasWinrm[c.id]?.estado === 'ok'" class="tag tag-green" :title="pruebasWinrm[c.id]?.texto">WinRM</span>
+              <span x-show="pruebasWinrm[c.id]?.estado === 'error'" class="tag tag-red" :title="pruebasWinrm[c.id]?.texto">WRM_000</span>
+            </td>
+            <td class="text-right whitespace-nowrap">
+              <button class="btn btn-ghost btn-sm" @click="probarGuardada(c)">{{ t("conexiones.probar") }}</button>
+              <button class="btn btn-ghost btn-sm" x-show="c.tiene_winrm" @click="probarWinrmGuardada(c)">{{ t("conexiones.probar_winrm") }}</button>
+              <button class="btn btn-ghost btn-sm" @click="abrirEdicion(c)">{{ t("conexiones.editar") }}</button>
+              <button class="btn btn-ghost btn-sm" @click="eliminar(c)">{{ t("conexiones.eliminar") }}</button>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="cargado && conexiones.length === 0">
+          <td colspan="7" class="text-center text-fg-muted">{{ t("conexiones.vacio") }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
   <template x-if="formulario">
   <div class="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/30 py-8"
@@ -180,6 +190,11 @@
 
 <script>
   window.TEXTOS_CONEXIONES = {
+    ok: {{ t("conexiones.ok") | tojson }},
+    sinProbar: {{ t("conexiones.sin_probar") | tojson }},
+    fallo: {{ t("conexiones.fallo") | tojson }},
+    mismoServidor: {{ t("conexiones.mismo_servidor") | tojson }},
+    mismoServidorAyuda: {{ t("conexiones.mismo_servidor_ayuda") | tojson }},
     confirmarEliminar: {{ t("conexiones.confirmar_eliminar") | tojson }},
     confirmarMfa: {{ t("conexiones.confirmar_mfa") | tojson }},
     resultado: {{ t("conexiones.resultado") | tojson }},

@@ -3,7 +3,7 @@
  *
  * Se compila con el ejecutable oficial de Tailwind (sin Node) y genera
  * app/web/static/css/app.css. Los tokens visuales salen del diseño de
- * referencia (design/DBA Assistant.html) y se exponen también como tema de
+ * referencia (design/rediseno-2026) y se exponen también como tema de
  * Tailwind para poder usarlos como utilidades (bg-accent, text-fg-muted, etc.).
  */
 @import "tailwindcss";
@@ -12,19 +12,29 @@
 @source "../app/web/static/js";
 
 @theme {
-  --color-accent: #1E4FBF;
-  --color-accent-strong: #0A2F8F;
-  --color-danger: #C9462C;
-  --color-warn: #B88321;
-  --color-ok: #4F7A47;
-  --color-fg: #0E1218;
-  --color-fg-muted: #525B66;
-  --color-fg-faint: #7A828D;
-  --color-line: #E3E6EA;
+  --color-accent: #1F6B66;
+  --color-accent-strong: #185753;
+  --color-primary: #1F6B66;
+  --color-primary-tint: #DDEBE7;
+  --color-danger: #B0432B;
+  --color-danger-tint: #F6E1DA;
+  --color-warn: #9A6A12;
+  --color-warn-tint: #F6E9C8;
+  --color-ok: #46703C;
+  --color-ok-tint: #E1ECD8;
+  --color-info: #2E5B86;
+  --color-fg: #2B2620;
+  --color-fg-muted: #5A5249;
+  --color-fg-faint: #6E655A;
+  --color-line: #DFE3E6;
+  --color-line-strong: #C5CCD2;
+  --color-paper: #F5F6F7;
+  --color-sunk: #ECEFF1;
 
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-serif: "Instrument Serif", Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Libre Franklin", system-ui, sans-serif;
+  --font-display: "Jost", system-ui, sans-serif;
+  --font-serif: "Jost", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 /* Sistema visual del diseño: componentes (sidebar, topbar, cards, tablas, etc.). */
@@ -33,7 +43,31 @@
 /* La columna del contenido no se ensancha con una tabla de muchas columnas: la tabla se
    desplaza dentro de su tarjeta. */
 .app-shell {
-  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+/* Controles de formulario: borde fuerte, radio de control y foco con halo verde agua.
+   Fuera de una capa para que prevalezca sobre las utilidades de las plantillas. */
+input.border-line, select.border-line, textarea.border-line {
+  border-color: var(--line-strong);
+}
+input.rounded, select.rounded, textarea.rounded {
+  border-radius: var(--radius-control);
+}
+:is(input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea) {
+  background-color: var(--color-surface);
+  transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select):where(.page *) {
+  min-height: 38px;
+}
+:is(input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea):focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-tint);
+}
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--color-primary);
 }
 .main {
   min-width: 0;
@@ -84,9 +118,9 @@
   max-width: 80%;
   padding: 10px 14px;
   border-radius: 12px 12px 4px 12px;
-  background: var(--blue-700);
+  background: var(--color-primary);
   color: #fff;
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -97,39 +131,31 @@
   justify-content: center;
   width: 30px;
   height: 30px;
-  border: 1px solid var(--blue-100);
+  border: 1px solid var(--color-primary-tint);
   border-radius: 50%;
-  background: var(--blue-50);
-  color: var(--accent);
-  font-size: 11px;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 12px;
   font-weight: 700;
 }
 .burbuja-resumen {
   padding: 9px 13px;
-  border: 1px solid rgba(79, 122, 71, 0.25);
-  border-radius: var(--radius-sm);
+  border: 1px solid rgba(70, 112, 60, 0.25);
+  border-radius: var(--radius-control);
   background: var(--sage-bg);
   font-size: 13px;
 }
 .bloque-sql {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--bg-sunk);
+  font-family: var(--font-mono);
 }
 
 /* Alpine.js: oculta elementos hasta que el componente inicializa. */
 [x-cloak] {
   display: none !important;
-}
-
-/* Selector de idioma de la barra superior. */
-.selector-idioma {
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elev);
-  font-size: 12.5px;
 }
 
 /* La tarjeta del usuario en la barra superior lleva a Mi perfil. */
@@ -165,11 +191,11 @@ a.user-card {
     border: 0;
     background: none;
     color: var(--fg-muted);
-    font-size: 10.5px;
+    font-size: 12px;
     text-decoration: none;
   }
   .nav-inferior a.activo {
-    color: var(--accent);
+    color: var(--color-primary);
     font-weight: 600;
   }
   .nav-inferior-contador {
@@ -178,10 +204,10 @@ a.user-card {
     right: -9px;
     min-width: 16px;
     padding: 0 4px;
-    border-radius: 8px;
-    background: var(--terracotta);
+    border-radius: var(--radius-badge);
+    background: var(--color-danger);
     color: #fff;
-    font-size: 9.5px;
+    font-size: 12px;
     font-weight: 700;
     line-height: 16px;
     text-align: center;
@@ -192,10 +218,6 @@ a.user-card {
   }
   /* El botón de menú de la barra superior lo reemplaza "Más". */
   .topbar .boton-menu {
-    display: none;
-  }
-  /* Barra superior compacta: el idioma se cambia desde Mi perfil. */
-  .topbar .selector-idioma {
     display: none;
   }
   .topbar .crumbs {

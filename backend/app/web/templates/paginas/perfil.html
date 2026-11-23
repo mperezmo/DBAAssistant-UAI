@@ -32,11 +32,11 @@
           </div>
           <div class="text-sm">
             <div class="text-xs text-fg-muted">{{ t("usuarios.form.ambientes") }}</div>
-            <span class="metric-mono" x-text="datos.ambientes.join(', ') || '—'"></span>
+            <span class="text-sm" x-text="datos.ambientes.join(', ') || '—'"></span>
           </div>
           <div class="text-sm">
             <div class="text-xs text-fg-muted">{{ t("usuarios.col.ultimo_ingreso") }}</div>
-            <span class="metric-mono" x-text="fecha(datos.ultimo_ingreso)"></span>
+            <span class="numero text-sm" x-text="fecha(datos.ultimo_ingreso)"></span>
           </div>
           <div class="flex items-end justify-end">
             <button type="submit" class="btn btn-primary btn-sm" :disabled="ocupado || nombre === (datos.nombre || '')">{{ t("usuarios.form.guardar") }}</button>
@@ -95,7 +95,7 @@
             <template x-for="k in datos.passkeys" :key="k.id">
               <tr>
                 <td x-text="k.nombre"></td>
-                <td class="metric-mono text-[11.5px] text-fg-faint" x-text="`${TEXTOS.ultimoUso}: ${fecha(k.ultimo_uso)}`"></td>
+                <td class="numero text-xs text-fg-faint" x-text="`${TEXTOS.ultimoUso}: ${fecha(k.ultimo_uso)}`"></td>
                 <td class="text-right"><button class="btn btn-ghost btn-sm" :disabled="ocupado" @click="quitarPasskey(k)">{{ t("perfil.quitar") }}</button></td>
               </tr>
             </template>
@@ -118,7 +118,7 @@
             <template x-for="d in datos.dispositivos" :key="d.id">
               <tr>
                 <td x-text="d.descripcion"></td>
-                <td class="metric-mono text-[11.5px] text-fg-faint" x-text="fecha(d.creada_en)"></td>
+                <td class="numero text-xs text-fg-faint" x-text="fecha(d.creada_en)"></td>
                 <td class="text-right"><button class="btn btn-ghost btn-sm" :disabled="ocupado" @click="quitar(d)">{{ t("perfil.quitar") }}</button></td>
               </tr>
             </template>

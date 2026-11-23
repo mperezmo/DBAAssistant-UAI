@@ -1,7 +1,7 @@
 """Entidades de conexiones a instancias SQL Server."""
 
 from dataclasses import dataclass
-from datetime import time
+from datetime import datetime, time
 
 ZONA_HORARIA_POR_DEFECTO = "America/Argentina/Buenos_Aires"
 SINCRONIZACION_SANDBOX = time(3, 0)
@@ -30,6 +30,9 @@ class Conexion:
     zona_horaria: str = ZONA_HORARIA_POR_DEFECTO
     # Hora local de la sincronización diaria de la estructura en el Sandbox.
     sandbox_sincronizacion: time = SINCRONIZACION_SANDBOX
+    # Resultado de la última prueba de conexión (UTC); None si nunca se probó.
+    ultima_prueba_en: datetime | None = None
+    ultima_prueba_ok: bool | None = None
 
     @property
     def tiene_winrm(self) -> bool:

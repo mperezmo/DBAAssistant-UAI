@@ -4,13 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}{{ t("app.nombre") }}{% endblock %}</title>
-  <meta name="theme-color" content="#1E4FBF">
+  <meta name="theme-color" content="#1F6B66">
   <link rel="manifest" href="/manifest.webmanifest?v={{ version_estaticos }}&amp;idioma={{ idioma_actual() }}">
   <link rel="icon" href="/static/img/logo.svg?v={{ version_estaticos }}" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/app.css?v={{ version_estaticos }}">
+  <script>
+    window.DBA_TEXTOS = {
+      servidor: {{ t("error.aviso.servidor") | tojson }},
+      solicitud: {{ t("error.aviso.solicitud") | tojson }},
+      sinConexion: {{ t("error.aviso.sin_conexion") | tojson }},
+    };
+  </script>
   <script src="/static/js/api.js?v={{ version_estaticos }}"></script>
   <script defer src="/static/js/vendor/alpine-3.17.4.min.js?v={{ version_estaticos }}"></script>
   <script defer src="/static/js/app.js?v={{ version_estaticos }}"></script>
@@ -33,14 +40,12 @@
         <div class="nav-section-title">{{ t(seccion.clave) }}</div>
         {% for item in seccion.items %}
           {% if item.ruta and sesion.puede_ver(item.id) %}
-          <a href="{{ item.ruta }}" class="nav-item {% if activo == item.id %}active{% endif %}">
-            {% with nombre=item.icono %}{% include "parciales/icono.html" %}{% endwith %}
+          <a href="{{ item.ruta }}" class="nav-item {% if activo == item.id %}active{% endif %}" {% if activo == item.id %}aria-current="page"{% endif %}>
             <span>{{ t(item.clave) }}</span>
             {% if item.id == "alertas" %}<span class="nav-badge" data-alertas-activas hidden></span>{% endif %}
           </a>
           {% else %}
           <span class="nav-item disabled" title="{{ t('menu.proximamente') }}">
-            {% with nombre=item.icono %}{% include "parciales/icono.html" %}{% endwith %}
             <span>{{ t(item.clave) }}</span>
           </span>
           {% endif %}
@@ -67,9 +72,6 @@
           <div class="user-role">{{ t("rol." ~ sesion.rol) }} · {{ tenant.nombre }}</div>
         </div>
       </a>
-      <select class="selector-idioma" aria-label="{{ t('idioma.elegir') }}" data-elegir-idioma>
-        {% for codigo in idiomas %}<option value="{{ codigo }}" {% if codigo == idioma_actual() %}selected{% endif %}>{{ t("idioma." ~ codigo) }}</option>{% endfor %}
-      </select>
       <form method="post" action="/auth/salir">
         <button type="submit" class="btn btn-ghost btn-sm">{{ t("sesion.salir") }}</button>
       </form>

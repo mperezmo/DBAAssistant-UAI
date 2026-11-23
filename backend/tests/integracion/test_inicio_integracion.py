@@ -105,7 +105,8 @@ async def test_resumen_con_datos_reales(prefijo_aislado, entorno):
     # después para que la instancia recién creada tenga un período positivo.
     resumen = await servicios.resumen(tenant, dba, "PROD", ahora + timedelta(seconds=2))
     assert resumen["instancias"] == {"total": 1, "nuevas_mes": 1}
-    assert resumen["alertas"] == {"activas": 2, "criticas": 1}
+    assert resumen["alertas"] == {"activas": 2, "criticas": 1, "advertencias": 1}
+    assert resumen["estado"] == {"nivel": "critico", "ambientes_criticos": ["PROD"]}
     assert 90 <= resumen["salud"]["latencia_p95"] <= 100
     # Registrada hace instantes y caída desde hace una hora: el período es casi todo caída.
     assert resumen["salud"]["disponibilidad"] < 5

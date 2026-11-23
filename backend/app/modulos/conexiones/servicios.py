@@ -137,7 +137,43 @@ async def probar(tenant: Tenant, datos: DatosConexion, conexion_id: str | None) 
         password = cifrado.descifrar((await obtener(tenant, conexion_id)).password_sql_cifrada)
     datos = _validar(replace(datos, password_sql=password), nueva=True)
     servidor = sqlserver.servidor_externo(datos.host, datos.puerto, datos.instancia)
-    return await run_in_threadpool(_probar, servidor, datos.usuario_sql, password)
+    try:
+        resultado = await run_in_threadpool(_probar, servidor, datos.usuario_sql, password)
+    except ErrorDominio:
+        await _registrar_prueba(tenant, conexion_id, exitosa=False)
+        raise
+    await _registrar_prueba(tenant, conexion_id, exitosa=True)
+    return resultado
+
+
+async def _registrar_prueba(tenant: Tenant, conexion_id: str | None, exitosa: bool) -> None:
+    """Guarda el resultado en la conexión ya registrada (no en una que se está creando)."""
+    if conexion_id:
+        await run_in_threadpool(
+            repositorios.registrar_prueba,
+            tenant.base_sqlserver,
+            str(tenant.id),
+            conexion_id,
+            exitosa,
+        )
+
+
+def advertencias(conexiones: list[Conexion]) -> dict[str, dict]:
+    """Avisos de seguridad por conexión: login sa y mismo servidor en otro ambiente."""
+    por_servidor: dict[str, list[Conexion]] = {}
+    for c in conexiones:
+        por_servidor.setdefault(servidor_de(c).lower(), []).append(c)
+    return {
+        c.id: {
+            "usa_sa": c.usuario_sql.strip().lower() == "sa",
+            "mismo_servidor": sorted(
+                o.alias
+                for o in por_servidor[servidor_de(c).lower()]
+                if o.id != c.id and o.ambiente != c.ambiente
+            ),
+        }
+        for c in conexiones
+    }
 
 
 # Lista los servicios del motor (MSSQLSERVER o MSSQL$INSTANCIA) con su estado.

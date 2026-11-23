@@ -116,7 +116,9 @@ async def test_resumen_por_ambiente_y_rol(datos):
 
     prod = await servicios.resumen(TENANT, _actor("DBA"), "PROD", AHORA)
     assert prod["instancias"] == {"total": 2, "nuevas_mes": 1}
-    assert prod["alertas"] == {"activas": 3, "criticas": 1}
+    assert prod["alertas"] == {"activas": 3, "criticas": 1, "advertencias": 2}
+    # Con una crítica abierta el estado general nunca es "operativo".
+    assert prod["estado"] == {"nivel": "critico", "ambientes_criticos": ["PROD"]}
     salud = prod["salud"]
     assert (salud["online"], salud["total"], salud["sesiones"], salud["bloqueos_prolongados"]) == (
         1,
@@ -170,3 +172,22 @@ async def test_api_y_pagina(datos):
 
     dba = await _navegador(datos, "DBA")
     assert "Validar consulta en Sandbox" in dba.get("/").text
+
+
+def test_estado_general_derivado_de_las_alertas():
+    alertas = [
+        {"ambiente": "DEV", "severidad": "warning", "cantidad": 2},
+        {"ambiente": "PROD", "severidad": "info", "cantidad": 1},
+    ]
+    ambientes = ["PROD", "TESTING", "DEV"]
+    assert servicios.estado_general(alertas, ambientes)["nivel"] == "observaciones"
+    alertas.append({"ambiente": "DEV", "severidad": "critical", "cantidad": 1})
+    alertas.append({"ambiente": "PROD", "severidad": "critical", "cantidad": 1})
+    assert servicios.estado_general(alertas, ambientes) == {
+        "nivel": "critico",
+        "ambientes_criticos": ["PROD", "DEV"],
+    }
+    # Las informativas no cambian el estado.
+    solo_info = [{"ambiente": "PROD", "severidad": "info", "cantidad": 4}]
+    assert servicios.estado_general(solo_info, ambientes)["nivel"] == "operativo"
+    assert servicios.estado_general([], ambientes)["nivel"] == "operativo"
