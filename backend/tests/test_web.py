@@ -2,11 +2,11 @@ from app.core.config import obtener_configuracion
 from app.web.i18n import traducir
 
 
-def test_dominio_base_muestra_la_pantalla_de_acceso_del_diseno(cliente):
+def test_dominio_base_muestra_la_presentacion(cliente):
     respuesta = cliente.get("/")
 
     assert respuesta.status_code == 200
-    assert "auth-card" in respuesta.text
+    assert 'action="/ingresar-empresa"' in respuesta.text
 
 
 def test_service_worker_se_sirve_desde_la_raiz(cliente):

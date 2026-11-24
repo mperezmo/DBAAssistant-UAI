@@ -1,4 +1,5 @@
 import time
+from dataclasses import replace
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
@@ -75,11 +76,47 @@ def _ingresar(navegador, auth0, **identidad):
     return navegador.get(f"/auth/callback?code=abc&state={parametros['state']}"), parametros
 
 
-def test_dominio_base_pide_ingresar_por_la_direccion_de_la_empresa(entorno):
+def test_dominio_base_muestra_la_presentacion(entorno):
+    """CU-000-011-A: página pública con el ingreso por la dirección de la empresa."""
     respuesta = _navegador("localhost").get("/")
 
     assert respuesta.status_code == 200
-    assert "dirección de tu empresa" in respuesta.text
+    html = respuesta.text
+    assert 'action="/ingresar-empresa"' in html and "Dirección de tu empresa" in html
+    assert "https://registrar-empresa.localhost/registra-tu-empresa" in html
+    assert 'id="funciones"' in html and 'id="seguridad"' in html
+    # En inglés, con el idioma del navegador.
+    ingles = _navegador("localhost").get("/", headers={"Accept-Language": "en-US"}).text
+    assert "Your company address" in ingles
+
+
+def test_ingresar_desde_la_presentacion_lleva_a_la_empresa(entorno):
+    navegador = _navegador("localhost")
+    for direccion in ("acme", " ACME ", "acme.localhost", "https://acme.localhost/ingresar"):
+        respuesta = navegador.get("/ingresar-empresa", params={"direccion": direccion})
+        assert respuesta.status_code == 303, direccion
+        assert respuesta.headers["location"] == "https://acme.localhost/ingresar"
+
+    # Dirección inexistente, reservada o inválida: la misma respuesta, sin redirigir.
+    for direccion in ("otra", "plataforma", "a b", ""):
+        respuesta = navegador.get("/ingresar-empresa", params={"direccion": direccion})
+        assert respuesta.status_code == 404, direccion
+        assert "No encontramos una empresa habilitada" in respuesta.text
+
+    # Desde la dirección de una empresa no aplica: vuelve a su inicio.
+    respuesta = _navegador().get("/ingresar-empresa", params={"direccion": "acme"})
+    assert respuesta.status_code == 303 and respuesta.headers["location"] == "/"
+
+
+def test_ingresar_a_una_empresa_suspendida_no_redirige(entorno, monkeypatch):
+    suspendida = replace(TENANT, estado="suspendido")
+
+    async def obtener_tenant(slug):
+        return suspendida if slug == "acme" else None
+
+    monkeypatch.setattr(resolucion, "obtener_tenant", obtener_tenant)
+    respuesta = _navegador("localhost").get("/ingresar-empresa", params={"direccion": "acme"})
+    assert respuesta.status_code == 404
 
 
 def test_empresa_inexistente(entorno):

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
@@ -17,7 +18,7 @@ from app.modulos.soporte.entidades import TABLAS_CON_HISTORIA
 from app.plataforma import correos as correos_plataforma
 from app.plataforma.ingreso import sesion_operador
 from app.tenants import resolucion
-from app.tenants.entidades import Tenant
+from app.tenants.entidades import PATRON_SLUG, Tenant
 from app.web.i18n import IDIOMAS, LOCALES, idioma_actual, traducir
 from app.web.menu import ICONOS, MENU
 
@@ -78,7 +79,7 @@ async def inicio(request: Request, tenant: Tenant | None = Depends(tenant_actual
     if subdominio == "registro":
         return RedirectResponse(correos_plataforma.RUTA_REGISTRO, status_code=303)
     if tenant is None:
-        return plantillas.TemplateResponse(request, "paginas/sin_empresa.html")
+        return _presentacion(request)
     sesion = await sesion_actual(request, tenant)
     if sesion is None:
         return RedirectResponse("/ingresar", status_code=303)
@@ -89,6 +90,52 @@ async def inicio(request: Request, tenant: Tenant | None = Depends(tenant_actual
         request,
         "paginas/inicio.html",
         {"activo": "inicio", "sesion": sesion, "tenant": tenant, "ambientes": AMBIENTES},
+    )
+
+
+def _presentacion(request: Request, direccion: str = "", error: str | None = None, estado=200):
+    """Página pública del dominio principal (CU-000-011-A)."""
+    return plantillas.TemplateResponse(
+        request,
+        "paginas/presentacion.html",
+        {
+            "dominio": obtener_configuracion().dominio_base,
+            "url_registro": correos_plataforma.direccion_registro(),
+            "direccion": direccion,
+            "error": error,
+        },
+        status_code=estado,
+    )
+
+
+def _slug_de_direccion(texto: str, dominio: str) -> str | None:
+    """Acepta "acme", "acme.<dominio>" o la dirección completa (https://acme.<dominio>/...)."""
+    valor = re.sub(r"^[a-z]+://", "", (texto or "").strip().lower())
+    valor = valor.split("/", 1)[0].split(":", 1)[0].rstrip(".")
+    sufijo = f".{dominio.lower()}"
+    if valor.endswith(sufijo):
+        valor = valor[: -len(sufijo)]
+    if not PATRON_SLUG.match(valor) or resolucion.es_reservado(valor):
+        return None
+    return valor
+
+
+@router.get("/ingresar-empresa", response_class=HTMLResponse)
+async def ingresar_empresa(
+    request: Request, direccion: str = "", tenant: Tenant | None = Depends(tenant_actual)
+):
+    """Desde la presentación, lleva al ingreso de la empresa indicada (CU-000-011-A)."""
+    if tenant is not None or _subdominio_de_plataforma(request):
+        return RedirectResponse("/", status_code=303)
+    slug = _slug_de_direccion(direccion, obtener_configuracion().dominio_base)
+    empresa = await resolucion.obtener_tenant(slug) if slug else None
+    if empresa is not None and empresa.estado == "activo":
+        return RedirectResponse(
+            f"{correos_plataforma.direccion_empresa(slug)}/ingresar", status_code=303
+        )
+    # Una dirección inexistente o una empresa suspendida reciben la misma respuesta.
+    return _presentacion(
+        request, direccion.strip()[:120], traducir("presentacion.form.no_existe"), estado=404
     )
 
 

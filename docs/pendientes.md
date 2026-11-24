@@ -14,7 +14,6 @@ En este orden, cada uno con sus pruebas:
    directo; se validan en el Sandbox y se promueven.
 2. **Idiomas separados al 100 %:** sin textos en inglés en la versión en español, con la
    terminología oficial de Microsoft, y recorrido de todas las pantallas en los dos idiomas.
-3. **Página de presentación pública** en el dominio principal (CU-000-011-A).
 
 ## Fuera de alcance
 
