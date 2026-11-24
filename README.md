@@ -78,6 +78,13 @@ contraseña; en el primer ingreso Auth0 le pide configurar el doble factor.
 Si un paso falla, el tenant queda en estado `error` y volver a ejecutar el mismo
 comando retoma el aprovisionamiento.
 
+### Base de prueba
+
+`demo/distribuidora/` tiene una base de prueba de una distribuidora ficticia (DistribuidoraDemo),
+con dos años de datos, nombres de tablas mezclados (claros y heredados), problemas de DBA
+plantados, su documento funcional en PDF para Contexto de negocio y una guía con preguntas y
+respuestas esperadas. Ver `demo/distribuidora/README.md`.
+
 Los cambios de estructura de las bases (`backend/app/datos/migraciones/`) se
 aplican solos al arrancar el backend. También se pueden aplicar a mano:
 
