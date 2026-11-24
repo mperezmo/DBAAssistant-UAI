@@ -50,14 +50,16 @@ async def test_operadores_e_invitaciones_en_el_catalogo(prefijo_aislado):
     assert repositorios.iniciar_alta(segunda.id, ahora)
     assert not repositorios.revocar_invitacion(segunda.id)
     # Con una abierta (en curso), no puede existir otra abierta para el mismo email.
-    with pytest.raises(pyodbc.IntegrityError):
-        with sqlserver.conectar(prefijo_aislado.sqlserver_base_catalogo) as conexion:
-            conexion.cursor().execute(
-                """INSERT INTO dbo.invitacion_empresa (email, estado, creada_por, vence_en)
-                   VALUES ('admin@pepe.com', 'pendiente', 'ops', ?)""",
-                ahora + timedelta(hours=1),
-            )
-            conexion.commit()
+    with (
+        pytest.raises(pyodbc.IntegrityError),
+        sqlserver.conectar(prefijo_aislado.sqlserver_base_catalogo) as conexion,
+    ):
+        conexion.cursor().execute(
+            """INSERT INTO dbo.invitacion_empresa (email, estado, creada_por, vence_en)
+               VALUES ('admin@pepe.com', 'pendiente', 'ops', ?)""",
+            ahora + timedelta(hours=1),
+        )
+        conexion.commit()
 
     vencida = repositorios.crear_invitacion("otra@x.com", "ops", ahora - timedelta(seconds=5))
     assert not repositorios.iniciar_alta(vencida.id, ahora)
