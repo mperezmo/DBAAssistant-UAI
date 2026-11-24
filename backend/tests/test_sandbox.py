@@ -452,12 +452,14 @@ async def test_api_sandbox(sbx, monkeypatch):
         ).status_code
         == 202
     )
-    # La sincronización corre en el loop del cliente de prueba: se espera consultando el estado.
-    for _ in range(200):
+    # La sincronización corre en el loop del cliente de prueba (otro hilo): se espera
+    # consultando el estado, con un plazo por reloj holgado para runners de CI cargados.
+    limite = time.monotonic() + 10
+    while True:
         estado = navegador.get(f"/api/sandbox/conexiones/{conexion.id}").json()["estado"]
-        if estado != "sincronizando":
+        if estado != "sincronizando" or time.monotonic() > limite:
             break
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.02)
     assert estado == "listo"
     ejecucion = navegador.post(
         "/api/sandbox/ejecutar",
