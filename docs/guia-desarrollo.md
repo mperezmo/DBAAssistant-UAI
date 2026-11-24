@@ -131,9 +131,10 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
   - acceso de soporte: desde la consola, con segundo factor, el operador entra a una empresa
     1 hora en solo lectura y ve solo servicios y colas y errores de la aplicación saneados;
     auditado en la empresa y avisado a sus Administradores.
-  - selector de idioma ES | EN en la consola, la sesión de soporte (preferencia del operador,
-    migración 003 del catálogo) y las pantallas sin sesión (cookie); botón "Volver a la
-    plataforma" en la sesión de soporte.
+  - selector de idioma ES | EN en la barra de la app (preferencia del usuario, la misma de
+    Mi perfil), en la consola y la sesión de soporte (preferencia del operador, migración
+    003 del catálogo) y en las pantallas sin sesión (cookie); botón "Volver a la plataforma"
+    en la sesión de soporte.
 - **Pendiente:** despliegue en Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.

@@ -68,9 +68,7 @@
         <strong>{% block miga %}{% endblock %}</strong>
       </div>
       <div class="topbar-spacer"></div>
-      {% if sesion.es_operador %}
-      {% with modo_idioma="operador" %}{% include "parciales/selector_idioma.html" %}{% endwith %}
-      {% endif %}
+      {% with modo_idioma="operador" if sesion.es_operador else "usuario" %}{% include "parciales/selector_idioma.html" %}{% endwith %}
       <a class="user-card" {% if not sesion.es_operador %}href="/perfil" title="{{ t('perfil.titulo_menu') }}"{% endif %}>
         <div class="user-avatar">{{ sesion.iniciales }}</div>
         <div class="user-info">

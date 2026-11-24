@@ -1,5 +1,6 @@
-{# Selector ES | EN. modo_idioma "operador": guarda la preferencia del operador (consola y
-   sesión de soporte); si no, queda en una cookie del navegador (pantallas sin sesión). #}
+{# Selector ES | EN. modo_idioma "usuario": guarda la preferencia del usuario de la empresa
+   (la misma de Mi perfil); "operador": la del operador (consola y sesión de soporte); sin
+   modo, queda en una cookie del navegador (pantallas sin sesión). #}
 <div class="segmentado selector-idioma" role="group" aria-label="{{ t('idioma.elegir') }}"
      data-selector-idioma="{{ modo_idioma | default('cookie') }}">
   {% for codigo in idiomas %}

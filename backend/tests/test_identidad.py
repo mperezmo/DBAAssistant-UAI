@@ -129,6 +129,8 @@ def test_primer_ingreso_activa_al_invitado_y_abre_sesion(entorno):
     inicio = navegador.get("/")
     assert inicio.status_code == 200
     assert "Administrador" in inicio.text and 'href="/"' in inicio.text
+    # El idioma se cambia desde la barra superior y queda en su perfil.
+    assert 'data-selector-idioma="usuario"' in inicio.text
 
 
 def test_rol_consulta_no_ve_el_panel_admin(entorno):

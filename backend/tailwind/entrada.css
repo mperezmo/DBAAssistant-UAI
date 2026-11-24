@@ -229,6 +229,11 @@ a.user-card {
   .topbar .crumbs > span {
     display: none;
   }
+  .topbar .crumbs strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* Campos de la consola de la plataforma y del registro de empresas. En la capa base, para
