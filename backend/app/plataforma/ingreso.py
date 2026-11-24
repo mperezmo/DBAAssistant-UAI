@@ -15,7 +15,12 @@ from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad import reautenticacion, sesiones
 from app.identidad.auth0 import CLAIM_MFA_EXIGIDO
-from app.identidad.dependencias import CABECERA_SOLICITUD, METODOS_SEGUROS
+from app.identidad.dependencias import (
+    CABECERA_SOLICITUD,
+    METODOS_SEGUROS,
+    sesion_actual,
+    tenant_actual,
+)
 from app.identidad.entidades import Sesion
 from app.identidad.servicios import MAXIMA_ANTIGUEDAD_AUTENTICACION_SEGUNDOS, cliente_auth0
 from app.plataforma import repositorios
@@ -144,12 +149,27 @@ async def sesion_operador(request: Request) -> Sesion | None:
         return None
     contexto.usuario.set(operador.email)
     request.state.usuario = operador.email
+    if operador.idioma:
+        contexto.idioma.set(operador.idioma)
     return sesion
 
 
 async def requerir_operador(request: Request) -> Sesion:
     """Dependencia de la API de la consola: operador con sesión y cabecera anti-CSRF."""
     sesion = await sesion_operador(request)
+    if sesion is None:
+        raise ErrorDominio("USR_AUT_005")
+    if request.method not in METODOS_SEGUROS and not request.headers.get(CABECERA_SOLICITUD):
+        raise ErrorDominio("USR_AUT_006")
+    return sesion
+
+
+async def requerir_operador_en_cualquier_host(request: Request) -> Sesion:
+    """Operador en la consola o en una sesión de soporte dentro de una empresa."""
+    sesion = await sesion_operador(request)
+    if sesion is None:
+        candidata = await sesion_actual(request, await tenant_actual(request))
+        sesion = candidata if candidata and candidata.es_operador else None
     if sesion is None:
         raise ErrorDominio("USR_AUT_005")
     if request.method not in METODOS_SEGUROS and not request.headers.get(CABECERA_SOLICITUD):

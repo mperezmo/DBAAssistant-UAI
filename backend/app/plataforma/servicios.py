@@ -136,6 +136,10 @@ async def alta_operador(
     return operador, aviso
 
 
+async def cambiar_idioma(actor: Sesion, idioma: str) -> None:
+    await run_in_threadpool(repositorios.guardar_idioma_operador, actor.usuario_id, idioma)
+
+
 async def baja_operador(actor: Sesion, operador_id: str, ip: str | None) -> None:
     if operador_id == actor.usuario_id:
         raise ErrorDominio("PLA_VAL_002", "No podés darte de baja a vos mismo.")

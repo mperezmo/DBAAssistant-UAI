@@ -1,5 +1,7 @@
 """API de la consola de la plataforma (operadores) y del registro de empresas."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
@@ -16,8 +18,9 @@ from app.identidad.dependencias import (
 from app.identidad.entidades import Sesion
 from app.plataforma import registro, servicios, soporte
 from app.plataforma.entidades import Invitacion, Operador, ahora_utc
-from app.plataforma.ingreso import requerir_operador
+from app.plataforma.ingreso import requerir_operador, requerir_operador_en_cualquier_host
 from app.tenants import resolucion
+from app.web.i18n import COOKIE_IDIOMA
 
 router = APIRouter(prefix="/api/plataforma", tags=["plataforma"])
 router_registro = APIRouter(prefix="/api/registro", tags=["registro"])
@@ -56,6 +59,23 @@ def _operador(o: Operador, actual: Sesion) -> dict:
 
 
 # --- Consola (operadores) -----------------------------------------------------------
+
+
+class EleccionIdioma(BaseModel):
+    idioma: Literal["es", "en"]
+
+
+@router.put("/idioma", status_code=204)
+async def cambiar_idioma(
+    datos: EleccionIdioma,
+    response: Response,
+    actual: Sesion = Depends(requerir_operador_en_cualquier_host),
+) -> None:
+    """Idioma del operador; también queda en la cookie para su pantalla de ingreso."""
+    await servicios.cambiar_idioma(actual, datos.idioma)
+    response.set_cookie(
+        COOKIE_IDIOMA, datos.idioma, max_age=365 * 24 * 3600, secure=True, samesite="lax"
+    )
 
 
 @router.get("/empresas")

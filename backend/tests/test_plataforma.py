@@ -47,6 +47,7 @@ class RepositorioPlataformaFalso:
         "crear_operador",
         "activar_operador",
         "registrar_ingreso_operador",
+        "guardar_idioma_operador",
         "dar_de_baja_operador",
         "listar_invitaciones",
         "obtener_invitacion",
@@ -120,6 +121,9 @@ class RepositorioPlataformaFalso:
     def registrar_ingreso_operador(self, operador_id):
         o = self.operadores[operador_id]
         self.operadores[operador_id] = replace(o, ultimo_ingreso=ahora_utc())
+
+    def guardar_idioma_operador(self, operador_id, idioma):
+        self.operadores[operador_id] = replace(self.operadores[operador_id], idioma=idioma)
 
     def dar_de_baja_operador(self, operador_id):
         o = self.operadores[operador_id]

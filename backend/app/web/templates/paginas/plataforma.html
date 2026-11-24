@@ -25,13 +25,14 @@
 <header class="topbar">
   <div class="flex items-center gap-3">
     {% with tam=28 %}{% include "parciales/logo.html" %}{% endwith %}
-    <div class="crumbs">
+    <div class="crumbs max-sm:hidden">
       <span>{{ t("app.nombre") }}</span>
       <span class="sep">/</span>
       <strong>{{ t("plataforma.consola") }}</strong>
     </div>
   </div>
   <div class="topbar-spacer"></div>
+  {% with modo_idioma="operador" %}{% include "parciales/selector_idioma.html" %}{% endwith %}
   <div class="user-card">
     <div class="user-avatar">{{ sesion.iniciales }}</div>
     <div class="user-info">

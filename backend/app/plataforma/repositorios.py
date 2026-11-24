@@ -7,7 +7,7 @@ from app.datos import sqlserver
 from app.plataforma.entidades import Invitacion, Operador
 
 COLUMNAS_OPERADOR = (
-    "id, email, nombre, estado, auth0_usuario_id, creado_por, creado_en, ultimo_ingreso"
+    "id, email, nombre, estado, auth0_usuario_id, creado_por, creado_en, ultimo_ingreso, idioma"
 )
 COLUMNAS_INVITACION = (
     "id, email, estado, creada_por, creada_en, vence_en, codigo_hash, codigo_vence_en, "
@@ -33,6 +33,7 @@ def _operador(fila) -> Operador:
         creado_por=fila.creado_por,
         creado_en=fila.creado_en,
         ultimo_ingreso=fila.ultimo_ingreso,
+        idioma=fila.idioma,
     )
 
 
@@ -176,6 +177,10 @@ def activar_operador(operador_id: str, auth0_usuario_id: str, nombre: str | None
 
 def registrar_ingreso_operador(operador_id: str) -> None:
     _ejecutar("UPDATE dbo.operador SET ultimo_ingreso = SYSUTCDATETIME() WHERE id = ?", operador_id)
+
+
+def guardar_idioma_operador(operador_id: str, idioma: str) -> None:
+    _ejecutar("UPDATE dbo.operador SET idioma = ? WHERE id = ?", idioma, operador_id)
 
 
 def dar_de_baja_operador(operador_id: str) -> None:

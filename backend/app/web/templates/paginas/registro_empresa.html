@@ -113,6 +113,8 @@
         <button type="button" class="btn btn-primary btn-block" x-show="fallo()" @click="paso = 'datos'">{{ t("registro.progreso.reintentar") }}</button>
       </div>
 
+      <div class="mt-6 flex justify-center">{% include "parciales/selector_idioma.html" %}</div>
+
       <!-- Sin invitación vigente -->
       <div class="grid gap-3 text-center" x-show="paso === 'cerrada'" x-cloak>
         <p class="m-0 text-sm" x-text="textoCerrada()"></p>

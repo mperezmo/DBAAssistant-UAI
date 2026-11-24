@@ -1,0 +1,11 @@
+{# Selector ES | EN. modo_idioma "operador": guarda la preferencia del operador (consola y
+   sesión de soporte); si no, queda en una cookie del navegador (pantallas sin sesión). #}
+<div class="segmentado selector-idioma" role="group" aria-label="{{ t('idioma.elegir') }}"
+     data-selector-idioma="{{ modo_idioma | default('cookie') }}">
+  {% for codigo in idiomas %}
+  <button type="button" data-idioma="{{ codigo }}" title="{{ t('idioma.' ~ codigo) }}" lang="{{ codigo }}"
+          class="{% if codigo == idioma_actual() %}activo{% endif %}"
+          aria-pressed="{{ 'true' if codigo == idioma_actual() else 'false' }}">{{ codigo | upper }}</button>
+  {% endfor %}
+</div>
+<script src="/static/js/idioma.js?v={{ version_estaticos }}" defer></script>

@@ -32,6 +32,7 @@ class Operador:
     creado_por: str
     creado_en: datetime
     ultimo_ingreso: datetime | None = None
+    idioma: str | None = None  # None: el del navegador
 
     @property
     def puede_ingresar(self) -> bool:

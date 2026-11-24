@@ -21,6 +21,9 @@ from app.core import contexto
 DIRECTORIO = Path(__file__).parent
 IDIOMA_PREDETERMINADO = "es"
 IDIOMAS = ("es", "en")
+# Elección de idioma en las pantallas sin sesión (ingreso, registro de empresa). Con
+# sesión manda la preferencia guardada de la persona.
+COOKIE_IDIOMA = "dba_idioma"
 # Para Intl en el navegador (formatos de fecha y número) y para Auth0.
 LOCALES = {"es": "es-AR", "en": "en-US"}
 # Parámetros que son a su vez una clave de traducción (por ejemplo, el nombre de una

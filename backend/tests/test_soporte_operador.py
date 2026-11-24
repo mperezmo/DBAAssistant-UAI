@@ -277,3 +277,77 @@ async def test_confirmacion_sin_el_codigo_de_auth0_se_rechaza(plataforma, auth0)
 
 def test_fecha_utc():
     assert errores._fecha(datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)) == "2026-01-02T03:04:05Z"
+
+
+# --- Idioma y volver a la plataforma ------------------------------------------------
+
+
+async def _consola_con_sesion(repo):
+    operador = _operador(repo)
+    sesion = await sesiones.crear(
+        {
+            "usuario_id": operador.id,
+            "tenant_id": "plataforma",
+            "tenant_slug": "plataforma",
+            "email": operador.email,
+            "nombre": "Ops",
+            "rol": "OPERADOR",
+        },
+        3600,
+        tokens={},
+    )
+    consola = _navegador("plataforma.localhost")
+    consola.cookies.set(sesiones.COOKIE, sesion.id)
+    return consola, operador
+
+
+async def test_idioma_del_operador_en_la_consola(plataforma):  # noqa: F811
+    consola, operador = await _consola_con_sesion(plataforma["repo"])
+    assert "Empresas de la plataforma" in consola.get("/").text
+
+    assert (
+        consola.put("/api/plataforma/idioma", json={"idioma": "fr"}, headers=CABECERA).status_code
+        == 422
+    )
+    respuesta = consola.put("/api/plataforma/idioma", json={"idioma": "en"}, headers=CABECERA)
+
+    assert respuesta.status_code == 204
+    assert "dba_idioma=en" in respuesta.headers["set-cookie"]
+    assert plataforma["repo"].operadores[operador.id].idioma == "en"
+    pagina = consola.get("/").text
+    assert "Platform companies" in pagina and 'data-selector-idioma="operador"' in pagina
+
+
+async def test_idioma_sin_sesion_por_cookie(plataforma, empresa):  # noqa: F811
+    ingreso = _navegador("demo.localhost")
+    assert "Ingresar" in ingreso.get("/ingresar").text
+
+    ingreso.cookies.set("dba_idioma", "en")
+    pagina = ingreso.get("/ingresar").text
+    assert "Sign in" in pagina and 'data-selector-idioma="cookie"' in pagina
+    # Un valor que no es un idioma de la app se ignora.
+    ingreso.cookies.set("dba_idioma", "xx")
+    assert "Ingresar" in ingreso.get("/ingresar").text
+    # Sin operador, el idioma de la plataforma no se puede guardar.
+    assert (
+        _navegador("plataforma.localhost")
+        .put("/api/plataforma/idioma", json={"idioma": "en"}, headers=CABECERA)
+        .status_code
+        == 401
+    )
+
+
+async def test_soporte_en_el_idioma_del_operador_con_volver(plataforma, empresa):  # noqa: F811
+    operador = _operador(plataforma["repo"])
+    confirmado = replace(_sesion(operador), segundo_factor_en=time.time())
+    pase = parse_qs(urlparse(await soporte.crear_pase(confirmado, str(DEMO.id))).query)["pase"]
+    sesion = await soporte.canjear_pase(DEMO, pase[0])
+    empresa_web = _navegador("demo.localhost")
+    empresa_web.cookies.set(sesiones.COOKIE, sesion.id)
+
+    pagina = empresa_web.get("/soporte").text
+    assert "Volver a la plataforma" in pagina and 'action="/auth/salir"' in pagina
+
+    cambio = empresa_web.put("/api/plataforma/idioma", json={"idioma": "en"}, headers=CABECERA)
+    assert cambio.status_code == 204
+    assert "Back to the platform" in empresa_web.get("/soporte").text

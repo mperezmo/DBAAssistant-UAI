@@ -68,6 +68,9 @@
         <strong>{% block miga %}{% endblock %}</strong>
       </div>
       <div class="topbar-spacer"></div>
+      {% if sesion.es_operador %}
+      {% with modo_idioma="operador" %}{% include "parciales/selector_idioma.html" %}{% endwith %}
+      {% endif %}
       <a class="user-card" {% if not sesion.es_operador %}href="/perfil" title="{{ t('perfil.titulo_menu') }}"{% endif %}>
         <div class="user-avatar">{{ sesion.iniciales }}</div>
         <div class="user-info">
@@ -83,8 +86,14 @@
     <main class="page">
       {% if sesion.es_operador %}
       <div class="aviso-soporte mb-6" role="status">
-        <strong>{{ t("soporte.operador.aviso.titulo") }}</strong>
-        <span>{{ t("soporte.operador.aviso.texto").format(empresa=tenant.nombre) }}</span>
+        <div class="min-w-[260px] flex-1">
+          <strong>{{ t("soporte.operador.aviso.titulo") }}</strong>
+          <span>{{ t("soporte.operador.aviso.texto").format(empresa=tenant.nombre) }}</span>
+        </div>
+        {# Cierra la sesión de soporte y vuelve a la consola (no cierra la sesión de Auth0). #}
+        <form method="post" action="/auth/salir" class="shrink-0">
+          <button type="submit" class="btn btn-primary btn-sm">← {{ t("soporte.operador.volver") }}</button>
+        </form>
       </div>
       {% endif %}
       {% block contenido %}{% endblock %}

@@ -62,6 +62,8 @@ async def _sesion_de_soporte(request: Request, sesion: Sesion) -> Sesion | None:
         return None
     contexto.usuario.set(operador.email)
     request.state.usuario = operador.email
+    if operador.idioma:
+        contexto.idioma.set(operador.idioma)
     return sesion
 
 

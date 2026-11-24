@@ -28,7 +28,9 @@ async def test_operadores_e_invitaciones_en_el_catalogo(prefijo_aislado):
     assert repositorios.crear_operador("ops@plataforma.com", None, "sistema") is None
     repositorios.activar_operador(operador.id, "google|ops", "Nombre de Google")
     encontrado = repositorios.buscar_para_ingreso("google|ops", "otro@mail.com")
-    assert (encontrado.estado, encontrado.nombre) == ("activo", "Ops")
+    assert (encontrado.estado, encontrado.nombre, encontrado.idioma) == ("activo", "Ops", None)
+    repositorios.guardar_idioma_operador(operador.id, "en")
+    assert repositorios.obtener_operador(operador.id).idioma == "en"
     repositorios.dar_de_baja_operador(operador.id)
     assert repositorios.listar_operadores() == []
     vuelto = repositorios.crear_operador("ops@plataforma.com", None, "otro")

@@ -43,7 +43,7 @@ from app.tenants import repositorios as tenants_repositorios
 from app.tenants import resolucion
 from app.tenants import servicios as tenants
 from app.web import rutas as web
-from app.web.i18n import idioma_de_cabecera
+from app.web.i18n import COOKIE_IDIOMA, IDIOMAS, idioma_de_cabecera
 from app.web.rutas import DIRECTORIO_ESTATICOS, plantillas
 
 log = logging.getLogger(__name__)
@@ -120,8 +120,13 @@ async def registrar_contexto(request: Request, siguiente):
     en la bitácora de logs las respuestas con error."""
     contexto.ip.set(request.client.host if request.client else None)
     contexto.ruta.set(request.url.path)
-    # Hasta conocer al usuario, el idioma del navegador.
-    contexto.idioma.set(idioma_de_cabecera(request.headers.get("accept-language")))
+    # Hasta conocer al usuario, el elegido en las pantallas sin sesión o el del navegador.
+    elegido = request.cookies.get(COOKIE_IDIOMA)
+    contexto.idioma.set(
+        elegido
+        if elegido in IDIOMAS
+        else idioma_de_cabecera(request.headers.get("accept-language"))
+    )
     contexto.tenant_slug.set(
         resolucion.slug_desde_host(
             request.headers.get("host", ""), obtener_configuracion().dominio_base
