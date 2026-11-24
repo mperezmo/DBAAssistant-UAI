@@ -42,9 +42,9 @@ async def test_ciclo_de_vida_de_un_usuario(prefijo_aislado):
     usuario_id = repositorios.crear(base, tenant_id, "dba@acme.com", "Dba", "DBA", ["PROD", "DEV"])
     assert repositorios.obtener(base, tenant_id, usuario_id).ambientes == ("DEV", "PROD")
 
-    repositorios.actualizar(base, tenant_id, usuario_id, "Dba", "CONSULTA", ["TESTING"])
+    repositorios.actualizar(base, tenant_id, usuario_id, "Dba", "LECTURA", ["TESTING"])
     usuario = repositorios.obtener(base, tenant_id, usuario_id)
-    assert (usuario.rol, usuario.ambientes) == ("CONSULTA", ("TESTING",))
+    assert (usuario.rol, usuario.ambientes) == ("LECTURA", ("TESTING",))
     assert repositorios.contar_administradores_vigentes(base, tenant_id) == 1
 
     repositorios.dar_baja(base, tenant_id, usuario_id)

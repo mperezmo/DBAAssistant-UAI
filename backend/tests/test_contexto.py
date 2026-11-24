@@ -121,7 +121,7 @@ async def test_tablas_sensibles(ctx):
     assert ctx["eventos"][-1][0] == "contexto.sensible_creado"
 
     errores = [
-        (_actor("CONSULTA"), datos, "USR_PER_000"),
+        (_actor("LECTURA"), datos, "USR_PER_000"),
         (
             _actor(),
             TablaSensible(conexion.id, "Ventas", "", (), ("DBA",), (), False),
@@ -140,7 +140,7 @@ async def test_tablas_sensibles(ctx):
         # Ver las columnas sin consultar la tabla es incoherente; sin restricciones también.
         (
             _actor(),
-            TablaSensible(conexion.id, "Ventas", "dbo.pedidos", (), ("DBA",), ("CONSULTA",), True),
+            TablaSensible(conexion.id, "Ventas", "dbo.pedidos", (), ("DBA",), ("LECTURA",), True),
             "CTX_VAL_002",
         ),
         (
@@ -150,7 +150,7 @@ async def test_tablas_sensibles(ctx):
                 "Ventas",
                 "dbo.pedidos",
                 (),
-                ("ADMINISTRADOR", "DBA", "CONSULTA"),
+                ("ADMINISTRADOR", "DBA", "ANALISTA", "LECTURA"),
                 (),
                 False,
             ),
@@ -309,7 +309,7 @@ async def test_aplicacion_y_texto_para_ia(ctx):
     assert len(sensibles) == 1 and await servicios.sensibles_de(TENANT, conexion.id, ()) == []
     servicios.verificar_acceso(_actor("DBA"), sensibles)
     with pytest.raises(ErrorDominio) as error:
-        servicios.verificar_acceso(_actor("CONSULTA"), sensibles)
+        servicios.verificar_acceso(_actor("LECTURA"), sensibles)
     assert (
         error.value.codigo == "USR_PER_000" and error.value.datos["tabla"] == "Ventas.dbo.clientes"
     )
@@ -416,7 +416,7 @@ async def test_lectura_del_esquema_con_cache(ctx, monkeypatch):
 async def test_api_contexto(ctx):
     conexion = await conexiones.crear(TENANT, _actor(), _datos())
     dba = await _navegador(ctx, "DBA")
-    consulta = await _navegador(ctx, "CONSULTA")
+    consulta = await _navegador(ctx, "LECTURA")
 
     r = dba.get("/api/contexto/conexiones")
     assert r.json()["puede_editar"] is True and r.json()["conexiones"][0]["id"] == conexion.id

@@ -1,11 +1,14 @@
-"""API REST del Sandbox (Administrador y DBA; promueve solo el DBA)."""
+"""API REST del Sandbox (Administrador, DBA y Analista).
+
+El Analista promueve solo en DEV y TESTING.
+"""
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.identidad.dependencias import requerir_modulo
+from app.identidad.entidades import ambientes_que_modifica
 from app.modulos.sandbox import servicios
-from app.modulos.sandbox.entidades import ROLES_PROMUEVEN
 
 router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
 contexto = Depends(requerir_modulo("sandbox"))
@@ -49,7 +52,8 @@ async def historial(
     tenant, sesion = ctx
     return {
         "registros": await servicios.historial(tenant, conexion_id, usuario, estado),
-        "puede_promover": sesion.rol in ROLES_PROMUEVEN,
+        # Ambientes en los que el usuario puede promover (el Analista, fuera de PROD).
+        "ambientes_promover": list(ambientes_que_modifica(sesion.rol)),
     }
 
 

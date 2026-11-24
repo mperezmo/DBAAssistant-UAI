@@ -17,7 +17,7 @@ from app.core import cifrado
 from app.core.errores import ErrorDominio
 from app.datos import sqlserver
 from app.identidad import repositorios as usuarios
-from app.identidad.entidades import ROLES_OPERATIVOS, Sesion
+from app.identidad.entidades import ROL_ANALISTA, ROLES_OPERATIVOS, Sesion
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.buenas_practicas import analisis_ia, chequeos, repositorios
@@ -30,7 +30,8 @@ from app.tenants.entidades import Tenant
 
 log = logging.getLogger(__name__)
 
-ROLES_ANALIZAN = ROLES_OPERATIVOS
+# El Analista pide análisis pero no aplica sugerencias ni define reglas (TFI, CU-000-007).
+ROLES_ANALIZAN = ROLES_OPERATIVOS + (ROL_ANALISTA,)
 ROLES_APLICAN = ROLES_OPERATIVOS
 VENCIMIENTO_EN_CURSO = timedelta(minutes=15)
 LARGO_MAXIMO_REGLA = 500

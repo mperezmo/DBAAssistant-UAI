@@ -180,7 +180,7 @@ async def test_servicios_y_api_de_query_store(monitor, monkeypatch):  # noqa: F8
     detalle = await servicios.consulta_query_store(TENANT, conexion.id, "Ventas", 7, "cpu", "24h")
     assert detalle["query_id"] == 7
 
-    navegador = await _navegador(monitor, "CONSULTA")
+    navegador = await _navegador(monitor, "LECTURA")
     base = f"/api/monitor/{conexion.id}/query-store"
     assert navegador.get(base).json()["disponible"] is True
     r = navegador.get(f"{base}/consultas?base=Ventas&metrica=duracion&periodo=1h")

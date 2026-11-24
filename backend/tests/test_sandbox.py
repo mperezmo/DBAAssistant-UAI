@@ -247,9 +247,11 @@ async def test_sincronizar_ejecutar_y_promover(sbx, monkeypatch):
     )
     previa = await servicios.previa(TENANT, dba, resultado["id"])
     assert previa["real"]["filas_estimadas"] == 7 and previa["ambiente"] == "PROD"
-    with pytest.raises(ErrorDominio) as error:
-        await servicios.previa(TENANT, _actor("CONSULTA"), resultado["id"])
-    assert error.value.codigo == "USR_PER_000"
+    # Lectura no promueve; el Analista no promueve en PROD.
+    for rol in ("LECTURA", "ANALISTA"):
+        with pytest.raises(ErrorDominio) as error:
+            await servicios.previa(TENANT, _actor(rol), resultado["id"])
+        assert error.value.codigo == "USR_PER_000"
     with pytest.raises(ErrorDominio) as error:
         await servicios.promover(TENANT, dba, resultado["id"])
     assert error.value.codigo == "AMB_VAL_000"
@@ -467,9 +469,8 @@ async def test_api_sandbox(sbx, monkeypatch):
         headers=CABECERA,
     ).json()
     historial = navegador.get("/api/sandbox/historial").json()
-    assert (
-        historial["puede_promover"] is True and historial["registros"][0]["id"] == ejecucion["id"]
-    )
+    assert historial["ambientes_promover"] == ["DEV", "TESTING", "PROD"]
+    assert historial["registros"][0]["id"] == ejecucion["id"]
     assert navegador.get(f"/api/sandbox/historial/{ejecucion['id']}").json()["base"] == "ERP"
     previa = navegador.post(f"/api/sandbox/historial/{ejecucion['id']}/previa", headers=CABECERA)
     assert previa.json()["real"] == {"filas_estimadas": 1}
@@ -479,5 +480,20 @@ async def test_api_sandbox(sbx, monkeypatch):
     assert promovida.json() == {"estado": "exitosa", "filas": 1}
     assert navegador.get("/sandbox").status_code == 200
 
-    consulta = await _navegador(sbx, "CONSULTA")
+    consulta = await _navegador(sbx, "LECTURA")
     assert consulta.get("/api/sandbox/historial").json()["codigo"] == "USR_PER_000"
+
+    # El Analista valida y promueve en DEV (en PROD solo lee).
+    analista = await _navegador(sbx, "ANALISTA")
+    assert analista.get("/api/sandbox/historial").json()["ambientes_promover"] == [
+        "DEV",
+        "TESTING",
+    ]
+    propia = analista.post(
+        "/api/sandbox/ejecutar",
+        json={"conexion_id": conexion.id, "base": "ERP", "sql": "SELECT 1"},
+        headers=CABECERA,
+    ).json()
+    assert analista.post(
+        f"/api/sandbox/historial/{propia['id']}/promover", headers=CABECERA
+    ).json() == {"estado": "exitosa", "filas": 1}

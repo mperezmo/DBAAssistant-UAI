@@ -47,7 +47,7 @@ REGLA = documentos.ReglaPropuesta(
 
 
 def _consulta(email="consulta@acme.com"):
-    return replace(_actor("CONSULTA"), email=email)
+    return replace(_actor("LECTURA"), email=email)
 
 
 async def _esperar() -> None:
@@ -288,7 +288,7 @@ async def test_fallas_y_validaciones(ctx, interpretaciones):  # noqa: F811
 async def test_api_documentos(ctx, interpretaciones):  # noqa: F811
     conexion = await conexiones.crear(TENANT, _actor(), _datos())
     dba = await _navegador(ctx, "DBA")
-    consulta = await _navegador(ctx, "CONSULTA")
+    consulta = await _navegador(ctx, "LECTURA")
     formulario = {"conexion_id": conexion.id, "base": "Ventas"}
     archivo = {"archivo": ("Facturación.pdf", FACTURACION, "application/pdf")}
 

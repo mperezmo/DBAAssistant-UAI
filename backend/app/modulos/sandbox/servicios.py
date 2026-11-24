@@ -326,7 +326,10 @@ async def _promovible(tenant: Tenant, actor: Sesion, registro_id: str) -> tuple[
     registro = await repositorios.obtener_registro(tenant.base_mongodb, str(tenant.id), registro_id)
     if registro is None or registro["estado"] != "ok" or registro.get("promocion"):
         raise ErrorDominio("SBX_PRM_000", registro_id)
-    return registro, await conexiones.obtener(tenant, registro["conexion_id"])
+    conexion = await conexiones.obtener(tenant, registro["conexion_id"])
+    if not actor.puede_modificar(conexion.ambiente):
+        raise ErrorDominio("USR_PER_000", f"sandbox.promover en {conexion.ambiente}")
+    return registro, conexion
 
 
 async def previa(tenant: Tenant, actor: Sesion, registro_id: str) -> dict:

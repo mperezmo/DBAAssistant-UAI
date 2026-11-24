@@ -19,7 +19,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("sandbox", () => ({
     TEXTOS,
     conexiones: [], conexionId: "", base: "", sql: "", estado: null, error: null,
-    resultado: null, ejecutando: false, historial: [], puedePromover: false,
+    resultado: null, ejecutando: false, historial: [], ambientesPromover: [],
     filtros: { estado: "", usuario: "" }, promocion: null,
 
     async iniciar() {
@@ -134,7 +134,7 @@ document.addEventListener("alpine:init", () => {
         if (this.filtros.usuario.trim()) params.set("usuario", this.filtros.usuario.trim());
         const r = await api("GET", `/api/sandbox/historial?${params}`);
         this.historial = r.registros;
-        this.puedePromover = r.puede_promover;
+        this.ambientesPromover = r.ambientes_promover;
       } catch (error) {
         this.error = window.DBA.aviso(error);
       }

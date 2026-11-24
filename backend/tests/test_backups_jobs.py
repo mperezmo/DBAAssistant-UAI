@@ -439,7 +439,7 @@ async def test_politica_de_backup_y_estado_actual(monitor, monkeypatch):  # noqa
     conexion = await _crear(monitor)
     assert (await servicios.obtener_politica(TENANT, conexion.id)) == PoliticaBackup()
     with pytest.raises(ErrorDominio) as error:
-        await servicios.guardar_politica(TENANT, _actor("CONSULTA"), conexion.id, POLITICA)
+        await servicios.guardar_politica(TENANT, _actor("LECTURA"), conexion.id, POLITICA)
     assert error.value.codigo == "USR_PER_000"
     with pytest.raises(ErrorDominio) as error:
         await servicios.guardar_politica(
@@ -502,7 +502,7 @@ async def test_historiales_y_explicacion_de_un_job(monitor, monkeypatch):  # noq
 
     monkeypatch.setattr(servicios.analisis_ia, "explicar_falla", explicar_falla)
     with pytest.raises(ErrorDominio):
-        await servicios.explicar_job(TENANT, _actor("CONSULTA"), conexion.id, job_id)
+        await servicios.explicar_job(TENANT, _actor("LECTURA"), conexion.id, job_id)
     explicacion = await servicios.explicar_job(TENANT, _actor(), conexion.id, job_id)
     assert explicacion == {
         "inicio": "2026-11-15T03:00:00",
@@ -519,7 +519,7 @@ async def test_historiales_y_explicacion_de_un_job(monitor, monkeypatch):  # noq
 async def test_api_de_backups_y_jobs(monitor, monkeypatch):  # noqa: F811
     conexion = await _crear(monitor)
     monkeypatch.setattr(servicios, "_leer", lambda c, f, *a, base=None: [])
-    consulta = await _navegador(monitor, "CONSULTA")
+    consulta = await _navegador(monitor, "LECTURA")
     dba = await _navegador(monitor, "DBA")
     politica = consulta.get(f"/api/monitor/{conexion.id}/backups/politica").json()
     assert politica == {"habilitada": True, "full_horas": 24, "log_minutos": 60}

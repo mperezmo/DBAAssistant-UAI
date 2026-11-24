@@ -10,15 +10,13 @@
 
 En este orden, cada uno con sus pruebas:
 
-1. **Roles finales:** Administrador, DBA, Analista y Lectura por empresa (hoy Administrador, DBA
-   y Consulta); el Operador sigue siendo de la plataforma.
-2. **Permisos por ambiente (CU-001-002-C):** matriz usuario × ambiente × acciones, con el rol
+1. **Permisos por ambiente (CU-001-002-C):** matriz usuario × ambiente × acciones, con el rol
    como techo.
-3. **Todo cambio pasa por el Sandbox:** el chat deja de ejecutar INSERT, UPDATE y DELETE
+2. **Todo cambio pasa por el Sandbox:** el chat deja de ejecutar INSERT, UPDATE y DELETE
    directo; se validan en el Sandbox y se promueven.
-4. **Idiomas separados al 100 %:** sin textos en inglés en la versión en español, con la
+3. **Idiomas separados al 100 %:** sin textos en inglés en la versión en español, con la
    terminología oficial de Microsoft, y recorrido de todas las pantallas en los dos idiomas.
-5. **Página de presentación pública** en el dominio principal (CU-000-011-A).
+4. **Página de presentación pública** en el dominio principal (CU-000-011-A).
 
 ## Fuera de alcance
 

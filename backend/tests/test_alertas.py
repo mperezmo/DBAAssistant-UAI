@@ -396,7 +396,7 @@ async def test_reglas_validacion_y_permisos(alertas):
     dba = _actor()
 
     with pytest.raises(ErrorDominio) as error:
-        await servicios.crear_regla(TENANT, _actor("CONSULTA"), _regla())
+        await servicios.crear_regla(TENANT, _actor("LECTURA"), _regla())
     assert error.value.codigo == "USR_PER_000"
     for cambios in (
         {"nombre": " "},
@@ -468,7 +468,7 @@ async def test_api_alertas_por_rol(alertas):
     alerta = repo.disparar(
         "b", str(TENANT.id), conexion.id, ("A", "S", "PROD"), condiciones.instancia_caida("S")
     ).alerta
-    consulta = await _navegador(alertas, "CONSULTA")
+    consulta = await _navegador(alertas, "LECTURA")
 
     listado = consulta.get("/api/alertas").json()
     assert listado["permisos"] == {"configurar": False, "atender": False}
@@ -585,7 +585,7 @@ async def test_api_push(alertas, push_configurado, monkeypatch):
         push_repo, "guardar", lambda base, t, u, s, agente: guardadas.append((s, agente))
     )
     monkeypatch.setattr(push_repo, "eliminar", lambda base, t, endpoint: bajas.append(endpoint))
-    navegador = await _navegador(alertas, "CONSULTA")
+    navegador = await _navegador(alertas, "LECTURA")
 
     assert navegador.get("/api/push").json() == {
         "habilitado": True,
@@ -628,7 +628,7 @@ async def test_desestimar_silencia_la_condicion_hasta_reactivarla(alertas):
     assert alerta.clave == "evento:base:HIST"
 
     with pytest.raises(ErrorDominio) as error:
-        await servicios.desestimar(TENANT, _actor("CONSULTA"), alerta.id, "x", None)
+        await servicios.desestimar(TENANT, _actor("LECTURA"), alerta.id, "x", None)
     assert error.value.codigo == "USR_PER_000"
     for motivo, hasta in ((" ", None), ("ok", datetime(2020, 1, 1, tzinfo=UTC))):
         with pytest.raises(ErrorDominio) as error:

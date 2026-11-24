@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.core.errores import ErrorDominio
 from app.identidad.dependencias import requerir_modulo
+from app.identidad.entidades import ROLES
 from app.modulos.conexiones import servicios as conexiones
 from app.modulos.contexto_negocio import esquema, servicios
 from app.modulos.contexto_negocio.entidades import (
@@ -32,8 +33,8 @@ class SensibleEntrada(BaseModel):
     base: str = Field(max_length=128)
     tabla: str = Field(max_length=260)
     columnas: list[str] = Field(default_factory=list, max_length=100)
-    roles_consulta: list[str] = Field(max_length=3)
-    roles_ven_columnas: list[str] = Field(default_factory=list, max_length=3)
+    roles_consulta: list[str] = Field(max_length=len(ROLES))
+    roles_ven_columnas: list[str] = Field(default_factory=list, max_length=len(ROLES))
     doble_confirmacion: bool = False
     descripcion: str = Field(default="", max_length=500)
 

@@ -101,7 +101,7 @@ async def test_motor_y_atencion_de_alertas(prefijo_aislado, entorno):
     assert enviados[-1] == (("ADMINISTRADOR", "DBA"), "Instancia sin conexión")
 
     # Atender: Administrador y DBA, con comentario; no se puede atender dos veces.
-    consulta = Sesion("s", "u", str(tenant.id), "acme", "c@acme.com", "C", "CONSULTA", 0)
+    consulta = Sesion("s", "u", str(tenant.id), "acme", "c@acme.com", "C", "LECTURA", 0)
     with pytest.raises(ErrorDominio) as error:
         await servicios.atender(tenant, consulta, alerta.id, "manual", "x")
     assert error.value.codigo == "USR_PER_000"

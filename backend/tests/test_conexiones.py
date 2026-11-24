@@ -335,7 +335,7 @@ async def test_api_eliminar_prod_sin_segundo_factor(entorno):
 
 
 async def test_rol_consulta_no_gestiona_conexiones(entorno):
-    navegador = await _navegador(entorno, "CONSULTA")
+    navegador = await _navegador(entorno, "LECTURA")
 
     assert navegador.get("/api/conexiones").json()["codigo"] == "USR_PER_000"
     assert navegador.get("/conexiones").status_code == 403

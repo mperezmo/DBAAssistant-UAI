@@ -18,7 +18,7 @@ class RepositorioUsuariosFalso:
     def agregar(
         self,
         email,
-        rol="CONSULTA",
+        rol="LECTURA",
         estado="activo",
         auth0=None,
         nombre=None,

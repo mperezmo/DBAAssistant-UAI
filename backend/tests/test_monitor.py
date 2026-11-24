@@ -229,7 +229,7 @@ async def test_guardar_umbrales_audita_y_exige_rol(monitor):
     conexion = await _crear(monitor)
 
     with pytest.raises(ErrorDominio) as error:
-        await servicios.guardar_umbrales(TENANT, _actor("CONSULTA"), conexion.id, [])
+        await servicios.guardar_umbrales(TENANT, _actor("LECTURA"), conexion.id, [])
     assert error.value.codigo == "USR_PER_000"
     with pytest.raises(ErrorDominio):
         await servicios.guardar_umbrales(
@@ -288,7 +288,7 @@ def _conexion_guardada():
 
 async def test_api_monitor_por_rol(monitor):
     conexion = await _crear(monitor)
-    consulta = await _navegador(monitor, "CONSULTA")
+    consulta = await _navegador(monitor, "LECTURA")
 
     listado = consulta.get("/api/monitor").json()
     assert listado["puede_configurar"] is False

@@ -327,7 +327,7 @@ async def test_api_schema(historia):
         TENANT, previa, "CREATE TABLE dbo.u (a INT)", "dba@acme.com", "promocion", "r"
     )
 
-    navegador = await _navegador(historia, "CONSULTA")
+    navegador = await _navegador(historia, "LECTURA")
     assert navegador.get("/api/schema/conexiones").json()["conexiones"][0]["id"] == conexion.id
     assert navegador.get(f"/api/schema/conexiones/{conexion.id}/bases").json()["bases"] == [
         "Compras",

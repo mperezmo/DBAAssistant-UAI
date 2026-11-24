@@ -557,7 +557,7 @@ async def test_biblioteca_detalle_y_propios(wk):
 
     with pytest.raises(ErrorDominio) as error:
         await servicios.guardar_propio(
-            TENANT, _actor("CONSULTA"), None, _propio(), (conexion.id, None)
+            TENANT, _actor("LECTURA"), None, _propio(), (conexion.id, None)
         )
     assert error.value.codigo == "USR_PER_000"
     for cambios in ({"nombre": " "}, {"pasos": ()}, {"ambientes": ()}, {"categoria": "x"}):
@@ -616,7 +616,7 @@ async def test_ejecutar_controles_y_registro(wk):
     assert error.value.codigo == "USR_VAL_002"
     with pytest.raises(ErrorDominio) as error:
         await servicios.ejecutar(
-            TENANT, _actor("CONSULTA"), "kill_bloqueos", conexion.id, None, {}, "web"
+            TENANT, _actor("LECTURA"), "kill_bloqueos", conexion.id, None, {}, "web"
         )
     assert error.value.codigo == "USR_PER_000"
     with pytest.raises(ErrorDominio) as error:
@@ -695,7 +695,7 @@ async def test_ventana_y_autorizaciones(wk):
         (dba, pedido["id"], "AMB_VAL_000"),
         (otro, "no-uuid", "WKR_AUT_000"),
         (otro, "00000000-0000-0000-0000-000000009999", "WKR_AUT_000"),
-        (_actor("CONSULTA"), pedido["id"], "USR_PER_000"),
+        (_actor("LECTURA"), pedido["id"], "USR_PER_000"),
     ):
         with pytest.raises(ErrorDominio) as error:
             await servicios.resolver_autorizacion(TENANT, actor, autorizacion_id, True)
@@ -863,7 +863,7 @@ async def test_api_workarounds(wk, monkeypatch):
     )
     assert navegador.get("/workarounds").status_code == 200
 
-    consulta = await _navegador(wk, "CONSULTA")
+    consulta = await _navegador(wk, "LECTURA")
     assert consulta.get("/api/workarounds").json()["codigo"] == "USR_PER_000"
 
 
@@ -900,7 +900,7 @@ async def test_validar_en_sandbox_aprueba_o_conserva_la_anterior(wk, monkeypatch
 
     with pytest.raises(ErrorDominio) as error:
         await servicios.validar_en_sandbox(
-            TENANT, _actor("CONSULTA"), creado["id"], conexion.id, "ERP"
+            TENANT, _actor("LECTURA"), creado["id"], conexion.id, "ERP"
         )
     assert error.value.codigo == "USR_PER_000"
 

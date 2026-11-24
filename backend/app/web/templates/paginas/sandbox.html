@@ -72,7 +72,7 @@
                 <span class="text-fg-muted">{{ t("sandbox.resultado.estructura") }}</span><strong class="metric-mono" x-text="antiguedad(resultado.estructura_del)"></strong>
               </div>
               <p class="text-sm text-ok" x-show="resultado.solo_sintaxis && resultado.estado === 'ok'">{{ t("sandbox.sintaxis_ok") }}</p>
-              <template x-if="resultado.id && resultado.estado === 'ok' && puedePromover">
+              <template x-if="resultado.id && resultado.estado === 'ok' && ambientesPromover.includes(resultado.ambiente)">
                 <div>
                   <div class="ornament mx-auto my-[18px] max-w-[160px]">◆</div>
                   <button class="btn btn-primary btn-block" @click="previa(resultado)" x-show="!resultado.promocion">{{ t("sandbox.promover") }} →</button>

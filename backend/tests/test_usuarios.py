@@ -97,13 +97,13 @@ async def test_modificar_registra_antes_y_despues(entorno):
     otro = entorno["repo"].agregar("dba@acme.com", "DBA", ambientes=("DEV",))
 
     actualizado = await usuarios.modificar(
-        TENANT, _sesion(entorno["admin"]), otro.id, _datos(rol="CONSULTA", ambientes=("PROD",))
+        TENANT, _sesion(entorno["admin"]), otro.id, _datos(rol="LECTURA", ambientes=("PROD",))
     )
 
-    assert (actualizado.rol, actualizado.ambientes) == ("CONSULTA", ("PROD",))
+    assert (actualizado.rol, actualizado.ambientes) == ("LECTURA", ("PROD",))
     accion, detalle = entorno["eventos"][-1]
     assert accion == "usuario.modificado"
-    assert detalle["antes"]["rol"] == "DBA" and detalle["despues"]["rol"] == "CONSULTA"
+    assert detalle["antes"]["rol"] == "DBA" and detalle["despues"]["rol"] == "LECTURA"
 
 
 async def test_administrador_no_se_quita_el_rol_ni_se_da_de_baja(entorno):
@@ -199,10 +199,10 @@ async def test_api_alta_modificacion_baja_y_rehabilitacion(entorno):
 
     modificado = navegador.patch(
         f"/api/usuarios/{usuario_id}",
-        json={"rol": "CONSULTA", "ambientes": ["PROD"]},
+        json={"rol": "LECTURA", "ambientes": ["PROD"]},
         headers=CABECERA,
     )
-    assert modificado.json()["rol"] == "CONSULTA"
+    assert modificado.json()["rol"] == "LECTURA"
 
     assert navegador.delete(f"/api/usuarios/{usuario_id}", headers=CABECERA).status_code == 204
     bajas = navegador.get("/api/usuarios?bajas=true").json()["usuarios"]
@@ -317,7 +317,7 @@ async def test_aviso_sin_correo_o_con_falla(entorno, monkeypatch):
 
 
 def test_aviso_en_el_idioma_del_usuario(entorno):
-    usuario = entorno["repo"].agregar("bob@acme.com", "CONSULTA", "invitado", ambientes=())
+    usuario = entorno["repo"].agregar("bob@acme.com", "LECTURA", "invitado", ambientes=())
     asunto, texto = invitaciones.armar(TENANT, usuario, None)
     assert asunto == "Tenés acceso a DBA Assistant · ACME S.A." and "ninguno por ahora" in texto
     ingles = replace(usuario, idioma="en")
@@ -352,14 +352,14 @@ def dispositivos(monkeypatch):
 
 async def test_mi_perfil_datos_nombre_y_dispositivos(entorno, dispositivos):
     usuario = entorno["repo"].agregar(
-        "lu@acme.com", "CONSULTA", "activo", "auth0|lu", "Lu", ambientes=("DEV",)
+        "lu@acme.com", "LECTURA", "activo", "auth0|lu", "Lu", ambientes=("DEV",)
     )
     navegador = await _navegador_con_sesion(usuario)
 
     datos = navegador.get("/api/perfil").json()
     assert (datos["email"], datos["rol"], datos["ambientes"], datos["metodo"]) == (
         "lu@acme.com",
-        "CONSULTA",
+        "LECTURA",
         ["DEV"],
         "contrasena",
     )

@@ -142,7 +142,7 @@ async def test_resumen_por_ambiente_y_rol(datos):
     )
     assert todos["salud"]["sesiones"] == 320
 
-    consulta = await servicios.resumen(TENANT, _actor("CONSULTA"), "DEV", AHORA)
+    consulta = await servicios.resumen(TENANT, _actor("LECTURA"), "DEV", AHORA)
     assert consulta["workarounds"] is None and consulta["pendientes_promocion"] is None
     assert consulta["salud"]["disponibilidad"] == 100.0
 
@@ -162,7 +162,7 @@ async def test_resumen_tolera_fallas_de_redis_y_mongo(datos, monkeypatch):
 
 
 async def test_api_y_pagina(datos):
-    navegador = await _navegador(datos, "CONSULTA")
+    navegador = await _navegador(datos, "LECTURA")
     r = navegador.get("/api/inicio?ambiente=DEV")
     assert r.status_code == 200 and r.json()["workarounds"] is None
     assert navegador.get("/api/inicio?ambiente=OTRO").status_code == 422

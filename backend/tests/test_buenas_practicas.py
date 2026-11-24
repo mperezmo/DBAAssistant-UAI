@@ -263,7 +263,7 @@ async def test_solicitar_y_aplicar(bp, monkeypatch):
     assert aplicada["sandbox"]["registro_id"] == "r1" and llamadas[0][0] == "Ventas"
     assert bp["informes"][informe["id"]]["sugerencias"][0]["sandbox"]["estado"] == "ok"
     for actor, sugerencia, codigo in (
-        (_actor("CONSULTA"), 0, "USR_PER_000"),
+        (_actor("LECTURA"), 0, "USR_PER_000"),
         (_actor(), 1, "BPR_VAL_001"),
         (_actor(), 9, "BPR_VAL_000"),
     ):
@@ -281,7 +281,7 @@ async def test_solicitar_y_aplicar(bp, monkeypatch):
 async def test_errores_del_analisis(bp, monkeypatch):
     conexion = await conexiones.crear(TENANT, _actor(), _datos(ambiente="DEV"))
     for actor, base, tipos, codigo in (
-        (_actor("CONSULTA"), "Ventas", ["esquema"], "USR_PER_000"),
+        (_actor("LECTURA"), "Ventas", ["esquema"], "USR_PER_000"),
         (_actor(), "Ventas", [], "USR_VAL_002"),
         (_actor(), "Otra", ["esquema"], "USR_VAL_002"),
     ):
@@ -331,7 +331,7 @@ async def test_reglas_del_equipo(bp):
         "activa"
     ] is False
     for actor, regla_id, texto, codigo in (
-        (_actor("CONSULTA"), None, "x", "USR_PER_000"),
+        (_actor("LECTURA"), None, "x", "USR_PER_000"),
         (_actor(), None, " ", "USR_VAL_002"),
         (_actor(), str(ObjectId()), "x", "BPR_VAL_000"),
     ):
@@ -396,5 +396,5 @@ async def test_api_buenas_practicas(bp):
     assert "Análisis y" in navegador.get("/buenas-practicas").text
     assert "Optimizar" in navegador.get("/monitor").text
 
-    consulta = await _navegador(bp, "CONSULTA")
+    consulta = await _navegador(bp, "LECTURA")
     assert consulta.get("/api/buenas-practicas").status_code == 403

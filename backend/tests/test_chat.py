@@ -240,7 +240,7 @@ async def test_solo_atiende_pedidos_sobre_las_bases(chat):
     chat["respuestas"].append(_traduccion(motor, base="master", alcance="motor"))
     r2 = await servicios.enviar(TENANT, _actor("ADMINISTRADOR"), None, conexion.id, "estado")
     assert r2["respuesta"]["revision"]["directo"] is True and r2["resultado"] is not None
-    consulta = _actor("CONSULTA")
+    consulta = _actor("LECTURA")
     chat["respuestas"].append(_traduccion(motor, base="Ventas", alcance="datos"))
     r3 = await servicios.enviar(TENANT, consulta, None, conexion.id, "estado de las bases")
     assert r3["respuesta"]["no_atendido"] == "motor" and r3["resultado"] is None
@@ -281,12 +281,18 @@ async def test_revision_segun_rol_y_sentencia(chat):
     casos = (
         (_actor(), "ALTER TABLE dbo.clientes ADD x INT", "sandbox"),
         (_actor(), "UPDATE dbo.clientes SET estado = 1", "falta_where"),
-        (_actor("CONSULTA"), "UPDATE dbo.clientes SET estado = 1 WHERE id = 1", "solo_lectura"),
+        (_actor("LECTURA"), "UPDATE dbo.clientes SET estado = 1 WHERE id = 1", "solo_lectura"),
+        (_actor("ANALISTA"), "UPDATE dbo.clientes SET estado = 1 WHERE id = 1", None),
         (_actor(), "DELETE FROM dbo.clientes WHERE id = 1", None),
     )
     for actor, sql, motivo in casos:
         revision = await servicios.revisar(TENANT, actor, conexion, "Ventas", sql)
         assert revision["motivo"] == motivo
+    # En PROD el Analista solo lee.
+    prod = await conexiones.crear(TENANT, _actor(), _datos(alias="PROD-01", ambiente="PROD"))
+    update = "UPDATE dbo.clientes SET estado = 1 WHERE id = 1"
+    revision = await servicios.revisar(TENANT, _actor("ANALISTA"), prod, "Ventas", update)
+    assert revision["motivo"] == "solo_lectura_prod" and revision["puede_sandbox"] is True
     revision = await servicios.revisar(
         TENANT, _actor(), conexion, "Ventas", "DELETE FROM dbo.clientes WHERE id = 1"
     )
@@ -311,7 +317,7 @@ async def test_revision_segun_rol_y_sentencia(chat):
     assert (await servicios.revisar(TENANT, _actor(), conexion, "Ventas", "SELECT 1"))[
         "modificacion"
     ] is None
-    assert (await servicios.revisar(TENANT, _actor("CONSULTA"), conexion, "Ventas", "SELECT 1"))[
+    assert (await servicios.revisar(TENANT, _actor("LECTURA"), conexion, "Ventas", "SELECT 1"))[
         "puede_sandbox"
     ] is False
 
@@ -382,7 +388,7 @@ async def test_ejecutar_select_y_exportar(chat):
         _actor(),
         None,
         TablaSensible(
-            conexion.id, "Ventas", "dbo.clientes", ("cuit",), ("DBA", "CONSULTA"), (), False
+            conexion.id, "Ventas", "dbo.clientes", ("cuit",), ("DBA", "LECTURA"), (), False
         ),
     )
     hilo_id, m = await _hilo_con(chat, conexion, "SELECT id, cuit FROM dbo.clientes")
@@ -445,7 +451,7 @@ async def test_politica_de_escritura(chat):
         await intentar(_actor(), hilo_dev, m_dev, "UPDATE dbo.t SET a = 1")
     ).codigo == "SQL_VAL_002"
     assert (
-        await intentar(_actor("CONSULTA"), hilo_dev, m_dev, m_dev["sql"])
+        await intentar(_actor("LECTURA"), hilo_dev, m_dev, m_dev["sql"])
     ).codigo == "USR_PER_000"
     assert (await intentar(_actor(), hilo_prod, m_prod, m_prod["sql"])).codigo == "AMB_VAL_000"
     delete = "DELETE FROM dbo.clientes WHERE id = 1"
@@ -455,6 +461,14 @@ async def test_politica_de_escritura(chat):
     r = await servicios.ejecutar(TENANT, _actor(), hilo_dev, m_dev["id"], m_dev["sql"], "Ventas")
     assert r["filas_afectadas"] == 3 and r["tipo"] == "UPDATE"
     assert chat["escrituras"][-1] == ("Ventas", m_dev["sql"])
+
+    # El Analista modifica en DEV; en PROD no, aun con segundo factor.
+    analista = _actor("ANALISTA", segundo_factor_en=time.time())
+    assert (await intentar(analista, hilo_prod, m_prod, m_prod["sql"])).codigo == "USR_PER_000"
+    r = await servicios.ejecutar(
+        TENANT, _actor("ANALISTA"), hilo_dev, m_dev["id"], m_dev["sql"], "Ventas"
+    )
+    assert r["filas_afectadas"] == 3
 
     # Bloqueos o transacciones abiertas sobre la tabla: no se ejecuta.
     chat["ocupadas"].append({"sesion": 57, "usuario": "app", "tablas": ["Ventas.dbo.clientes"]})
@@ -468,7 +482,7 @@ async def test_politica_de_escritura(chat):
         _actor(),
         None,
         TablaSensible(
-            dev.id, "Ventas", "dbo.clientes", (), ("DBA", "ADMINISTRADOR", "CONSULTA"), (), True
+            dev.id, "Ventas", "dbo.clientes", (), ("DBA", "ADMINISTRADOR", "LECTURA"), (), True
         ),
     )
     assert (await intentar(_actor(), hilo_dev, m_dev, m_dev["sql"])).codigo == "CTX_VAL_001"
@@ -513,7 +527,7 @@ async def test_validar_en_sandbox(chat, monkeypatch):
     assert chat["hilos"][hilo_id]["mensajes"][1]["sandbox"]["estado"] == "ok"
     with pytest.raises(ErrorDominio) as error:
         await servicios.validar_en_sandbox(
-            TENANT, _actor("CONSULTA"), hilo_id, m["id"], m["sql"], "Ventas"
+            TENANT, _actor("LECTURA"), hilo_id, m["id"], m["sql"], "Ventas"
         )
     assert error.value.codigo == "USR_PER_000"
 

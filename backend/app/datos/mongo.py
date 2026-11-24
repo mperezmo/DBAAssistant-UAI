@@ -97,6 +97,8 @@ async def preparar_base_tenant(nombre: str) -> None:
         [("usuario_id", ASCENDING), ("actualizado_en", ASCENDING)]
     )
 
+    await migrar_roles_contexto(db)
+
     retencion = obtener_configuracion().monitor_retencion_dias * 24 * 60 * 60
     if COLECCION_METRICAS not in existentes:
         await db.create_collection(
@@ -107,6 +109,31 @@ async def preparar_base_tenant(nombre: str) -> None:
     else:
         # Aplica la retención vigente a colecciones creadas antes o con otro valor.
         await db.command("collMod", COLECCION_METRICAS, expireAfterSeconds=retencion)
+
+
+# Consulta pasó a llamarse Lectura y se sumó Analista, que tiene como mínimo lo de Lectura
+# (migración 016 del tenant en SQL Server). En las tablas sensibles, donde estaba Consulta
+# quedan Analista y Lectura. Idempotente: después de migrar ya no queda Consulta.
+CAMPOS_CON_ROLES = ("roles_consulta", "roles_ven_columnas")
+
+
+def _sin_consulta(campo: str) -> dict:
+    return {
+        "$concatArrays": [
+            {"$filter": {"input": f"${campo}", "cond": {"$ne": ["$$this", "CONSULTA"]}}},
+            ["ANALISTA", "LECTURA"],
+        ]
+    }
+
+
+async def migrar_roles_contexto(db: AsyncDatabase) -> int:
+    migrados = 0
+    for campo in CAMPOS_CON_ROLES:
+        resultado = await db[COLECCION_CONTEXTO].update_many(
+            {campo: "CONSULTA"}, [{"$set": {campo: _sin_consulta(campo)}}]
+        )
+        migrados += resultado.modified_count
+    return migrados
 
 
 async def verificar() -> None:

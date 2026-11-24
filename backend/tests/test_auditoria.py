@@ -284,7 +284,7 @@ async def test_api_auditoria(bitacoras):
     assert admin.get("/api/auditoria/sistema").status_code == 422
     assert admin.get("/api/auditoria/excepciones/exportar?formato=pdf").status_code == 422
 
-    consulta = await _navegador(bitacoras, "CONSULTA")
+    consulta = await _navegador(bitacoras, "LECTURA")
     assert consulta.get("/api/auditoria").status_code == 403
     assert "Bitácora" in admin.get("/auditoria").text
 

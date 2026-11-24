@@ -131,7 +131,7 @@
 
 <script>
   window.TEXTOS_PERFIL = {
-    roles: { {% for r in ["ADMINISTRADOR", "DBA", "CONSULTA"] %}{{ r | tojson }}: {{ t("rol." ~ r) | tojson }},{% endfor %} },
+    roles: { {% for r in ["ADMINISTRADOR", "DBA", "ANALISTA", "LECTURA"] %}{{ r | tojson }}: {{ t("rol." ~ r) | tojson }},{% endfor %} },
     nunca: {{ t("usuarios.nunca") | tojson }},
     guardado: {{ t("perfil.guardado") | tojson }},
     correoEnviado: {{ t("perfil.correo_enviado") | tojson }},

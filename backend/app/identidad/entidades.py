@@ -3,15 +3,35 @@
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
-ROLES = ("ADMINISTRADOR", "DBA", "CONSULTA")
+# Roles de una empresa (TFI, 10.4.2.3). Consulta pasó a llamarse Lectura (migración 016).
+ROLES = ("ADMINISTRADOR", "DBA", "ANALISTA", "LECTURA")
+ROL_ANALISTA = "ANALISTA"
+ROL_LECTURA = "LECTURA"
 # Rol de la plataforma (no de una empresa): entra a una empresa solo en sesiones de soporte.
 ROL_OPERADOR = "OPERADOR"
 MODULO_SOPORTE_OPERADOR = "soporte_operador"
 AMBIENTES = ("DEV", "TESTING", "PROD")
+AMBIENTES_SIN_PROD = ("DEV", "TESTING")
 # Roles con las facultades operativas del DBA. El Administrador también las tiene, para
 # que un equipo sin DBA designado pueda operar (ver docs/arquitectura.md).
 ROLES_OPERATIVOS = ("ADMINISTRADOR", "DBA")
 DIAS_GRACIA_BAJA = 30
+
+
+def puede_modificar_en(rol: str, ambiente: str | None) -> bool:
+    """Si el rol modifica datos o estructura en el ambiente (y promueve desde el Sandbox).
+
+    Administrador y DBA, en todos los ambientes; el Analista, solo en DEV y TESTING (en
+    PROD solo lee); Lectura, en ninguno.
+    """
+    if rol in ROLES_OPERATIVOS:
+        return True
+    return rol == ROL_ANALISTA and ambiente in AMBIENTES_SIN_PROD
+
+
+def ambientes_que_modifica(rol: str) -> tuple[str, ...]:
+    return tuple(a for a in AMBIENTES if puede_modificar_en(rol, a))
+
 
 # Módulos del menú habilitados por rol (docs/arquitectura.md, "Módulos por rol").
 MODULOS_POR_ROL: dict[str, frozenset[str]] = {
@@ -47,7 +67,19 @@ MODULOS_POR_ROL: dict[str, frozenset[str]] = {
             "conexiones",
         }
     ),
-    "CONSULTA": frozenset({"inicio", "chat", "monitor", "alertas", "contexto", "schema"}),
+    ROL_ANALISTA: frozenset(
+        {
+            "inicio",
+            "chat",
+            "monitor",
+            "alertas",
+            "sandbox",
+            "contexto",
+            "schema",
+            "buenas_practicas",
+        }
+    ),
+    ROL_LECTURA: frozenset({"inicio", "chat", "monitor", "alertas", "contexto", "schema"}),
     # Operador de la plataforma en una sesión de soporte: solo la vista acotada de Soporte
     # (salud de servicios y errores de la aplicación, sin datos de la empresa).
     ROL_OPERADOR: frozenset({MODULO_SOPORTE_OPERADOR}),
@@ -88,6 +120,9 @@ class Sesion:
 
     def puede_ver(self, modulo: str) -> bool:
         return modulo in MODULOS_POR_ROL.get(self.rol, frozenset())
+
+    def puede_modificar(self, ambiente: str | None) -> bool:
+        return puede_modificar_en(self.rol, ambiente)
 
     @property
     def es_operador(self) -> bool:

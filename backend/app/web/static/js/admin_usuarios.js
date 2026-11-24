@@ -28,7 +28,7 @@ document.addEventListener("alpine:init", () => {
 
     abrirNuevo() {
       this.aviso = null;
-      this.formulario = { id: null, email: "", nombre: "", rol: "CONSULTA", ambientes: [], error: null };
+      this.formulario = { id: null, email: "", nombre: "", rol: "LECTURA", ambientes: [], error: null };
     },
 
     abrirEdicion(usuario) {

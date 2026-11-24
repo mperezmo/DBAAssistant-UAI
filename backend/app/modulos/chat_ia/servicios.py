@@ -27,7 +27,7 @@ from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad import reautenticacion
 from app.identidad import repositorios as usuarios
-from app.identidad.entidades import ROLES_OPERATIVOS, Sesion
+from app.identidad.entidades import ROL_ANALISTA, ROLES_OPERATIVOS, Sesion
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.chat_ia import ejecucion, motor_ia, repositorios
@@ -157,8 +157,9 @@ async def revisar(tenant: Tenant, sesion: Sesion, conexion: Conexion, base: str,
         motivo = "motor"
     elif analisis.tipo not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         motivo = "sandbox"
-    elif sesion.rol == "CONSULTA" and not analisis.es_lectura:
-        motivo = "solo_lectura"
+    elif not analisis.es_lectura and not sesion.puede_modificar(conexion.ambiente):
+        # El Analista modifica en DEV y TESTING; en PROD, como Lectura, solo lee.
+        motivo = "solo_lectura_prod" if sesion.rol == ROL_ANALISTA else "solo_lectura"
     elif analisis.falta_where:
         motivo = "falta_where"
     elif any(sesion.rol not in s["roles_consulta"] for s in sensibles):
@@ -350,8 +351,8 @@ async def _validar_ejecucion(
     analisis = analizar(sql, base)
     if analisis.tipo not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         raise ErrorDominio("SQL_VAL_001", analisis.motivo)
-    if sesion.rol == "CONSULTA" and not analisis.es_lectura:
-        raise ErrorDominio("USR_PER_000", "Consulta solo ejecuta SELECT")
+    if not analisis.es_lectura and not sesion.puede_modificar(conexion.ambiente):
+        raise ErrorDominio("USR_PER_000", f"{sesion.rol} no modifica en {conexion.ambiente}")
     if analisis.falta_where:
         raise ErrorDominio("SQL_VAL_002")
     sensibles = await contexto.sensibles_de(tenant, conexion.id, analisis.tablas)

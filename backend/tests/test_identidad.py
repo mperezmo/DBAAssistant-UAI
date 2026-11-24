@@ -36,7 +36,7 @@ def entorno(monkeypatch, redis_falso):
 
     repo = RepositorioUsuariosFalso(str(TENANT.id)).instalar(monkeypatch)
     repo.agregar("admin@acme.com", "ADMINISTRADOR", "invitado")
-    repo.agregar("consulta@acme.com", "CONSULTA", "activo", "google|ana", "Ana")
+    repo.agregar("consulta@acme.com", "LECTURA", "activo", "google|ana", "Ana")
     repo.agregar("baja@acme.com", "DBA", "baja", "auth0|baja")
     activados = []
     eventos = []
@@ -133,7 +133,7 @@ def test_primer_ingreso_activa_al_invitado_y_abre_sesion(entorno):
     assert 'data-selector-idioma="usuario"' in inicio.text
 
 
-def test_rol_consulta_no_ve_el_panel_admin(entorno):
+def test_rol_lectura_no_ve_el_panel_admin(entorno):
     navegador = _navegador()
     _ingresar(navegador, entorno["auth0"], sub="google|ana", email="consulta@acme.com")
 

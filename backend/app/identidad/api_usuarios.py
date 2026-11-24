@@ -18,7 +18,7 @@ contexto = Depends(requerir_modulo("admin"))
 router_perfil = APIRouter(prefix="/api/perfil", tags=["perfil"])
 contexto_propio = Depends(requerir_modulo("inicio"))
 
-Rol = Literal["ADMINISTRADOR", "DBA", "CONSULTA"]
+Rol = Literal["ADMINISTRADOR", "DBA", "ANALISTA", "LECTURA"]
 Ambiente = Literal["DEV", "TESTING", "PROD"]
 
 
