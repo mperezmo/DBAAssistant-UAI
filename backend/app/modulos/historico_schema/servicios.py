@@ -1,4 +1,4 @@
-"""Casos de uso del Histórico de Schema (CU-000-008 A y B; la restauración, en espera).
+"""Casos de uso del Histórico de Schema (CU-000-008 A y B; restaurar queda fuera de alcance).
 
 Registra los cambios de estructura ejecutados desde la aplicación (Promover desde el
 Sandbox y workarounds propios). Lo hecho fuera de la app queda fuera de alcance

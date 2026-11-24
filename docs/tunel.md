@@ -5,7 +5,7 @@ con un certificado válido. En desarrollo la app corre en `https://<empresa>.loc
 con un certificado autofirmado, que el celular no acepta. Un túnel de **Cloudflare** expone
 el NGINX local en un dominio propio con certificado válido, sin abrir puertos en el router.
 
-Es un desvío temporal del diagrama hasta el despliegue en Azure (ver `docs/pendientes.md`).
+Es solo para desarrollo: no forma parte del despliegue (ver `docs/arquitectura.md`).
 
 ## Qué hace falta
 

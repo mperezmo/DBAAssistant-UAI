@@ -18,11 +18,11 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Redis Cache (self-hosted en Docker) | `backend/app/datos/cache.py`, servicio `redis` |
 | SQL Server 2019+ (ODBC) | `backend/app/datos/sqlserver.py` (pyodbc + ODBC Driver 18), servicio `sqlserver` |
 | MongoDB 6+ (motor) | `backend/app/datos/mongo.py`, servicio `mongo` |
-| Azure Key Vault | `backend/app/core/secretos.py` — hoy lee `.env`; al migrar se agrega el proveedor de Key Vault |
+| Azure Key Vault | No se usa: el despliegue queda en Docker. `backend/app/core/secretos.py` lee los secretos de las variables de entorno (en desarrollo, de `.env`) |
 | Anthropic Claude API | Módulo `chat_ia` (modelo configurable, por defecto Claude Haiku 5.5) |
 | Sandbox Docker | Servicio `sandbox` (`backend/app/sandbox_servicio`, imagen `Dockerfile.sandbox`) que administra los contenedores; el backend lo usa desde el módulo `sandbox` |
 | GitHub Actions | `.github/workflows/ci.yml` |
-| Azure Deploy | Diferido hasta que el sistema esté funcional |
+| Azure Deploy | No se usa: la aplicación se despliega con Docker Compose |
 
 ### Módulos del backend
 
@@ -55,7 +55,7 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | SQL Server | Estructura funcional: tenants, conexiones, usuarios, roles, permisos por ambiente, métricas y umbrales, reglas de alerta, alertas, workarounds y versiones. Imagen 2022 en Docker, accesible desde SSMS en `localhost,14330`. |
 | MongoDB | Bitácoras (transacciones, auditoría, excepciones, sandbox), contexto de negocio (con los PDF de los documentos de negocio y su conversión a Markdown en GridFS, bucket `documentos`), informes de buenas prácticas, snapshots de schema (de las instancias y de la base de la aplicación) y dispositivos push. |
 | Redis | Contenedor propio. TTL configurables solo por variable de entorno. |
-| Secretos | `.env` en local, detrás de una interfaz; Key Vault por ambiente al migrar a Azure. |
+| Secretos | Variables de entorno del despliegue en Docker (`.env` en desarrollo), detrás de una interfaz. Nunca se versionan. |
 | IA | Claude Haiku 5.5 por defecto. |
 | MFA | Obligatorio al ingresar; segundo factor nuevamente al ejecutar acciones sobre conexiones PROD. |
 | Login | Google y email + contraseña, siempre con MFA. |
@@ -80,17 +80,17 @@ diagrama. Cualquier desvío se documenta acá con su motivo.
 | Capas | Cada módulo con `api`, `servicios`, `repositorios` y `entidades` (más archivos de apoyo cuando hace falta: motor IA, chequeos, lectura de DMVs, ejecución). Las consultas a la base de la app y a las instancias registradas van en `repositorios` o en esos archivos de apoyo, no en `servicios`. Catálogo central de códigos de error del TFI. |
 | Biometría móvil | Passkeys (WebAuthn, librería `webauthn`) registradas por cada usuario en *Mi perfil*, con el segundo factor de Auth0 vigente. Reemplazan solo la reconfirmación con segundo factor (PROD, DELETE, tablas sensibles, autorización propia, automatizaciones): el dispositivo la resuelve con huella, rostro o PIN sin salir de la app; si no tiene passkey, se confirma con el código del autenticador en Auth0. Exigen verificación del usuario, desafío de un solo uso (Redis, 5 min) y quedan atadas al subdominio del tenant. El ingreso sigue siendo Auth0 + MFA. |
 | Perímetro de consulta | Tablas autorizadas por rol (a detallar). |
-| Restaurar schema | En espera. |
+| Restaurar schema | Fuera de alcance: el CU-000-008-C se quitó del TFI. |
 | Baja de usuarios | Desaparece del Panel Admin y queda deshabilitado 30 días (se puede rehabilitar); luego se elimina y hay que darlo de alta de nuevo. La bitácora conserva su historial. |
 | Cambio de rol | No cierra la sesión: el rol se relee en cada petición y se ve al recargar. |
 | Conexiones | Una conexión es una instancia SQL Server (las bases se eligen al usarla). Autenticación SQL (usuario y contraseña). Datos opcionales de WinRM para el servicio de Windows. Las gestionan Administrador y DBA desde el menú **Conexiones**. |
-| Credenciales de conexiones | Cifradas (Fernet) en la base del tenant con la clave maestra `SECRETO_CLAVE_CIFRADO`; al migrar a Azure pasan a Key Vault. La API nunca devuelve contraseñas. |
+| Credenciales de conexiones | Cifradas (Fernet) en la base del tenant con la clave maestra `SECRETO_CLAVE_CIFRADO`. Si la clave falta o el texto cifrado no es válido: CON_CIF_000. La API nunca devuelve contraseñas. |
 | Certificado de las instancias | Siempre se confía en el certificado del servidor (las instancias de clientes suelen usar certificados autofirmados). La conexión igual viaja cifrada. |
 | Acciones sobre PROD | Exigen confirmar con el segundo factor en el momento: con la sesión de Auth0 vigente, Auth0 pide solo el código del autenticador (sin credenciales); la app lo acepta si el token trae el claim de la Action "Exigir MFA siempre", se emitió hace menos de 2 minutos y corresponde a ese pedido (nonce). La confirmación vale 5 minutos. El MFA del ingreso no cuenta. |
 | Permisos por ambiente | Por ahora, ambientes habilitados por usuario; las acciones finas se suman con cada módulo. |
 | Notificaciones push | Web Push con VAPID (W3C), sin servicios de terceros. Claves con `python -m app.cli generar-vapid`; la privada es un secreto. Requieren HTTPS con certificado confiable. |
 | Alertas (motor) | Se evalúan sobre cada lectura del recolector. Orígenes: umbrales de Monitoreo (warning/critical, sostenidos 1 min), eventos fijos (instancia sin conexión y base no disponible: critical, confirmados en 5 s; bloqueo > 30 s y log > 90%: warning; backups fuera de la política, jobs que fallan o se demoran y SQL Server Agent detenido: ver Backups y Jobs) y reglas propias (métrica, condición, severidad, tiempo sostenido, todas las conexiones o una, roles destinatarios y push). Una sola alerta activa por condición e instancia: se actualiza y escala, no se duplica. Al normalizarse sigue activa hasta que la atiendan (acción manual o falsa alarma, con comentario). Notificación: reglas según su configuración (push, email o ambos); umbrales y eventos, solo critical, a Administradores y DBA, por push y email. Escalamiento: fuera de alcance por ahora. |
-| Notificación por correo | SMTP genérico (`app/datos/correo.py`): Gmail u Outlook con contraseña de aplicación en desarrollo; el SMTP de Azure Communication Services al desplegar. Cada regla elige push, email o ambos; umbrales y eventos críticos salen por los dos canales. |
+| Notificación por correo | SMTP genérico (`app/datos/correo.py`): Gmail u Outlook con contraseña de aplicación, o el SMTP del proveedor que se elija. Cada regla elige push, email o ambos; umbrales y eventos críticos salen por los dos canales. |
 | Atención de alertas | Atienden y desestiman Administrador y DBA (decisión revisada); Consulta solo ve. |
 | Workarounds | Biblioteca con 13 integrados (liberar sesiones bloqueantes eligiendo cuáles, shrink del log, rebuild de índices, update statistics, limpiar plan cache por base, checkpoint, iniciar el servicio por WinRM, poner online una base OFFLINE, programar un backup full o de log, reintentar un job, iniciar el SQL Server Agent y activar Query Store; las bases en SUSPECT, RECOVERY_PENDING o EMERGENCY se muestran pero no se tocan, porque necesitan diagnóstico manual) y propios con pasos T-SQL, versiones y validación de sintaxis (NOEXEC). Crean y modifican Administrador y DBA; ejecutan los roles que define cada workaround. Fuera de la ventana de mantenimiento, los integrados pesados piden una autorización de un Administrador o DBA (quien la pidió puede darla, con segundo factor; queda marcada como propia en la bitácora). Ejecución paso a paso con progreso en vivo, en una transacción cuando el workaround lo admite (si falla, se revierte todo; si no, se detiene e informa). PROD exige segundo factor y que el usuario tenga el ambiente habilitado. Todo queda en la bitácora de transacciones (con flag mobile). |
 | Ventana de mantenimiento | Por conexión, con zona horaria (Buenos Aires por defecto). Rebuild de índices y update statistics fuera de la ventana requieren la autorización de un Administrador o DBA (puede ser el propio solicitante, con segundo factor); el pedido vence a las 24 h y, autorizado, el solicitante tiene 2 h para ejecutarlo. |
@@ -162,7 +162,8 @@ El **Operador** es un rol de la plataforma, no de una empresa: ve su consola (`p
 | Ramas `main`, `dev` y `testing` | Solo `main` y `dev` | No se incluye `testing` por ahora (un solo ambiente). Decisión del usuario. |
 | Sin panel técnico en el diagrama ni en el diseño | Menú **Soporte** en Sistema, solo para el Administrador, con el estilo del resto de las pantallas *(agregado)* | Reúne lo que no suele estar visible en una aplicación: salud de servicios, colas, logs, auditoría del sistema e historia de la base. Decisión del usuario. La bitácora de transacciones queda en Auditoría. |
 | Sin túnel en el diagrama | Servicio `tunel` (Cloudflare) en Docker Compose, perfil opcional *(agregado)* | Solo para desarrollo: publica la app con HTTPS confiable para probar push y biometría en el celular (`docs/tunel.md`). No forma parte del despliegue. |
-| MongoDB Atlas | MongoDB en Docker (provisorio) | Pendiente de decisión (ver `docs/pendientes.md`). |
+| MongoDB Atlas | MongoDB en Docker | Decisión del usuario: el despliegue queda en Docker, sin Azure. |
+| Despliegue en Azure (App Service, Container Registry y Key Vault) | Docker Compose; secretos en variables de entorno | Decisión del usuario: no se despliega en Azure. |
 | TFI CU-000-004-E: push vía Firebase Cloud Messaging | Web Push con VAPID (W3C) | Es lo que indica el diagrama ("Web Push Notifier, VAPID, estándar W3C"); no depende de terceros. |
 | Sin servicio de correo en el diagrama | Correo saliente por SMTP *(agregado)* | El CU-000-004-A del TFI pide destinatarios por canal push/email. |
 | TFI CU-000-004-E: dispositivos registrados en MongoDB | Suscripciones en la base SQL Server del tenant | Regla del proyecto: estructura funcional en SQL Server; se borran en cascada con el usuario. |

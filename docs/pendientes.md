@@ -4,16 +4,27 @@
 
 | # | Tema | Situación |
 |---|------|-----------|
-| 1 | **Casos de uso propuestos** | Aprobar los flujos de `docs/casos-de-uso-propuestos.md`. |
-| 2 | **MongoDB: Docker local o Atlas** | Provisoriamente en Docker local. El diagrama indica MongoDB Atlas para el despliegue en Azure; se confirma al arrancar ese sprint. |
-| 3 | **Publicación de imágenes Docker** | El diagrama indica Azure Container Registry; se arma con el pipeline del despliegue. |
-| 4 | **Roles** | Se usan 3 roles; se revisa más adelante frente a los 5 del TFI. |
-| 5 | **Retención de métricas** | Hoy 30 días (`MONITOR_RETENCION_DIAS`); a confirmar. |
+| 1 | **Retención de métricas** | Hoy 30 días (`MONITOR_RETENCION_DIAS`); a confirmar. |
 
-## En espera
+## Por implementar (alineación con el TFI v10)
 
-- Restaurar versión anterior de schema (CU-000-008-C).
+En este orden, cada uno con sus pruebas:
+
+1. **Roles finales:** Administrador, DBA, Analista y Lectura por empresa (hoy Administrador, DBA
+   y Consulta); el Operador sigue siendo de la plataforma.
+2. **Permisos por ambiente (CU-001-002-C):** matriz usuario × ambiente × acciones, con el rol
+   como techo.
+3. **Todo cambio pasa por el Sandbox:** el chat deja de ejecutar INSERT, UPDATE y DELETE
+   directo; se validan en el Sandbox y se promueven.
+4. **Idiomas separados al 100 %:** sin textos en inglés en la versión en español, con la
+   terminología oficial de Microsoft, y recorrido de todas las pantallas en los dos idiomas.
+5. **Página de presentación pública** en el dominio principal (CU-000-011-A).
+
+## Fuera de alcance
+
+- Restaurar versión anterior de schema (CU-000-008-C, quitado del TFI).
 - Firma digital del PDF de auditoría.
+- Despliegue en Azure: la aplicación queda en Docker.
 
 ## Pendientes de infraestructura
 
@@ -22,7 +33,7 @@
 
 - **Túnel público para probar push y biometría en el celular:** el servicio `tunel`
   (Cloudflare Tunnel) ya está en `docker-compose.yml`; falta el dominio propio. Pasos en
-  `docs/tunel.md`. Es un desvío temporal del diagrama hasta el despliegue en Azure.
+  `docs/tunel.md`. Es solo para desarrollo: no forma parte del despliegue.
 
 ## Para investigar más adelante
 

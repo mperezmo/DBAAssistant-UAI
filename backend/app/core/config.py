@@ -1,8 +1,8 @@
 """Configuración de la aplicación.
 
 Los valores se leen de variables de entorno (o del archivo .env en desarrollo).
-Los secretos NO viven acá: se obtienen a través de ``core.secretos`` para poder
-reemplazar el origen (hoy .env, luego Azure Key Vault) sin tocar el resto del código.
+Los secretos NO viven acá: se obtienen a través de ``core.secretos``, que los lee de
+las variables de entorno del despliegue en Docker (en desarrollo, del archivo .env).
 """
 
 from functools import lru_cache

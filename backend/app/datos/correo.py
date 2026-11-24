@@ -1,4 +1,4 @@
-"""Envío de correo por SMTP (Gmail, Outlook, Azure Communication Services, etc.).
+"""Envío de correo por SMTP (Gmail, Outlook u otro proveedor).
 
 smtplib es sincrónico: desde código async se invoca con ``run_in_threadpool``.
 """

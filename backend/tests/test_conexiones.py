@@ -120,7 +120,7 @@ def test_cifrado_ida_y_vuelta_y_deteccion_de_alteraciones(entorno):
     assert cifrado.descifrar(token) == "S3creta!"
     with pytest.raises(ErrorDominio) as error:
         cifrado.descifrar(token[:-4] + "AAAA")
-    assert error.value.codigo == "AKV_000"
+    assert error.value.codigo == "CON_CIF_000"
 
 
 def test_cifrado_sin_clave_configurada(monkeypatch):
@@ -129,7 +129,7 @@ def test_cifrado_sin_clave_configurada(monkeypatch):
 
     with pytest.raises(ErrorDominio) as error:
         cifrado.cifrar("x")
-    assert error.value.codigo == "AKV_000"
+    assert error.value.codigo == "CON_CIF_000"
     cifrado.reiniciar()
 
 

@@ -1203,7 +1203,7 @@
   "error.CTX_DOC_002": "The document exceeds the 10 MB size limit.",
   "error.CTX_DOC_003": "The proposal was already accepted or dismissed.",
   "error.WRM_000": "Could not connect to the Windows server (WinRM).",
-  "error.AKV_000": "Credential storage failure.",
+  "error.CON_CIF_000": "Credential encryption failure.",
   "error.AMB_VAL_000": "The operation on PROD requires confirming with the second factor.",
   "error.TEN_VAL_000": "Tenant not found.",
   "error.TEN_VAL_001": "The tenant identifier already exists.",

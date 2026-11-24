@@ -1203,7 +1203,7 @@
   "error.CTX_DOC_002": "El documento supera el tamaño máximo de 10 MB.",
   "error.CTX_DOC_003": "La propuesta ya fue aceptada o descartada.",
   "error.WRM_000": "No se logró conectar al servidor Windows (WinRM).",
-  "error.AKV_000": "Falla en el almacenamiento de credenciales.",
+  "error.CON_CIF_000": "Falla en el cifrado de credenciales.",
   "error.AMB_VAL_000": "La operación sobre PROD requiere confirmar con el segundo factor.",
   "error.TEN_VAL_000": "Tenant no encontrado.",
   "error.TEN_VAL_001": "El identificador del tenant ya existe.",

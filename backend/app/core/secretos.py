@@ -1,8 +1,8 @@
 """Acceso a secretos (credenciales, tokens, claves).
 
-Toda credencial se pide por nombre a un proveedor. Mientras el sistema corra en
-local, el proveedor lee variables de entorno; al migrar a Azure se agrega un
-proveedor de Key Vault que implemente la misma interfaz.
+Toda credencial se pide por nombre a un proveedor, que la lee de las variables de
+entorno del despliegue en Docker (en desarrollo, del archivo .env). La interfaz
+permite cambiar el origen sin tocar el resto del código.
 """
 
 import os

@@ -27,7 +27,7 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
 
 ## Estructura
 
-- `backend/app/core/`: configuración, secretos (interfaz para Key Vault), logging, contexto
+- `backend/app/core/`: configuración, secretos (interfaz sobre las variables de entorno), logging, contexto
   de la petición, bitácora de excepciones y certificado interno (HTTPS NGINX → Uvicorn).
 - `backend/app/core/errores.py`: catálogo de códigos de error (nomenclatura del TFI).
 - `backend/app/datos/`: SQL Server (pyodbc), MongoDB (PyMongo async), Redis, correo, WinRM y
@@ -135,7 +135,7 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
     Mi perfil), en la consola y la sesión de soporte (preferencia del operador, migración
     003 del catálogo) y en las pantallas sin sesión (cookie); botón "Volver a la plataforma"
     en la sesión de soporte.
-- **Pendiente:** despliegue en Azure.
-- Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
-  `docs/casos-de-uso-propuestos.md`.
+- Despliegue: Docker Compose (no se despliega en Azure).
+- Casos de uso: TFI v10 (`DBAAssistant-PerezMoreno_v10.docx`, no versionado).
+- Lo que falta para alinear el código con el TFI v10: `docs/pendientes.md`.
 - Decisiones abiertas: `docs/pendientes.md`.

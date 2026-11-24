@@ -101,7 +101,7 @@ ESTADOS_HTTP: dict[str, int] = {
     "CTX_DOC_002": 413,
     "CTX_DOC_003": 409,
     "WRM_000": 422,
-    "AKV_000": 500,
+    "CON_CIF_000": 500,
     "AMB_VAL_000": 403,
     "TEN_VAL_000": 404,
     "TEN_VAL_001": 409,
