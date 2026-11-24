@@ -3,7 +3,7 @@
 document.addEventListener("alpine:init", () => {
   const TEXTOS = window.TEXTOS_SOPORTE;
   const api = window.DBA.api;
-  const PESTANAS = ["servicios", "bitacoras", "historia"];
+  const PESTANAS = window.PESTANAS_SOPORTE;
   const ACTUAL = "actual";
   const REFRESCO_MS = 10000;
   const FIN_DE_LOS_TIEMPOS = 9999;
@@ -31,6 +31,28 @@ document.addEventListener("alpine:init", () => {
       const url = new URL(location.href);
       url.searchParams.set("pestana", pestana);
       history.replaceState(null, "", url);
+    },
+  }));
+
+  // Errores de la aplicación para la sesión de soporte del operador (ya saneados).
+  Alpine.data("soporteErrores", () => ({
+    TEXTOS, errores: [], cargado: false, error: null,
+
+    async cargar() {
+      try {
+        const r = await api("GET", "/api/soporte/errores");
+        this.errores = r.errores;
+        this.error = null;
+      } catch (error) {
+        this.error = window.DBA.aviso(error);
+      }
+      this.cargado = true;
+    },
+    reintentar() {
+      return this.cargar();
+    },
+    fecha(iso) {
+      return fecha(iso);
     },
   }));
 

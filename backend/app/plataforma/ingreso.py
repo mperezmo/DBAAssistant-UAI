@@ -5,6 +5,7 @@ organización interna de la plataforma. La sesión no pertenece a ninguna empres
 """
 
 import secrets
+import time
 
 from fastapi import Request
 from starlette.concurrency import run_in_threadpool
@@ -12,10 +13,11 @@ from starlette.concurrency import run_in_threadpool
 from app.core import contexto
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
-from app.identidad import sesiones
+from app.identidad import reautenticacion, sesiones
+from app.identidad.auth0 import CLAIM_MFA_EXIGIDO
 from app.identidad.dependencias import CABECERA_SOLICITUD, METODOS_SEGUROS
 from app.identidad.entidades import Sesion
-from app.identidad.servicios import cliente_auth0
+from app.identidad.servicios import MAXIMA_ANTIGUEDAD_AUTENTICACION_SEGUNDOS, cliente_auth0
 from app.plataforma import repositorios
 from app.plataforma.entidades import ROL_OPERADOR, TENANT_PLATAFORMA
 from app.plataforma.servicios import registrar
@@ -30,16 +32,32 @@ async def _organizacion() -> str:
     return organizacion
 
 
-async def iniciar(redirect_uri: str) -> str:
+async def iniciar(redirect_uri: str, reautenticar: Sesion | None = None, volver: str = "/") -> str:
+    """URL de Auth0 para ingresar o, con ``reautenticar``, para confirmar con el segundo
+    factor antes de una acción sensible (entrar a una empresa como soporte)."""
     organizacion = await _organizacion()
     state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-    await sesiones.guardar_ingreso(state, {"nonce": nonce, "tenant": TENANT_PLATAFORMA})
+    await sesiones.guardar_ingreso(
+        state,
+        {
+            "nonce": nonce,
+            "tenant": TENANT_PLATAFORMA,
+            "sesion_id": reautenticar.id if reautenticar else None,
+            "volver": reautenticacion.ruta_de_retorno_valida(volver),
+        },
+    )
     return cliente_auth0().url_autorizacion(
-        redirect_uri, state, nonce, organizacion, idioma=idioma_actual()
+        redirect_uri,
+        state,
+        nonce,
+        organizacion,
+        reautenticar is not None,
+        idioma_actual(),
     )
 
 
-async def completar(codigo: str, state: str, redirect_uri: str) -> Sesion:
+async def completar(codigo: str, state: str, redirect_uri: str) -> tuple[Sesion, str, bool]:
+    """Devuelve la sesión, a dónde volver y si fue una confirmación con segundo factor."""
     organizacion = await _organizacion()
     cfg = obtener_configuracion()
     auth0 = cliente_auth0()
@@ -58,6 +76,10 @@ async def completar(codigo: str, state: str, redirect_uri: str) -> Sesion:
         raise ErrorDominio("USR_AUT_001", "No se completó el segundo factor.")
 
     auth0_id, email = identidad["sub"], (identidad.get("email") or "").lower()
+    if ingreso.get("sesion_id"):
+        sesion = await _confirmar_segundo_factor(ingreso["sesion_id"], identidad)
+        return sesion, ingreso.get("volver", "/"), True
+
     operador = await run_in_threadpool(repositorios.buscar_para_ingreso, auth0_id, email)
     if operador is None or not operador.puede_ingresar:
         await registrar("plataforma.ingreso_rechazado", email or auth0_id)
@@ -83,6 +105,27 @@ async def completar(codigo: str, state: str, redirect_uri: str) -> Sesion:
         tokens={"access_token": tokens["access_token"], "id_token": tokens["id_token"]},
     )
     await registrar("plataforma.sesion_iniciada", operador.email)
+    return sesion, "/", False
+
+
+async def _confirmar_segundo_factor(sesion_id: str, identidad: dict) -> Sesion:
+    """Mismas reglas que en las empresas: la misma persona, recién y con el código."""
+    sesion = await sesiones.obtener(sesion_id)
+    if sesion is None or sesion.tenant_id != TENANT_PLATAFORMA:
+        raise ErrorDominio("USR_AUT_005")
+    operador = await run_in_threadpool(repositorios.obtener_operador, sesion.usuario_id)
+    if operador is None or operador.auth0_usuario_id != identidad["sub"]:
+        raise ErrorDominio("USR_AUT_000", "La identidad no coincide con la sesión.")
+    if identidad.get(CLAIM_MFA_EXIGIDO) is not True:
+        raise ErrorDominio("USR_AUT_001", "Auth0 no exigió el código (revisar la Action).")
+    tolerancia = obtener_configuracion().auth0_tolerancia_reloj_segundos
+    if (
+        time.time() - identidad.get("iat", 0)
+        > MAXIMA_ANTIGUEDAD_AUTENTICACION_SEGUNDOS + tolerancia
+    ):
+        raise ErrorDominio("USR_AUT_001", "La confirmación no es reciente.")
+    await sesiones.registrar_segundo_factor(sesion_id)
+    await registrar("plataforma.segundo_factor_confirmado", sesion.email)
     return sesion
 
 

@@ -8,6 +8,8 @@ from app.core.errores import ErrorDominio
 from app.identidad import servicios, sesiones
 from app.identidad.dependencias import ip_cliente, sesion_actual, tenant_actual, url_retorno
 from app.plataforma import ingreso as plataforma
+from app.plataforma import soporte as soporte_plataforma
+from app.plataforma.correos import direccion_plataforma
 from app.tenants import resolucion
 from app.tenants.entidades import Tenant
 
@@ -53,7 +55,16 @@ async def login(request: Request, tenant: Tenant | None = Depends(tenant_actual)
 async def confirmar(
     request: Request, volver: str = "/", tenant: Tenant | None = Depends(tenant_actual)
 ):
-    """Reautenticación con segundo factor para habilitar acciones sobre PROD."""
+    """Reautenticación con segundo factor para habilitar acciones sobre PROD (o, en la
+    consola de la plataforma, para entrar a una empresa como soporte)."""
+    if _es_plataforma(request):
+        sesion = await plataforma.sesion_operador(request)
+        if sesion is None:
+            return RedirectResponse("/ingresar", status_code=303)
+        url = await plataforma.iniciar(
+            url_retorno(request, "/auth/callback"), reautenticar=sesion, volver=volver
+        )
+        return RedirectResponse(url, status_code=303)
     tenant = _exigir_tenant(tenant)
     sesion = await sesion_actual(request, tenant)
     if sesion is None:
@@ -76,9 +87,12 @@ async def callback(
     if error or not code or not state:
         raise ErrorDominio("USR_AUT_000", error_description or error)
     if _es_plataforma(request):
-        sesion = await plataforma.completar(code, state, url_retorno(request, "/auth/callback"))
-        respuesta = RedirectResponse("/", status_code=303)
-        _cookie_sesion(respuesta, sesion.id)
+        sesion, volver, reautenticado = await plataforma.completar(
+            code, state, url_retorno(request, "/auth/callback")
+        )
+        respuesta = RedirectResponse(volver, status_code=303)
+        if not reautenticado:
+            _cookie_sesion(respuesta, sesion.id)
         return respuesta
     resultado = await servicios.completar_ingreso(
         _exigir_tenant(tenant),
@@ -103,6 +117,13 @@ async def salir(request: Request, tenant: Tenant | None = Depends(tenant_actual)
     else:
         tenant = _exigir_tenant(tenant)
         sesion = await sesion_actual(request, tenant)
+        if sesion and sesion.es_operador:
+            # Sesión de soporte: se cierra solo ella y se vuelve a la consola, sin cerrar
+            # la sesión de Auth0 del operador.
+            await soporte_plataforma.cerrar(tenant, sesion)
+            respuesta = RedirectResponse(direccion_plataforma(), status_code=303)
+            respuesta.delete_cookie(sesiones.COOKIE)
+            return respuesta
         if sesion:
             await servicios.cerrar_sesion(tenant, sesion, ip_cliente(request))
     url = servicios.cliente_auth0().url_cierre_sesion(url_retorno(request, "/"))

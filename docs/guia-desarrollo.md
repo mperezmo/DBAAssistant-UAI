@@ -128,6 +128,9 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
     correo, datos de la empresa y alta en segundo plano con avance por pasos; la invitación
     vence a las 24 h de enviarse o copiarse;
   - comandos `crear-operador` e `invitar-empresa`; migración 002 del catálogo.
+  - acceso de soporte: desde la consola, con segundo factor, el operador entra a una empresa
+    1 hora en solo lectura y ve solo servicios y colas y errores de la aplicación saneados;
+    auditado en la empresa y avisado a sus Administradores.
 - **Pendiente:** despliegue en Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.

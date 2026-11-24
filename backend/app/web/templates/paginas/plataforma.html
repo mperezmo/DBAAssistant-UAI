@@ -69,6 +69,7 @@
         <h2 class="card-title">{{ t("plataforma.empresas.titulo") }}</h2>
       </div>
     </div>
+    <p class="card-body m-0 border-b border-line text-sm text-fg-muted">{{ t("plataforma.empresas.ayuda_soporte") }}</p>
     <div class="overflow-x-auto">
       <table class="data-table">
         <thead><tr>
@@ -83,7 +84,11 @@
             <tr>
               <td>
                 <strong class="text-[13px]" x-text="e.nombre"></strong>
-                <div><a class="enlace text-xs" :href="e.url" target="_blank" rel="noopener" x-text="e.url.replace('https://', '')"></a></div>
+                <div>
+                  <a class="enlace text-xs" :href="e.url" x-show="e.estado === 'activo'" @click.prevent="entrarSoporte(e)"
+                     :title="TEXTOS.entrarSoporte" x-text="e.url.replace('https://', '')"></a>
+                  <span class="text-xs text-fg-faint" x-show="e.estado !== 'activo'" x-text="e.url.replace('https://', '')"></span>
+                </div>
               </td>
               <td class="text-xs" x-text="e.email_administrador || '—'"></td>
               <td>
@@ -243,6 +248,7 @@
       activo: {{ t("plataforma.estado_operador.activo") | tojson }},
     },
     nunca: {{ t("plataforma.nunca") | tojson }},
+    entrarSoporte: {{ t("plataforma.empresas.entrar_soporte") | tojson }},
     invitarAyuda: {{ t("plataforma.invitar.ayuda") | tojson }},
     enviada: {{ t("plataforma.invitar.enviada") | tojson }},
     sinCorreo: {{ t("plataforma.invitar.sin_correo") | tojson }},

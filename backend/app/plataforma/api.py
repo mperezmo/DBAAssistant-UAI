@@ -1,19 +1,27 @@
 """API de la consola de la plataforma (operadores) y del registro de empresas."""
 
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
-from app.identidad.dependencias import CABECERA_SOLICITUD, METODOS_SEGUROS, ip_cliente
+from app.identidad import sesiones
+from app.identidad.dependencias import (
+    CABECERA_SOLICITUD,
+    METODOS_SEGUROS,
+    ip_cliente,
+    tenant_actual,
+)
 from app.identidad.entidades import Sesion
-from app.plataforma import registro, servicios
+from app.plataforma import registro, servicios, soporte
 from app.plataforma.entidades import Invitacion, Operador, ahora_utc
 from app.plataforma.ingreso import requerir_operador
 from app.tenants import resolucion
 
 router = APIRouter(prefix="/api/plataforma", tags=["plataforma"])
 router_registro = APIRouter(prefix="/api/registro", tags=["registro"])
+router_soporte = APIRouter(prefix="/auth", include_in_schema=False)
 operador = Depends(requerir_operador)
 
 
@@ -68,6 +76,12 @@ async def empresas(actual: Sesion = operador) -> dict:
             for f in filas
         ]
     }
+
+
+@router.post("/empresas/{tenant_id}/soporte")
+async def entrar_como_soporte(tenant_id: str, actual: Sesion = operador) -> dict:
+    """Pase para entrar a la empresa como soporte (pide el segundo factor reciente)."""
+    return {"url": await soporte.crear_pase(actual, tenant_id)}
 
 
 @router.post("/empresas/{tenant_id}/{accion}", status_code=204)
@@ -200,3 +214,23 @@ async def configurar(datos: DatosEmpresa, request: Request) -> dict:
 @router_registro.post("/salir", status_code=204, dependencies=[registro_host])
 async def salir(response: Response) -> None:
     response.delete_cookie(registro.COOKIE)
+
+
+# --- Sesión de soporte en el subdominio de una empresa ---------------------------------
+
+
+@router_soporte.get("/soporte")
+async def canjear_pase(pase: str, tenant=Depends(tenant_actual)) -> RedirectResponse:
+    if tenant is None:
+        raise ErrorDominio("TEN_VAL_000", "Ingresar desde la dirección de la empresa.")
+    sesion = await soporte.canjear_pase(tenant, pase)
+    respuesta = RedirectResponse("/soporte", status_code=303)
+    respuesta.set_cookie(
+        sesiones.COOKIE,
+        sesion.id,
+        max_age=soporte.VIGENCIA_SESION_SEGUNDOS,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+    return respuesta

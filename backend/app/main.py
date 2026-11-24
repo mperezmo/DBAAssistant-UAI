@@ -164,6 +164,7 @@ def crear_app() -> FastAPI:
     app.include_router(soporte.router)
     app.include_router(plataforma.router)
     app.include_router(plataforma.router_registro)
+    app.include_router(plataforma.router_soporte)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

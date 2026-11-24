@@ -10,6 +10,7 @@ from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad import repositorios, sesiones
 from app.identidad.entidades import Sesion
+from app.plataforma import repositorios as repositorios_plataforma
 from app.tenants import resolucion
 from app.tenants.entidades import Tenant
 
@@ -36,6 +37,8 @@ async def sesion_actual(request: Request, tenant: Tenant | None) -> Sesion | Non
     # La cookie es propia de cada subdominio; se valida igual el tenant por defensa.
     if sesion is None or sesion.tenant_id != str(tenant.id):
         return None
+    if sesion.es_operador:
+        return await _sesion_de_soporte(request, sesion)
     # El rol y el estado se releen en cada petición: un cambio de rol se ve con solo
     # recargar la página y una baja corta el acceso de inmediato.
     usuario = await run_in_threadpool(
@@ -51,6 +54,17 @@ async def sesion_actual(request: Request, tenant: Tenant | None) -> Sesion | Non
     return replace(sesion, rol=usuario.rol, nombre=usuario.nombre or sesion.nombre)
 
 
+async def _sesion_de_soporte(request: Request, sesion: Sesion) -> Sesion | None:
+    """Sesión de soporte de un operador: se valida contra la plataforma, no contra los
+    usuarios de la empresa (el operador no es uno de ellos)."""
+    operador = await run_in_threadpool(repositorios_plataforma.obtener_operador, sesion.usuario_id)
+    if operador is None or not operador.puede_ingresar:
+        return None
+    contexto.usuario.set(operador.email)
+    request.state.usuario = operador.email
+    return sesion
+
+
 def url_retorno(request: Request, ruta: str) -> str:
     return f"{request.url.scheme}://{request.headers.get('host', '')}{ruta}"
 
@@ -63,8 +77,8 @@ METODOS_SEGUROS = {"GET", "HEAD", "OPTIONS"}
 CABECERA_SOLICITUD = "X-Solicitud"
 
 
-def requerir_modulo(modulo: str):
-    """Dependencia para la API: exige sesión vigente y acceso del rol al módulo.
+def requerir_modulo(*modulos: str):
+    """Dependencia para la API: exige sesión vigente y acceso del rol a alguno de los módulos.
 
     Las peticiones que modifican datos deben traer la cabecera ``X-Solicitud``,
     que un formulario de otro sitio no puede enviar sin una verificación CORS previa.
@@ -77,8 +91,8 @@ def requerir_modulo(modulo: str):
             raise ErrorDominio("USR_AUT_005")
         if request.method not in METODOS_SEGUROS and not request.headers.get(CABECERA_SOLICITUD):
             raise ErrorDominio("USR_AUT_006")
-        if not sesion.puede_ver(modulo):
-            raise ErrorDominio("USR_PER_000", modulo)
+        if not any(sesion.puede_ver(m) for m in modulos):
+            raise ErrorDominio("USR_PER_000", ", ".join(modulos))
         return tenant, sesion
 
     return dependencia

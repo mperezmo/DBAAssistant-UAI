@@ -11,7 +11,29 @@ document.addEventListener("alpine:init", () => {
     nuevaInvitacion: "", enlace: "", textoEnlace: "", nuevoOperador: { email: "", nombre: "" },
 
     async iniciar() {
+      // Vuelta de la confirmación con segundo factor: se sigue entrando a la empresa elegida.
+      const url = new URL(location.href);
+      const pendiente = url.searchParams.get("soporte");
+      if (pendiente) {
+        url.searchParams.delete("soporte");
+        history.replaceState(null, "", url);
+        await this.entrarSoporte({ id: pendiente });
+      }
       await this.cargar();
+    },
+
+    // Entrar a una empresa como soporte: pide el segundo factor si no es reciente.
+    async entrarSoporte(empresa) {
+      try {
+        const r = await api("POST", `/api/plataforma/empresas/${empresa.id}/soporte`);
+        window.location.href = r.url;
+      } catch (error) {
+        if (error.codigo === "AMB_VAL_000") {
+          window.location.href = `/auth/confirmar?volver=${encodeURIComponent(`/?soporte=${empresa.id}`)}`;
+          return;
+        }
+        this.error = window.DBA.aviso(error);
+      }
     },
     reintentar() {
       return this.cargar();

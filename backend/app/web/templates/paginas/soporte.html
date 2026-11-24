@@ -3,15 +3,19 @@
 {% block miga %}{{ t("menu.soporte") }}{% endblock %}
 
 {% block contenido %}
+{# El operador de la plataforma, en una sesión de soporte, ve solo lo que no tiene datos de
+   la empresa: salud de los servicios y errores de la aplicación (el servidor lo exige). #}
+{% set es_operador = sesion.es_operador %}
+{% set pestanas = ["servicios", "errores"] if es_operador else ["servicios", "bitacoras", "historia"] %}
 <div x-data="soporte()" x-init="iniciar()">
   <div class="page-head">
-    <div class="page-eyebrow">{{ t("soporte.eyebrow") }}</div>
+    <div class="page-eyebrow">{{ t("soporte.operador.eyebrow") if es_operador else t("soporte.eyebrow") }}</div>
     <h1 class="page-title">{{ t("soporte.titulo") }} <em>{{ t("soporte.titulo_enfasis") }}</em></h1>
-    <p class="page-subtitle">{{ t("soporte.subtitulo") }}</p>
+    <p class="page-subtitle">{{ t("soporte.operador.subtitulo") if es_operador else t("soporte.subtitulo") }}</p>
   </div>
 
   <div class="pestanas mb-6" role="tablist">
-    {% for p in ["servicios", "bitacoras", "historia"] %}
+    {% for p in pestanas %}
     <button type="button" role="tab" :class="pestana === '{{ p }}' && 'activo'" :aria-selected="pestana === '{{ p }}'" @click="elegir('{{ p }}')">{{ t("soporte.pestana." ~ p) }}</button>
     {% endfor %}
   </div>
@@ -88,6 +92,43 @@
     </div>
   </div>
 
+  {% if es_operador %}
+  <!-- Errores de la aplicación, sin datos de la empresa -->
+  <template x-if="visitadas.errores">
+    <section class="card" x-show="pestana === 'errores'" x-data="soporteErrores()" x-init="cargar()">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow" x-text="TEXTOS.erroresEyebrow"></div>
+          <h3 class="card-title">{{ t("soporte.errores.titulo") }}</h3>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" @click="cargar()">{{ t("soporte.errores.actualizar") }}</button>
+      </div>
+      <p class="card-body m-0 border-b border-line text-sm text-fg-muted">{{ t("soporte.errores.ayuda") }}</p>
+      {% include "parciales/aviso_error.html" %}
+      <div class="divide-y divide-[var(--color-surface-sunk)]">
+        <template x-for="(e, i) in errores" :key="i">
+          <details class="px-5 py-3">
+            <summary class="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span class="numero whitespace-nowrap text-xs text-fg-faint" x-text="fecha(e.ts)"></span>
+              <span class="tag" :class="e.nivel === 'CRITICAL' ? 'tag-red' : 'tag-yellow'" x-text="e.estado ? `HTTP ${e.estado}` : e.nivel"></span>
+              <span class="metric-mono min-w-0 break-all text-[13px]" x-text="e.metodo ? `${e.metodo} ${e.ruta}` : e.modulo"></span>
+              <span class="metric-mono text-xs text-danger" x-show="e.codigo" x-text="e.codigo"></span>
+            </summary>
+            <div class="mt-3 grid gap-2 text-sm">
+              <p class="m-0" x-show="e.mensaje" x-text="e.mensaje"></p>
+              <p class="m-0 text-fg-muted" x-show="e.excepcion"><span x-text="TEXTOS.excepcion"></span> <code class="metric-mono text-[13px]" x-text="e.excepcion"></code></p>
+              <ol class="sql-oscuro m-0 list-none whitespace-normal" x-show="e.marcos.length">
+                <template x-for="m in e.marcos" :key="m"><li x-text="m"></li></template>
+              </ol>
+              <p class="m-0 text-xs text-fg-faint" x-show="!e.marcos.length" x-text="TEXTOS.sinTraza"></p>
+            </div>
+          </details>
+        </template>
+        <p class="m-0 px-5 py-6 text-center text-sm text-fg-muted" x-show="cargado && !errores.length" x-text="TEXTOS.sinErrores"></p>
+      </div>
+    </section>
+  </template>
+  {% else %}
   <!-- Bitácoras técnicas: auditoría del sistema y logs de la aplicación -->
   {# Se carga con la página: el parcial registra su componente antes de que inicie Alpine. #}
   <div x-show="pestana === 'bitacoras'" x-cloak>
@@ -291,10 +332,16 @@
       </template>
     </div>
   </template>
+  {% endif %}
 </div>
 
 <script>
+  window.PESTANAS_SOPORTE = {{ pestanas | tojson }};
   window.TEXTOS_SOPORTE = {
+    erroresEyebrow: {{ t("soporte.errores.eyebrow") | tojson }},
+    excepcion: {{ t("soporte.errores.excepcion") | tojson }},
+    sinTraza: {{ t("soporte.errores.sin_traza") | tojson }},
+    sinErrores: {{ t("soporte.errores.vacio") | tojson }},
     estadosServicio: {{ textos_servicios | tojson }},
     colas: { bitacora_logs: {{ t("soporte.colas.bitacora_logs") | tojson }} },
     escritorActivo: {{ t("soporte.colas.escritor_activo") | tojson }},

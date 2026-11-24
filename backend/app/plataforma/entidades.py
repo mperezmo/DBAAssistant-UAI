@@ -3,7 +3,9 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-ROL_OPERADOR = "OPERADOR"
+# El rol vive en identidad (lo usan los permisos por módulo); se reexporta para la plataforma.
+from app.identidad.entidades import ROL_OPERADOR as ROL_OPERADOR
+
 # La sesión de un operador no pertenece a ninguna empresa.
 TENANT_PLATAFORMA = "plataforma"
 

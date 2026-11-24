@@ -452,6 +452,9 @@ async def test_respuestas_con_error_quedan_en_la_bitacora(estructura, monkeypatc
         "GET /api/no-existe 404"
     )
     assert no_existe.http["estado"] == 404 and no_existe.http["usuario"] is None
+    # Sin ruta que la atienda no hay plantilla; con ruta, la plantilla sin valores.
+    assert no_existe.http["plantilla"] is None
+    assert roto.http["plantilla"] == "/api/soporte/servicios"
     assert prohibido.getMessage().startswith("GET /api/soporte/servicios 403 USR_PER_000")
     assert prohibido.http["usuario"] == "dba@acme.com"
     assert roto.levelno == logging.ERROR and roto.http["estado"] == 500

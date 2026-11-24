@@ -4,6 +4,9 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
 ROLES = ("ADMINISTRADOR", "DBA", "CONSULTA")
+# Rol de la plataforma (no de una empresa): entra a una empresa solo en sesiones de soporte.
+ROL_OPERADOR = "OPERADOR"
+MODULO_SOPORTE_OPERADOR = "soporte_operador"
 AMBIENTES = ("DEV", "TESTING", "PROD")
 # Roles con las facultades operativas del DBA. El Administrador también las tiene, para
 # que un equipo sin DBA designado pueda operar (ver docs/arquitectura.md).
@@ -45,6 +48,9 @@ MODULOS_POR_ROL: dict[str, frozenset[str]] = {
         }
     ),
     "CONSULTA": frozenset({"inicio", "chat", "monitor", "alertas", "contexto", "schema"}),
+    # Operador de la plataforma en una sesión de soporte: solo la vista acotada de Soporte
+    # (salud de servicios y errores de la aplicación, sin datos de la empresa).
+    ROL_OPERADOR: frozenset({MODULO_SOPORTE_OPERADOR}),
 }
 
 
@@ -82,6 +88,16 @@ class Sesion:
 
     def puede_ver(self, modulo: str) -> bool:
         return modulo in MODULOS_POR_ROL.get(self.rol, frozenset())
+
+    @property
+    def es_operador(self) -> bool:
+        return self.rol == ROL_OPERADOR
+
+    def en_menu(self, modulo: str) -> bool:
+        """El Operador ve Soporte en el menú aunque su módulo sea la vista acotada."""
+        return self.puede_ver(modulo) or (
+            modulo == "soporte" and self.puede_ver(MODULO_SOPORTE_OPERADOR)
+        )
 
     def a_dict(self) -> dict:
         return asdict(self)

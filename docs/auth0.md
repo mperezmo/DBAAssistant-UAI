@@ -128,6 +128,9 @@ misma aplicación de Auth0, con una organización interna `plataforma`.
 2. Entrar a `https://plataforma.<DOMINIO_BASE>` con ese email (Google o contraseña) y el
    segundo factor. Desde la consola se suman otros operadores y se invitan empresas.
 
+Para entrar a una empresa como soporte, la consola pide confirmar con el segundo factor
+(la misma Action "Exigir MFA siempre" del punto 5).
+
 El registro de empresas (`https://registrar-empresa.<DOMINIO_BASE>`) no usa Auth0: la
 persona invitada confirma su email con un código por correo. Su primer ingreso a la empresa
 creada sí es por Auth0.

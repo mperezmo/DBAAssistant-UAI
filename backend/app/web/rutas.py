@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad.dependencias import sesion_actual, tenant_actual
-from app.identidad.entidades import AMBIENTES, ROLES
+from app.identidad.entidades import AMBIENTES, MODULO_SOPORTE_OPERADOR, ROLES
 from app.modulos.monitor.entidades import METRICAS
 from app.modulos.soporte.entidades import TABLAS_CON_HISTORIA
 from app.plataforma import correos as correos_plataforma
@@ -82,6 +82,9 @@ async def inicio(request: Request, tenant: Tenant | None = Depends(tenant_actual
     sesion = await sesion_actual(request, tenant)
     if sesion is None:
         return RedirectResponse("/ingresar", status_code=303)
+    if sesion.es_operador:
+        # La sesión de soporte de un operador solo tiene la vista acotada de Soporte.
+        return RedirectResponse("/soporte", status_code=303)
     return plantillas.TemplateResponse(
         request,
         "paginas/inicio.html",
@@ -120,20 +123,25 @@ async def registrar_empresa(request: Request, email: str = ""):
 
 
 async def _pagina_de_modulo(
-    request: Request, tenant: Tenant | None, modulo: str, plantilla: str, contexto: dict
+    request: Request,
+    tenant: Tenant | None,
+    modulo: str | tuple[str, ...],
+    plantilla: str,
+    contexto: dict,
 ):
-    """Renderiza una página que exige sesión y acceso del rol al módulo."""
+    """Renderiza una página que exige sesión y acceso del rol al módulo (o a alguno)."""
     if tenant is None:
         return RedirectResponse("/", status_code=303)
     sesion = await sesion_actual(request, tenant)
     if sesion is None:
         return RedirectResponse("/ingresar", status_code=303)
-    if not sesion.puede_ver(modulo):
-        raise ErrorDominio("USR_PER_000", modulo)
+    modulos = (modulo,) if isinstance(modulo, str) else modulo
+    if not any(sesion.puede_ver(m) for m in modulos):
+        raise ErrorDominio("USR_PER_000", ", ".join(modulos))
     return plantillas.TemplateResponse(
         request,
         plantilla,
-        {"activo": modulo, "sesion": sesion, "tenant": tenant, **contexto},
+        {"activo": modulos[0], "sesion": sesion, "tenant": tenant, **contexto},
     )
 
 
@@ -247,7 +255,7 @@ async def soporte(request: Request, tenant: Tenant | None = Depends(tenant_actua
     return await _pagina_de_modulo(
         request,
         tenant,
-        "soporte",
+        ("soporte", MODULO_SOPORTE_OPERADOR),
         "paginas/soporte.html",
         {
             "textos_servicios": {

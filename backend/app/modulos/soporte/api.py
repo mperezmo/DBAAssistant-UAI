@@ -1,5 +1,6 @@
-"""API de Soporte (solo Administrador): bitácoras técnicas, historia de la base de la
-aplicación, salud de los servicios y colas."""
+"""API de Soporte (Administrador): bitácoras técnicas, historia de la base de la
+aplicación, salud de los servicios y colas. En una sesión de soporte, el operador de la
+plataforma solo accede a la salud de los servicios y a los errores saneados."""
 
 from datetime import datetime
 from typing import Literal
@@ -9,13 +10,16 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from app.identidad.dependencias import requerir_modulo
+from app.identidad.entidades import MODULO_SOPORTE_OPERADOR
 from app.modulos.auditoria import api as auditoria_api
 from app.modulos.auditoria import servicios as auditoria
 from app.modulos.auditoria.servicios import Filtros
-from app.modulos.soporte import historia, servicios
+from app.modulos.soporte import errores, historia, servicios
 
 router = APIRouter(prefix="/api/soporte", tags=["soporte"])
 contexto = Depends(requerir_modulo("soporte"))
+# Lo que también ve el operador en una sesión de soporte (sin datos de la empresa).
+contexto_soporte = Depends(requerir_modulo("soporte", MODULO_SOPORTE_OPERADOR))
 Nombre = Literal["sistema", "excepciones"]
 
 
@@ -70,14 +74,21 @@ async def exportar(
 
 
 @router.get("/servicios")
-async def salud(ctx=contexto) -> dict:
+async def salud(ctx=contexto_soporte) -> dict:
     tenant, _ = ctx
     return {"servicios": await servicios.servicios(tenant)}
 
 
 @router.get("/procesos")
-async def procesos(ctx=contexto) -> dict:
+async def procesos(ctx=contexto_soporte) -> dict:
     return servicios.colas_y_procesos()
+
+
+@router.get("/errores")
+async def errores_de_la_aplicacion(ctx=contexto_soporte) -> dict:
+    """Errores de la aplicación saneados: sin usuario, IP, mensaje ni valores de la URL."""
+    tenant, _ = ctx
+    return await errores.listar(tenant)
 
 
 # --- Historia de la base de la aplicación -----------------------------------------

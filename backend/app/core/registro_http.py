@@ -35,6 +35,9 @@ def registrar(
                 "estado": estado,
                 "duracion_ms": round((time.perf_counter() - inicio) * 1000),
                 "usuario": getattr(request.state, "usuario", None),
+                # La ruta como plantilla (/api/x/{id}), sin valores: la usa la vista de
+                # errores del soporte de la plataforma.
+                "plantilla": getattr(request.scope.get("route"), "path_format", None),
             }
         },
     )
