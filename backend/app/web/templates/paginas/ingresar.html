@@ -1,6 +1,6 @@
 {% extends "base_simple.html" %}
 
-{% block subtitulo %}{{ tenant.nombre }}{% endblock %}
+{% block subtitulo %}{{ subtitulo or tenant.nombre }}{% endblock %}
 
 {% block contenido %}
 <form method="get" action="/auth/login">

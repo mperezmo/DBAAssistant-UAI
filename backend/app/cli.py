@@ -2,6 +2,8 @@
 
 Uso (dentro del contenedor del backend):
     python -m app.cli crear-tenant --slug acme --nombre "ACME S.A." --admin admin@acme.com
+    python -m app.cli crear-operador --email ops@dbaassistant.app --nombre "Martín"
+    python -m app.cli invitar-empresa --email admin@acme.com
     python -m app.cli migrar
     python -m app.cli sincronizar-auth0 --slug acme
     python -m app.cli generar-clave
@@ -43,6 +45,33 @@ def _crear_tenant(args: argparse.Namespace) -> None:
         print(f"  Acceso: https://{tenant.slug}.{obtener_configuracion().dominio_base}")
     else:
         print("  Atención: Auth0 no está configurado; el tenant no tiene organización.")
+
+
+def _crear_operador(args: argparse.Namespace) -> None:
+    from app.plataforma import servicios as plataforma
+
+    operador, aviso, organizacion = asyncio.run(
+        plataforma.crear_operador_inicial(args.email, args.nombre)
+    )
+    print(f"Operador {operador.email} ({operador.estado}) · aviso de acceso: {aviso}")
+    if organizacion:
+        print(f"  Organización Auth0 de la plataforma: {organizacion}")
+    else:
+        print("  Atención: Auth0 no está configurado; la consola no va a permitir ingresar.")
+    print(f"  Consola: {plataforma.correos.direccion_plataforma()}")
+
+
+def _invitar_empresa(args: argparse.Namespace) -> None:
+    from app.identidad.entidades import Sesion
+    from app.plataforma import servicios as plataforma
+
+    sistema = Sesion("cli", "cli", "plataforma", "plataforma", "sistema", "DBA Assistant", "", 0)
+    invitacion, enlace, envio = asyncio.run(
+        plataforma.invitar(sistema, args.email, not args.sin_correo, None)
+    )
+    print(f"Invitación para {invitacion.email}, vence {invitacion.vence_en:%Y-%m-%d %H:%M} UTC.")
+    print(f"  Link: {enlace}")
+    print(f"  Correo: {envio or 'no enviado (--sin-correo)'}")
 
 
 def _migrar(_: argparse.Namespace) -> None:
@@ -104,6 +133,23 @@ def main(argumentos: list[str] | None = None) -> int:
     crear.add_argument("--nombre", required=True, help="Razón social o nombre visible")
     crear.add_argument("--admin", required=True, help="Email del primer Administrador")
     crear.set_defaults(funcion=_crear_tenant)
+
+    operador = comandos.add_parser(
+        "crear-operador",
+        help="Prepara la consola de la plataforma y da de alta un operador.",
+    )
+    operador.add_argument("--email", required=True)
+    operador.add_argument("--nombre", default=None)
+    operador.set_defaults(funcion=_crear_operador)
+
+    invitar = comandos.add_parser(
+        "invitar-empresa", help="Invita a registrar una empresa (vence a las 24 h)."
+    )
+    invitar.add_argument("--email", required=True, help="Email del primer Administrador")
+    invitar.add_argument(
+        "--sin-correo", action="store_true", help="No enviar el correo; solo mostrar el link"
+    )
+    invitar.set_defaults(funcion=_invitar_empresa)
 
     migrar = comandos.add_parser("migrar", help="Aplica los cambios de estructura pendientes.")
     migrar.set_defaults(funcion=_migrar)

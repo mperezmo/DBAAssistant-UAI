@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="{{ idioma_actual() }}" data-locale="{{ locales[idioma_actual()] }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ t("registro.titulo") }} · {{ t("app.nombre") }}</title>
+  <meta name="theme-color" content="#1F6B66">
+  <link rel="icon" href="/static/img/logo.svg?v={{ version_estaticos }}" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ version_estaticos }}">
+  <script>
+    window.DBA_TEXTOS = {
+      servidor: {{ t("error.aviso.servidor") | tojson }},
+      solicitud: {{ t("error.aviso.solicitud") | tojson }},
+      sinConexion: {{ t("error.aviso.sin_conexion") | tojson }},
+    };
+  </script>
+  <script src="/static/js/api.js?v={{ version_estaticos }}"></script>
+  <script src="/static/js/registro_empresa.js?v={{ version_estaticos }}"></script>
+  <script defer src="/static/js/vendor/alpine-3.17.4.min.js?v={{ version_estaticos }}"></script>
+</head>
+<body>
+<div class="auth-screen">
+  <div class="auth-card registro-card" x-data="registroEmpresa({{ email | tojson | forceescape }})" x-init="iniciar()">
+    <div class="auth-brand-stack">
+      {% with tam=40 %}{% include "parciales/logo.html" %}{% endwith %}
+      <div class="auth-brand-name">{{ t("app.nombre") }}</div>
+      <div class="auth-brand-sub">{{ t("registro.titulo") }}</div>
+    </div>
+
+    <div class="auth-form">
+      <!-- Pasos -->
+      <ol class="registro-pasos" aria-label="{{ t('registro.pasos') }}">
+        <template x-for="(p, i) in PASOS_VISIBLES" :key="p">
+          <li :class="{ 'hecho': indicePaso() > i, 'actual': indicePaso() === i }" :aria-current="indicePaso() === i ? 'step' : null">
+            <span class="numero" x-text="i + 1"></span><span x-text="TEXTOS.pasos[p]"></span>
+          </li>
+        </template>
+      </ol>
+
+      <div class="aviso-error mb-4" x-show="error" x-cloak role="alert">
+        <span class="aviso-error-icono" aria-hidden="true">!</span>
+        <div class="min-w-0 flex-1">
+          <p class="m-0 text-sm" x-text="error"></p>
+          <details x-show="error?.codigo"><summary>{{ t("error.aviso.detalle") }}<code class="metric-mono text-[13px]" x-text="error?.codigo"></code></summary></details>
+        </div>
+      </div>
+
+      <!-- 1. Email -->
+      <form class="grid gap-3" x-show="paso === 'email'" @submit.prevent="pedirCodigo()">
+        <p class="m-0 text-sm text-fg-muted">{{ t("registro.email.ayuda") }}</p>
+        <label class="grid gap-1 text-sm">
+          <span class="font-medium">{{ t("registro.email.label") }}</span>
+          <input type="email" required autocomplete="email" x-model="email" maxlength="254">
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" :disabled="enviando || !email">{{ t("registro.email.boton") }}</button>
+      </form>
+
+      <!-- 2. Código -->
+      <form class="grid gap-3" x-show="paso === 'codigo'" x-cloak @submit.prevent="verificar()">
+        <p class="m-0 text-sm text-fg-muted" x-text="TEXTOS.codigoEnviado.replace('{email}', email)"></p>
+        <label class="grid gap-1 text-sm">
+          <span class="font-medium">{{ t("registro.codigo.label") }}</span>
+          <input type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required
+                 class="metric-mono text-center text-xl tracking-[0.4em]" x-model="codigo" x-ref="codigo">
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" :disabled="enviando || codigo.length !== 6">{{ t("registro.codigo.boton") }}</button>
+        <div class="flex flex-wrap justify-between gap-2 text-sm">
+          <button type="button" class="btn btn-ghost btn-sm" :disabled="espera > 0 || enviando" @click="pedirCodigo()"
+                  x-text="espera > 0 ? TEXTOS.reenviarEn.replace('{n}', espera) : TEXTOS.reenviar"></button>
+          <button type="button" class="btn btn-ghost btn-sm" @click="paso = 'email'; codigo = ''; error = null">{{ t("registro.codigo.cambiar_email") }}</button>
+        </div>
+      </form>
+
+      <!-- 3. Datos de la empresa -->
+      <form class="grid gap-3" x-show="paso === 'datos'" x-cloak @submit.prevent="configurar()">
+        <p class="m-0 text-sm text-fg-muted" x-text="TEXTOS.datosAyuda.replace('{email}', email)"></p>
+        <label class="grid gap-1 text-sm">
+          <span class="font-medium">{{ t("registro.datos.empresa") }}</span>
+          <input type="text" required minlength="2" maxlength="150" x-model="empresa" @input="sugerirDireccion()" autocomplete="organization">
+        </label>
+        <label class="grid gap-1 text-sm">
+          <span class="font-medium">{{ t("registro.datos.direccion") }}</span>
+          <div class="flex items-center gap-1">
+            <input type="text" required maxlength="40" class="metric-mono min-w-0 flex-1" x-model="slug"
+                   :readonly="direccionFija" @input="slugEditado = true; revisarDireccion()" autocapitalize="off" spellcheck="false">
+            <span class="metric-mono shrink-0 text-xs text-fg-muted">.{{ dominio_base }}</span>
+          </div>
+          <span class="text-xs" :class="claseDisponible()" x-text="textoDisponible()"></span>
+        </label>
+        <label class="grid gap-1 text-sm">
+          <span class="font-medium">{{ t("registro.datos.nombre") }}</span>
+          <input type="text" required maxlength="150" x-model="nombre" autocomplete="name">
+        </label>
+        <p class="m-0 text-xs text-fg-muted">{{ t("registro.datos.aviso") }}</p>
+        <button type="submit" class="btn btn-primary btn-block" :disabled="enviando || !puedeConfigurar()">{{ t("registro.datos.boton") }}</button>
+      </form>
+
+      <!-- 4. Configuración en curso -->
+      <div class="grid gap-3" x-show="paso === 'progreso'" x-cloak aria-live="polite">
+        <p class="m-0 text-sm" x-text="textoProgreso()"></p>
+        <ul class="registro-avance">
+          <template x-for="p in estado?.pasos || []" :key="p">
+            <li :class="claseAvance(p)">
+              <span class="registro-avance-marca" aria-hidden="true" x-text="marcaAvance(p)"></span>
+              <span x-text="TEXTOS.avance[p]"></span>
+            </li>
+          </template>
+        </ul>
+        <a class="btn btn-primary btn-block" x-show="listo()" :href="estado?.progreso?.url" x-text="TEXTOS.ir.replace('{direccion}', (estado?.progreso?.url || '').replace('https://', ''))"></a>
+        <button type="button" class="btn btn-primary btn-block" x-show="fallo()" @click="paso = 'datos'">{{ t("registro.progreso.reintentar") }}</button>
+      </div>
+
+      <!-- Sin invitación vigente -->
+      <div class="grid gap-3 text-center" x-show="paso === 'cerrada'" x-cloak>
+        <p class="m-0 text-sm" x-text="textoCerrada()"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.TEXTOS_REGISTRO = {
+    pasos: {
+      email: {{ t("registro.paso.email") | tojson }},
+      codigo: {{ t("registro.paso.codigo") | tojson }},
+      datos: {{ t("registro.paso.datos") | tojson }},
+      progreso: {{ t("registro.paso.progreso") | tojson }},
+    },
+    avance: {
+      catalogo: {{ t("registro.avance.catalogo") | tojson }},
+      base_sql: {{ t("registro.avance.base_sql") | tojson }},
+      estructura: {{ t("registro.avance.estructura") | tojson }},
+      base_mongo: {{ t("registro.avance.base_mongo") | tojson }},
+      administrador: {{ t("registro.avance.administrador") | tojson }},
+      auth0: {{ t("registro.avance.auth0") | tojson }},
+    },
+    codigoEnviado: {{ t("registro.codigo.enviado") | tojson }},
+    reenviar: {{ t("registro.codigo.reenviar") | tojson }},
+    reenviarEn: {{ t("registro.codigo.reenviar_en") | tojson }},
+    datosAyuda: {{ t("registro.datos.ayuda") | tojson }},
+    disponible: {{ t("registro.datos.disponible") | tojson }},
+    ocupada: {{ t("registro.datos.ocupada") | tojson }},
+    invalida: {{ t("registro.datos.invalida") | tojson }},
+    revisando: {{ t("registro.datos.revisando") | tojson }},
+    fija: {{ t("registro.datos.fija") | tojson }},
+    progresoEnCurso: {{ t("registro.progreso.en_curso") | tojson }},
+    progresoListo: {{ t("registro.progreso.listo") | tojson }},
+    progresoError: {{ t("registro.progreso.error") | tojson }},
+    progresoInterrumpido: {{ t("registro.progreso.interrumpido") | tojson }},
+    ir: {{ t("registro.progreso.ir") | tojson }},
+    cerradaUsada: {{ t("registro.cerrada.usada") | tojson }},
+    cerrada: {{ t("registro.cerrada.texto") | tojson }},
+  };
+</script>
+</body>
+</html>

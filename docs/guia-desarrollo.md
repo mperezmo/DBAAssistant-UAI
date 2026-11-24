@@ -120,6 +120,14 @@ Reglas, forma de trabajo y estado del proyecto para retomar el desarrollo.
     Historial de esquema, Registros, Base interna de la aplicación) y estados vacíos que
     explican qué hacer;
   - ninguna pantalla con desplazamiento horizontal en el celular.
+- **Sprint 16 (en `dev`, pendiente de QA):** plataforma y alta de empresas por invitación:
+  - rol Operador (solo plataforma, sin acceso a los datos de las empresas) con consola en
+    `plataforma.<dominio>`: empresas (suspender y reactivar), invitaciones y operadores;
+    ingreso por Auth0 con la organización interna `plataforma`;
+  - registro en `registrar-empresa.<dominio>/registra-tu-empresa`: email invitado, código por
+    correo, datos de la empresa y alta en segundo plano con avance por pasos; la invitación
+    vence a las 24 h de enviarse o copiarse;
+  - comandos `crear-operador` e `invitar-empresa`; migración 002 del catálogo.
 - **Pendiente:** despliegue en Azure.
 - Casos de uso: TFI (`DBAAssistant-PerezMoreno.pdf`, no versionado) y propuestas en
   `docs/casos-de-uso-propuestos.md`.

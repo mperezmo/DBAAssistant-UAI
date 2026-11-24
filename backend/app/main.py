@@ -38,6 +38,7 @@ from app.modulos.web_push import api as web_push
 from app.modulos.workarounds import api as workarounds
 from app.modulos.workarounds import servicios as workarounds_servicios
 from app.modulos.workarounds.servicios import Automatizador
+from app.plataforma import api as plataforma
 from app.tenants import repositorios as tenants_repositorios
 from app.tenants import resolucion
 from app.tenants import servicios as tenants
@@ -161,6 +162,8 @@ def crear_app() -> FastAPI:
     app.include_router(historico_schema.router)
     app.include_router(buenas_practicas.router)
     app.include_router(soporte.router)
+    app.include_router(plataforma.router)
+    app.include_router(plataforma.router_registro)
     app.include_router(web.router)
     # En Docker los estáticos los entrega NGINX; este montaje cubre el desarrollo sin proxy.
     app.mount("/static", StaticFiles(directory=DIRECTORIO_ESTATICOS), name="static")

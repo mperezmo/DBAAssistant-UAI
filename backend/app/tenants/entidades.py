@@ -11,11 +11,42 @@ from app.core.errores import ErrorDominio
 PATRON_SLUG = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 
 
+# Subdominios de la plataforma: no pueden ser el identificador de una empresa.
+SUBDOMINIO_PLATAFORMA = "plataforma"
+SUBDOMINIO_REGISTRO = "registrar-empresa"
+SUBDOMINIOS_RESERVADOS = frozenset(
+    {
+        SUBDOMINIO_PLATAFORMA,
+        SUBDOMINIO_REGISTRO,
+        "www",
+        "api",
+        "app",
+        "admin",
+        "auth",
+        "login",
+        "mail",
+        "smtp",
+        "static",
+        "soporte",
+        "status",
+        "docs",
+    }
+)
+
+
 def validar_slug(slug: str) -> str:
     if not PATRON_SLUG.match(slug):
         raise ErrorDominio(
             "TEN_VAL_002", "Usar 1 a 40 caracteres: minúsculas, números y guiones intermedios."
         )
+    return slug
+
+
+def validar_slug_nuevo(slug: str) -> str:
+    """Identificador para una empresa nueva: válido y no reservado por la plataforma."""
+    validar_slug(slug)
+    if slug in SUBDOMINIOS_RESERVADOS:
+        raise ErrorDominio("TEN_VAL_004", slug)
     return slug
 
 

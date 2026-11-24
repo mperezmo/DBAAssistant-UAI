@@ -51,8 +51,20 @@ Si la clave se pierde o cambia, hay que volver a cargar las contraseñas de las 
 
 ### Alta de un cliente (tenant)
 
-Cada cliente tiene su propia base SQL Server y su propia base MongoDB. El alta es
-un único comando que crea todo y registra al primer Administrador:
+Cada cliente tiene su propia base SQL Server y su propia base MongoDB.
+
+**Por invitación (recomendado).** Un operador de la plataforma invita al futuro
+Administrador desde `https://plataforma.<DOMINIO_BASE>`; esa persona entra a
+`https://registrar-empresa.<DOMINIO_BASE>/registra-tu-empresa`, confirma su email con un
+código, elige el nombre y la dirección de su empresa y toca **Configurar**. El primer
+operador se crea con:
+
+```bash
+docker compose exec backend python -m app.cli crear-operador --email vos@tudominio.com
+```
+
+**Por comando.** El alta también es un único comando que crea todo y registra al primer
+Administrador:
 
 ```bash
 docker compose exec backend python -m app.cli crear-tenant \

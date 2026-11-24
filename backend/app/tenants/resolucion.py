@@ -5,7 +5,13 @@ import time
 from starlette.concurrency import run_in_threadpool
 
 from app.tenants import repositorios
-from app.tenants.entidades import PATRON_SLUG, Tenant
+from app.tenants.entidades import (
+    PATRON_SLUG,
+    SUBDOMINIO_PLATAFORMA,
+    SUBDOMINIO_REGISTRO,
+    SUBDOMINIOS_RESERVADOS,
+    Tenant,
+)
 
 # Caché en memoria para no consultar el catálogo en cada petición.
 VIGENCIA_CACHE_SEGUNDOS = 60
@@ -20,6 +26,20 @@ def slug_desde_host(host: str, dominio_base: str) -> str | None:
         return None
     slug = nombre[: -len(sufijo)]
     return slug if PATRON_SLUG.match(slug) else None
+
+
+def es_reservado(slug: str | None) -> bool:
+    return slug in SUBDOMINIOS_RESERVADOS
+
+
+def es_plataforma(host: str, dominio_base: str) -> bool:
+    """Consola de los operadores: ``plataforma.<dominio_base>``."""
+    return slug_desde_host(host, dominio_base) == SUBDOMINIO_PLATAFORMA
+
+
+def es_registro(host: str, dominio_base: str) -> bool:
+    """Registro de empresas invitadas: ``registrar-empresa.<dominio_base>``."""
+    return slug_desde_host(host, dominio_base) == SUBDOMINIO_REGISTRO
 
 
 async def obtener_tenant(slug: str) -> Tenant | None:

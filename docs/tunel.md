@@ -52,6 +52,9 @@ nombre `*`, destino `<id-del-túnel>.cfargotunnel.com`, con el proxy activado (n
    ```
 4. Entrar desde el celular a `https://demo.midominio.com`.
 
+El comodín `*` también cubre la consola de los operadores (`plataforma.midominio.com`) y el
+registro de empresas (`registrar-empresa.midominio.com`): no hace falta publicarlos aparte.
+
 ## 4. Probar push y biometría
 
 - **Push:** en *Alertas*, activar las notificaciones en el celular (en iPhone, primero

@@ -114,7 +114,25 @@ Permite que la app cree las organizaciones e invite usuarios sin intervención m
    - `read:clients`, `update:clients` (para registrar las URLs de cada cliente)
 4. Anotar el **Client ID** y el **Client Secret** de esta aplicación.
 
-## 8. Variables de entorno
+## 8. Consola de la plataforma (operadores)
+
+Los operadores administran las empresas desde `https://plataforma.<DOMINIO_BASE>`. Usan la
+misma aplicación de Auth0, con una organización interna `plataforma`.
+
+1. Con las variables de Auth0 completas, crear el primer operador:
+   ```bash
+   docker compose exec backend python -m app.cli crear-operador --email vos@tudominio.com --nombre "Tu nombre"
+   ```
+   Crea la organización `plataforma`, registra las direcciones de la consola en la aplicación
+   web y da de alta al operador (le llega un aviso si hay SMTP). Se puede volver a correr.
+2. Entrar a `https://plataforma.<DOMINIO_BASE>` con ese email (Google o contraseña) y el
+   segundo factor. Desde la consola se suman otros operadores y se invitan empresas.
+
+El registro de empresas (`https://registrar-empresa.<DOMINIO_BASE>`) no usa Auth0: la
+persona invitada confirma su email con un código por correo. Su primer ingreso a la empresa
+creada sí es por Auth0.
+
+## 9. Variables de entorno
 
 Completar en `.env`:
 

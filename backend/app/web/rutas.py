@@ -8,11 +8,15 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad.dependencias import sesion_actual, tenant_actual
 from app.identidad.entidades import AMBIENTES, ROLES
 from app.modulos.monitor.entidades import METRICAS
 from app.modulos.soporte.entidades import TABLAS_CON_HISTORIA
+from app.plataforma import correos as correos_plataforma
+from app.plataforma.ingreso import sesion_operador
+from app.tenants import resolucion
 from app.tenants.entidades import Tenant
 from app.web.i18n import IDIOMAS, LOCALES, idioma_actual, traducir
 from app.web.menu import ICONOS, MENU
@@ -49,8 +53,30 @@ plantillas.env.globals.update(
 router = APIRouter(include_in_schema=False)
 
 
+def _subdominio_de_plataforma(request: Request) -> str | None:
+    """ "plataforma" o "registro" si la petición llega por esos subdominios."""
+    host, dominio = request.headers.get("host", ""), obtener_configuracion().dominio_base
+    if resolucion.es_plataforma(host, dominio):
+        return "plataforma"
+    if resolucion.es_registro(host, dominio):
+        return "registro"
+    return None
+
+
 @router.get("/", response_class=HTMLResponse)
 async def inicio(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    subdominio = _subdominio_de_plataforma(request)
+    if subdominio == "plataforma":
+        sesion = await sesion_operador(request)
+        if sesion is None:
+            return RedirectResponse("/ingresar", status_code=303)
+        return plantillas.TemplateResponse(
+            request,
+            "paginas/plataforma.html",
+            {"sesion": sesion, "url_registro": correos_plataforma.direccion_registro()},
+        )
+    if subdominio == "registro":
+        return RedirectResponse(correos_plataforma.RUTA_REGISTRO, status_code=303)
     if tenant is None:
         return plantillas.TemplateResponse(request, "paginas/sin_empresa.html")
     sesion = await sesion_actual(request, tenant)
@@ -65,11 +91,32 @@ async def inicio(request: Request, tenant: Tenant | None = Depends(tenant_actual
 
 @router.get("/ingresar", response_class=HTMLResponse)
 async def ingresar(request: Request, tenant: Tenant | None = Depends(tenant_actual)):
+    if _subdominio_de_plataforma(request) == "plataforma":
+        if await sesion_operador(request):
+            return RedirectResponse("/", status_code=303)
+        return plantillas.TemplateResponse(
+            request, "paginas/ingresar.html", {"subtitulo": traducir("plataforma.consola")}
+        )
     if tenant is None:
         return RedirectResponse("/", status_code=303)
     if await sesion_actual(request, tenant):
         return RedirectResponse("/", status_code=303)
     return plantillas.TemplateResponse(request, "paginas/ingresar.html", {"tenant": tenant})
+
+
+@router.get(correos_plataforma.RUTA_REGISTRO, response_class=HTMLResponse)
+async def registrar_empresa(request: Request, email: str = ""):
+    """Registro de una empresa invitada (solo en ``registrar-empresa.<dominio_base>``)."""
+    if _subdominio_de_plataforma(request) != "registro":
+        raise ErrorDominio("PLA_INV_000")
+    return plantillas.TemplateResponse(
+        request,
+        "paginas/registro_empresa.html",
+        {
+            "email": email.strip().lower()[:254],
+            "dominio_base": obtener_configuracion().dominio_base,
+        },
+    )
 
 
 async def _pagina_de_modulo(

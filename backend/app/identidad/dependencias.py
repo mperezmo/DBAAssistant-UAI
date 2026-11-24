@@ -19,7 +19,8 @@ async def tenant_actual(request: Request) -> Tenant | None:
     slug = resolucion.slug_desde_host(
         request.headers.get("host", ""), obtener_configuracion().dominio_base
     )
-    if slug is None:
+    # Los subdominios de la plataforma (consola de operadores, registro) no son empresas.
+    if slug is None or resolucion.es_reservado(slug):
         return None
     tenant = await resolucion.obtener_tenant(slug)
     if tenant is None:
@@ -28,7 +29,8 @@ async def tenant_actual(request: Request) -> Tenant | None:
 
 
 async def sesion_actual(request: Request, tenant: Tenant | None) -> Sesion | None:
-    if tenant is None:
+    # Una empresa suspendida por un operador corta las sesiones abiertas.
+    if tenant is None or tenant.estado != "activo":
         return None
     sesion = await sesiones.obtener(request.cookies.get(sesiones.COOKIE))
     # La cookie es propia de cada subdominio; se valida igual el tenant por defensa.

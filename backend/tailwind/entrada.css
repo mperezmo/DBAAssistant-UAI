@@ -230,3 +230,16 @@ a.user-card {
     display: none;
   }
 }
+
+/* Campos de la consola de la plataforma y del registro de empresas. En la capa base, para
+   que las utilidades de cada campo puedan ajustarlos. */
+@layer base {
+  :where(.auth-form, .consola) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea) {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    font-size: 14px;
+  }
+}

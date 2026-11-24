@@ -56,7 +56,9 @@ def entorno(monkeypatch):
         lambda tid, est, detalle=None: llamadas.append(("estado", est)),
     )
     monkeypatch.setattr(
-        servicios.repositorios, "crear_administrador", lambda t, e: llamadas.append(("admin", e))
+        servicios.repositorios,
+        "crear_administrador",
+        lambda t, e, n=None: llamadas.append(("admin", e)),
     )
     monkeypatch.setattr(
         servicios.sqlserver, "crear_base_si_no_existe", lambda n: llamadas.append(("base", n))

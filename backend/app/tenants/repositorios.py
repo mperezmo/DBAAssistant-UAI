@@ -51,18 +51,26 @@ def listar() -> list[Tenant]:
         return [_a_entidad(fila) for fila in filas.fetchall()]
 
 
-def crear(slug: str, nombre: str, base_sqlserver: str, base_mongodb: str) -> Tenant:
+def crear(
+    slug: str,
+    nombre: str,
+    base_sqlserver: str,
+    base_mongodb: str,
+    email_administrador: str | None = None,
+) -> Tenant:
     with sqlserver.conectar(_base()) as conexion:
         fila = (
             conexion.cursor()
             .execute(
-                f"""INSERT INTO dbo.tenant (slug, nombre, base_sqlserver, base_mongodb)
+                f"""INSERT INTO dbo.tenant
+                    (slug, nombre, base_sqlserver, base_mongodb, email_administrador)
                 OUTPUT {COLUMNAS_INSERTADAS}
-                VALUES (?, ?, ?, ?)""",
+                VALUES (?, ?, ?, ?, ?)""",
                 slug,
                 nombre,
                 base_sqlserver,
                 base_mongodb,
+                email_administrador,
             )
             .fetchone()
         )
@@ -95,7 +103,29 @@ def actualizar_organizacion(tenant_id: UUID, organizacion_id: str) -> None:
         conexion.commit()
 
 
-def crear_administrador(tenant: Tenant, email: str) -> None:
+def listar_resumen() -> list[dict]:
+    """Empresas para la consola de la plataforma, de la más reciente a la más antigua."""
+    with sqlserver.conectar(_base()) as conexion:
+        cursor = conexion.cursor().execute(
+            """SELECT id, slug, nombre, estado, detalle_error, email_administrador,
+                      creado_en, actualizado_en
+               FROM dbo.tenant ORDER BY creado_en DESC, slug"""
+        )
+        columnas = [c[0] for c in cursor.description]
+        return [dict(zip(columnas, fila, strict=True)) for fila in cursor.fetchall()]
+
+
+def obtener_por_id(tenant_id: str) -> Tenant | None:
+    with sqlserver.conectar(_base()) as conexion:
+        fila = (
+            conexion.cursor()
+            .execute(f"SELECT {COLUMNAS} FROM dbo.tenant WHERE id = ?", tenant_id)
+            .fetchone()
+        )
+    return _a_entidad(fila) if fila else None
+
+
+def crear_administrador(tenant: Tenant, email: str, nombre: str | None = None) -> None:
     """Registra en la base del tenant a su primer Administrador (estado invitado).
 
     Es idempotente: si el email ya existe no hace nada.
@@ -108,10 +138,11 @@ def crear_administrador(tenant: Tenant, email: str) -> None:
         if existe:
             return
         usuario_id = cursor.execute(
-            """INSERT INTO dbo.usuario (tenant_id, email, rol)
-               OUTPUT inserted.id VALUES (?, ?, 'ADMINISTRADOR')""",
+            """INSERT INTO dbo.usuario (tenant_id, email, nombre, rol)
+               OUTPUT inserted.id VALUES (?, ?, ?, 'ADMINISTRADOR')""",
             str(tenant.id),
             email,
+            nombre,
         ).fetchone()[0]
         # El Administrador del sistema opera en todos los ambientes (TFI 10.4.2.3).
         cursor.executemany(

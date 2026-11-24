@@ -7,6 +7,7 @@ volver a ejecutarlo sobre un tenant con error retoma desde donde falló.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 
 from starlette.concurrency import run_in_threadpool
 
@@ -17,7 +18,7 @@ from app.identidad.auth0 import ClienteAuth0
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.tenants import repositorios
-from app.tenants.entidades import Tenant, nombres_de_bases, validar_slug
+from app.tenants.entidades import Tenant, nombres_de_bases, validar_slug_nuevo
 
 log = logging.getLogger(__name__)
 
@@ -52,11 +53,28 @@ async def preparar_mongo_todo() -> None:
                 log.exception("No se pudo preparar MongoDB del tenant %s.", tenant.slug)
 
 
-async def aprovisionar(slug: str, nombre: str, email_administrador: str) -> Tenant:
-    validar_slug(slug)
+# Pasos del alta, en orden; el registro de empresas los muestra a medida que avanzan.
+PASOS = ("catalogo", "base_sql", "estructura", "base_mongo", "administrador", "auth0")
+
+Progreso = Callable[[str], Awaitable[None]]
+
+
+async def _sin_progreso(_: str) -> None:
+    return None
+
+
+async def aprovisionar(
+    slug: str,
+    nombre: str,
+    email_administrador: str,
+    nombre_administrador: str | None = None,
+    progreso: Progreso = _sin_progreso,
+) -> Tenant:
+    validar_slug_nuevo(slug)
     if not nombre.strip() or "@" not in email_administrador:
         raise ErrorDominio("USR_VAL_002", "Nombre y email del Administrador son obligatorios.")
 
+    await progreso("catalogo")
     await run_in_threadpool(migrar_catalogo)
 
     cfg = obtener_configuracion()
@@ -68,13 +86,22 @@ async def aprovisionar(slug: str, nombre: str, email_administrador: str) -> Tena
         raise ErrorDominio("TEN_VAL_001", slug)
     if tenant is None:
         base_sql, base_mongo = nombres_de_bases(slug, cfg)
-        tenant = await run_in_threadpool(repositorios.crear, slug, nombre, base_sql, base_mongo)
+        tenant = await run_in_threadpool(
+            repositorios.crear, slug, nombre, base_sql, base_mongo, email_administrador
+        )
 
     try:
+        await progreso("base_sql")
         await run_in_threadpool(sqlserver.crear_base_si_no_existe, tenant.base_sqlserver)
+        await progreso("estructura")
         await run_in_threadpool(migraciones.aplicar, tenant.base_sqlserver, "tenant")
+        await progreso("base_mongo")
         await mongo.preparar_base_tenant(tenant.base_mongodb)
-        await run_in_threadpool(repositorios.crear_administrador, tenant, email_administrador)
+        await progreso("administrador")
+        await run_in_threadpool(
+            repositorios.crear_administrador, tenant, email_administrador, nombre_administrador
+        )
+        await progreso("auth0")
         if cfg.auth0_configurado and not tenant.auth0_organizacion_id:
             # El nombre de la organización es el slug: Auth0 lo usa en las URLs de retorno.
             auth0 = ClienteAuth0(cfg)

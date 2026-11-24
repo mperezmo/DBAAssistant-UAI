@@ -772,6 +772,7 @@ a:not([class]):hover, a.enlace:hover { color: var(--color-primary-hover); }
   font-size: 13px;
   color: var(--fg-muted);
 }
+.aviso-error details summary code { margin-left: 6px; }
 
 /* Bloque de T-SQL de una confirmación: tinta con texto claro. */
 .sql-oscuro {
@@ -888,4 +889,59 @@ a:not([class]):hover, a.enlace:hover { color: var(--color-primary-hover); }
     gap: 4px 16px;
     flex-wrap: wrap;
   }
+}
+
+/* Registro de empresa: tarjeta algo más ancha, pasos numerados y avance del alta. */
+.registro-card { max-width: 460px; }
+.registro-pasos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--fg-faint);
+}
+.registro-pasos li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.registro-pasos .numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--color-surface);
+}
+.registro-pasos li.actual { color: var(--color-primary); font-weight: 600; }
+.registro-pasos li.actual .numero { border-color: var(--color-primary); background: var(--color-primary-tint); }
+.registro-pasos li.hecho .numero { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
+.registro-avance { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--fg-faint); }
+.registro-avance li { display: flex; align-items: center; gap: 10px; }
+.registro-avance-marca {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  font-size: 12px;
+}
+.registro-avance li.hecho { color: var(--fg); }
+.registro-avance li.hecho .registro-avance-marca { background: var(--color-ok); border-color: var(--color-ok); color: #fff; }
+.registro-avance li.actual { color: var(--color-primary); font-weight: 600; }
+.registro-avance li.actual .registro-avance-marca { border-color: var(--color-primary); animation: registro-latido 1.2s ease-in-out infinite; }
+.registro-avance li.fallido { color: var(--color-danger); }
+.registro-avance li.fallido .registro-avance-marca { background: var(--color-danger); border-color: var(--color-danger); color: #fff; }
+@keyframes registro-latido { 50% { background: var(--color-primary-tint); } }
+@media (prefers-reduced-motion: reduce) {
+  .registro-avance li.actual .registro-avance-marca { animation: none; background: var(--color-primary-tint); }
 }

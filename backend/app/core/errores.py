@@ -108,6 +108,19 @@ ESTADOS_HTTP: dict[str, int] = {
     "TEN_VAL_002": 422,
     "TEN_VAL_003": 403,
     "TEN_APR_000": 500,
+    "TEN_VAL_004": 422,
+    "PLA_CFG_000": 503,
+    "PLA_PER_000": 403,
+    "PLA_VAL_000": 404,
+    "PLA_VAL_001": 409,
+    "PLA_VAL_002": 409,
+    "PLA_VAL_003": 409,
+    "PLA_VAL_004": 409,
+    "PLA_INV_000": 403,
+    "PLA_INV_001": 422,
+    "PLA_INV_002": 429,
+    "PLA_INV_003": 409,
+    "PLA_INV_004": 409,
 }
 CATALOGO: dict[str, DefinicionError] = {
     codigo: DefinicionError(codigo, estado) for codigo, estado in ESTADOS_HTTP.items()

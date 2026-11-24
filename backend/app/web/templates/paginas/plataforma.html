@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="{{ idioma_actual() }}" data-locale="{{ locales[idioma_actual()] }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ t("plataforma.consola") }} · {{ t("app.nombre") }}</title>
+  <meta name="theme-color" content="#1F6B66">
+  <link rel="icon" href="/static/img/logo.svg?v={{ version_estaticos }}" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ version_estaticos }}">
+  <script>
+    window.DBA_TEXTOS = {
+      servidor: {{ t("error.aviso.servidor") | tojson }},
+      solicitud: {{ t("error.aviso.solicitud") | tojson }},
+      sinConexion: {{ t("error.aviso.sin_conexion") | tojson }},
+    };
+  </script>
+  <script src="/static/js/api.js?v={{ version_estaticos }}"></script>
+  <script src="/static/js/plataforma.js?v={{ version_estaticos }}"></script>
+  <script defer src="/static/js/vendor/alpine-3.17.4.min.js?v={{ version_estaticos }}"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="flex items-center gap-3">
+    {% with tam=28 %}{% include "parciales/logo.html" %}{% endwith %}
+    <div class="crumbs">
+      <span>{{ t("app.nombre") }}</span>
+      <span class="sep">/</span>
+      <strong>{{ t("plataforma.consola") }}</strong>
+    </div>
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="user-card">
+    <div class="user-avatar">{{ sesion.iniciales }}</div>
+    <div class="user-info">
+      <div class="user-name">{{ sesion.nombre }}</div>
+      <div class="user-role">{{ t("rol.OPERADOR") }}</div>
+    </div>
+  </div>
+  <form method="post" action="/auth/salir">
+    <button type="submit" class="btn btn-ghost btn-sm">{{ t("sesion.salir") }}</button>
+  </form>
+</header>
+
+<main class="page consola mx-auto max-w-[1200px]" x-data="consolaPlataforma()" x-init="iniciar()">
+  <div class="page-head">
+    <div class="page-eyebrow">{{ t("plataforma.eyebrow") }}</div>
+    <h1 class="page-title">{{ t("plataforma.titulo") }}</h1>
+    <p class="page-subtitle">{{ t("plataforma.subtitulo") }}</p>
+  </div>
+
+  <div class="pestanas mb-6" role="tablist">
+    {% for p in ["empresas", "invitaciones", "operadores"] %}
+    <button type="button" role="tab" :class="pestana === '{{ p }}' && 'activo'" :aria-selected="pestana === '{{ p }}'"
+            @click="pestana = '{{ p }}'" x-text="tituloPestana('{{ p }}')"></button>
+    {% endfor %}
+  </div>
+
+  {% include "parciales/aviso_error.html" %}
+  <div class="mb-5 rounded border border-line bg-[var(--color-ok-tint)] px-4 py-3 text-sm text-ok" x-show="aviso" x-cloak x-text="aviso" role="status"></div>
+
+  <!-- Empresas -->
+  <section class="card" x-show="pestana === 'empresas'">
+    <div class="card-head">
+      <div>
+        <div class="card-eyebrow">{{ t("plataforma.empresas.eyebrow") }}</div>
+        <h2 class="card-title">{{ t("plataforma.empresas.titulo") }}</h2>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="data-table">
+        <thead><tr>
+          <th>{{ t("plataforma.col.empresa") }}</th>
+          <th>{{ t("plataforma.col.administrador") }}</th>
+          <th>{{ t("plataforma.col.estado") }}</th>
+          <th>{{ t("plataforma.col.alta") }}</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <template x-for="e in empresas" :key="e.id">
+            <tr>
+              <td>
+                <strong class="text-[13px]" x-text="e.nombre"></strong>
+                <div><a class="enlace text-xs" :href="e.url" target="_blank" rel="noopener" x-text="e.url.replace('https://', '')"></a></div>
+              </td>
+              <td class="text-xs" x-text="e.email_administrador || '—'"></td>
+              <td>
+                <span class="tag" :class="claseEmpresa(e.estado)" x-text="TEXTOS.estadosEmpresa[e.estado] || e.estado" :title="e.detalle_error || ''"></span>
+              </td>
+              <td class="numero whitespace-nowrap text-xs text-fg-faint" x-text="fecha(e.creado_en)"></td>
+              <td class="whitespace-nowrap text-right">
+                <button class="btn btn-danger-outline btn-sm" x-show="e.estado === 'activo'" @click="cambiarEstado(e, 'suspender')">{{ t("plataforma.empresas.suspender") }}</button>
+                <button class="btn btn-ghost btn-sm" x-show="e.estado === 'suspendido'" @click="cambiarEstado(e, 'reactivar')">{{ t("plataforma.empresas.reactivar") }}</button>
+              </td>
+            </tr>
+          </template>
+          <tr x-show="cargado && !empresas.length"><td colspan="5" class="text-center text-fg-muted">{{ t("plataforma.empresas.vacio") }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Invitaciones -->
+  <div class="grid grid-cols-[minmax(0,1fr)] gap-5" x-show="pestana === 'invitaciones'" x-cloak>
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow">{{ t("plataforma.invitar.eyebrow") }}</div>
+          <h2 class="card-title">{{ t("plataforma.invitar.titulo") }}</h2>
+        </div>
+      </div>
+      <form class="card-body grid gap-3" @submit.prevent="invitar(true)">
+        <p class="m-0 text-sm text-fg-muted" x-text="TEXTOS.invitarAyuda"></p>
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="grid min-w-0 flex-[1_1_240px] grid-cols-[minmax(0,1fr)] gap-1 text-sm">
+            <span class="font-medium">{{ t("plataforma.invitar.email") }}</span>
+            <input type="email" required x-model="nuevaInvitacion" placeholder="admin@empresa.com" autocomplete="off">
+          </label>
+          <button type="submit" class="btn btn-primary" :disabled="enviando || !nuevaInvitacion">{{ t("plataforma.invitar.enviar") }}</button>
+          <button type="button" class="btn btn-ghost" :disabled="enviando || !nuevaInvitacion" @click="invitar(false)">{{ t("plataforma.invitar.copiar") }}</button>
+        </div>
+        <div class="grid gap-1 rounded border border-line bg-[var(--color-surface-sunk)] p-3" x-show="enlace" x-cloak>
+          <span class="text-xs text-fg-muted" x-text="textoEnlace"></span>
+          <div class="flex flex-wrap items-center gap-2">
+            <input class="metric-mono min-w-0 flex-1 text-xs" readonly :value="enlace" x-ref="enlace" @focus="$event.target.select()">
+            <button type="button" class="btn btn-ghost btn-sm" @click="copiar()">{{ t("plataforma.invitar.copiar_otra_vez") }}</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow">{{ t("plataforma.invitaciones.eyebrow") }}</div>
+          <h2 class="card-title">{{ t("plataforma.invitaciones.titulo") }}</h2>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead><tr>
+            <th>{{ t("plataforma.col.email") }}</th>
+            <th>{{ t("plataforma.col.estado") }}</th>
+            <th>{{ t("plataforma.col.creada_por") }}</th>
+            <th>{{ t("plataforma.col.vence") }}</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="i in invitaciones" :key="i.id">
+              <tr>
+                <td class="text-[13px]" x-text="i.email"></td>
+                <td><span class="tag" :class="claseInvitacion(i.estado)" x-text="TEXTOS.estadosInvitacion[i.estado]"></span></td>
+                <td class="text-xs" x-text="i.creada_por"></td>
+                <td class="numero whitespace-nowrap text-xs text-fg-faint" x-text="i.estado === 'usada' ? fecha(i.usada_en) : fecha(i.vence_en)"></td>
+                <td class="whitespace-nowrap text-right">
+                  <button class="btn btn-ghost btn-sm" x-show="i.estado === 'pendiente'" @click="revocar(i)">{{ t("plataforma.invitaciones.revocar") }}</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="cargado && !invitaciones.length"><td colspan="5" class="text-center text-fg-muted">{{ t("plataforma.invitaciones.vacio") }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Operadores -->
+  <div class="grid grid-cols-[minmax(0,1fr)] gap-5" x-show="pestana === 'operadores'" x-cloak>
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-eyebrow">{{ t("plataforma.operadores.eyebrow") }}</div>
+          <h2 class="card-title">{{ t("plataforma.operadores.titulo") }}</h2>
+        </div>
+      </div>
+      <form class="card-body flex flex-wrap items-end gap-3" @submit.prevent="altaOperador()">
+        <label class="grid min-w-0 flex-[1_1_220px] grid-cols-[minmax(0,1fr)] gap-1 text-sm">
+          <span class="font-medium">{{ t("plataforma.operadores.email") }}</span>
+          <input type="email" required x-model="nuevoOperador.email" autocomplete="off">
+        </label>
+        <label class="grid min-w-0 flex-[1_1_180px] grid-cols-[minmax(0,1fr)] gap-1 text-sm">
+          <span class="font-medium">{{ t("plataforma.operadores.nombre") }}</span>
+          <input type="text" maxlength="150" x-model="nuevoOperador.nombre" autocomplete="off">
+        </label>
+        <button type="submit" class="btn btn-primary" :disabled="enviando || !nuevoOperador.email">{{ t("plataforma.operadores.alta") }}</button>
+      </form>
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead><tr>
+            <th>{{ t("plataforma.col.operador") }}</th>
+            <th>{{ t("plataforma.col.estado") }}</th>
+            <th>{{ t("plataforma.col.alta_por") }}</th>
+            <th>{{ t("plataforma.col.ultimo_ingreso") }}</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="o in operadores" :key="o.id">
+              <tr>
+                <td>
+                  <strong class="text-[13px]" x-text="o.nombre || o.email"></strong>
+                  <span class="tag tag-blue ml-1" x-show="o.soy_yo">{{ t("plataforma.operadores.vos") }}</span>
+                  <div class="text-xs text-fg-faint" x-text="o.email"></div>
+                </td>
+                <td><span class="tag" :class="o.estado === 'activo' ? 'tag-green' : 'tag-blue'" x-text="TEXTOS.estadosOperador[o.estado]"></span></td>
+                <td class="text-xs" x-text="o.creado_por"></td>
+                <td class="numero whitespace-nowrap text-xs text-fg-faint" x-text="o.ultimo_ingreso ? fecha(o.ultimo_ingreso) : TEXTOS.nunca"></td>
+                <td class="whitespace-nowrap text-right">
+                  <button class="btn btn-ghost btn-sm" x-show="!o.soy_yo" @click="bajaOperador(o)">{{ t("plataforma.operadores.baja") }}</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+  window.TEXTOS_PLATAFORMA = {
+    pestanas: {
+      empresas: {{ t("plataforma.pestana.empresas") | tojson }},
+      invitaciones: {{ t("plataforma.pestana.invitaciones") | tojson }},
+      operadores: {{ t("plataforma.pestana.operadores") | tojson }},
+    },
+    estadosEmpresa: {
+      activo: {{ t("plataforma.estado_empresa.activo") | tojson }},
+      suspendido: {{ t("plataforma.estado_empresa.suspendido") | tojson }},
+      aprovisionando: {{ t("plataforma.estado_empresa.aprovisionando") | tojson }},
+      error: {{ t("plataforma.estado_empresa.error") | tojson }},
+    },
+    estadosInvitacion: {
+      pendiente: {{ t("plataforma.estado_invitacion.pendiente") | tojson }},
+      en_curso: {{ t("plataforma.estado_invitacion.en_curso") | tojson }},
+      usada: {{ t("plataforma.estado_invitacion.usada") | tojson }},
+      revocada: {{ t("plataforma.estado_invitacion.revocada") | tojson }},
+      vencida: {{ t("plataforma.estado_invitacion.vencida") | tojson }},
+    },
+    estadosOperador: {
+      invitado: {{ t("plataforma.estado_operador.invitado") | tojson }},
+      activo: {{ t("plataforma.estado_operador.activo") | tojson }},
+    },
+    nunca: {{ t("plataforma.nunca") | tojson }},
+    invitarAyuda: {{ t("plataforma.invitar.ayuda") | tojson }},
+    enviada: {{ t("plataforma.invitar.enviada") | tojson }},
+    sinCorreo: {{ t("plataforma.invitar.sin_correo") | tojson }},
+    copiada: {{ t("plataforma.invitar.copiada") | tojson }},
+    copiarManual: {{ t("plataforma.invitar.copiar_manual") | tojson }},
+    confirmarSuspender: {{ t("plataforma.empresas.confirmar_suspender") | tojson }},
+    confirmarReactivar: {{ t("plataforma.empresas.confirmar_reactivar") | tojson }},
+    confirmarRevocar: {{ t("plataforma.invitaciones.confirmar_revocar") | tojson }},
+    confirmarBaja: {{ t("plataforma.operadores.confirmar_baja") | tojson }},
+    operadorAlta: {{ t("plataforma.operadores.aviso_alta") | tojson }},
+    operadorSinCorreo: {{ t("plataforma.operadores.aviso_sin_correo") | tojson }},
+  };
+</script>
+</body>
+</html>
