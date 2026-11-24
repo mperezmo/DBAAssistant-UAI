@@ -1,11 +1,20 @@
 """Facultades por rol: Administrador y DBA operan igual; Analista y Lectura, acotados."""
 
+from dataclasses import replace
+
+import pytest
+
+from app.core.errores import ErrorDominio
+from app.identidad import permisos
 from app.identidad.entidades import (
+    ACCIONES,
     AMBIENTES,
+    MODIFICAR,
+    PROMOVER,
     ROLES,
     ROLES_OPERATIVOS,
     Sesion,
-    ambientes_que_modifica,
+    techo,
 )
 from app.modulos.alertas import condiciones
 from app.modulos.buenas_practicas import servicios as buenas_practicas
@@ -37,12 +46,14 @@ def test_lectura_no_opera():
 def test_roles_de_una_empresa():
     assert ROLES == ("ADMINISTRADOR", "DBA", "ANALISTA", "LECTURA")
     for rol in ROLES_OPERATIVOS:
-        assert ambientes_que_modifica(rol) == AMBIENTES
+        assert all(techo(rol, a) == frozenset(ACCIONES) for a in AMBIENTES)
+    assert not any(techo("LECTURA", a) for a in AMBIENTES)
 
 
 def test_analista_modifica_fuera_de_prod_y_analiza():
     analista = _sesion("ANALISTA")
-    assert ambientes_que_modifica("ANALISTA") == ("DEV", "TESTING")
+    assert [a for a in AMBIENTES if MODIFICAR in techo("ANALISTA", a)] == ["DEV", "TESTING"]
+    assert techo("ANALISTA", "DEV") == {MODIFICAR, PROMOVER}
     assert not analista.puede_modificar("PROD")
     assert "ANALISTA" in sandbox.ROLES_PROMUEVEN
     assert buenas_practicas.permisos(analista) == {
@@ -76,3 +87,22 @@ def test_lectura_conserva_los_modulos_de_consulta():
     }
     assert len(visibles) == 6
     assert not lectura.puede_ver("sandbox") and not lectura.puede_ver("buenas_practicas")
+
+
+def test_permiso_efectivo_por_ambiente_y_restricciones():
+    dba = replace(_sesion("DBA"), ambientes=("DEV", "PROD"), restricciones=("PROD:modificar",))
+    assert dba.puede(MODIFICAR, "DEV")
+    assert not dba.puede(MODIFICAR, "PROD")  # restringida por el Administrador
+    assert dba.puede(PROMOVER, "PROD")
+    assert not dba.puede(MODIFICAR, "TESTING")  # sin acceso al ambiente
+    assert not dba.puede_en_todos(PROMOVER)
+    with pytest.raises(ErrorDominio) as error:
+        permisos.exigir(dba, MODIFICAR, "PROD")
+    assert error.value.codigo == "USR_PER_006"
+    with pytest.raises(ErrorDominio) as error:
+        permisos.exigir(_sesion("LECTURA"), MODIFICAR, "DEV")
+    assert error.value.codigo == "USR_PER_000"
+    with pytest.raises(ErrorDominio) as error:
+        permisos.exigir_en(dba, PROMOVER, None)  # alcanza a todos los ambientes
+    assert error.value.codigo == "USR_PER_006"
+    permisos.exigir_en(_sesion("DBA"), PROMOVER, None)

@@ -288,6 +288,11 @@ async def test_revision_segun_rol_y_sentencia(chat):
     for actor, sql, motivo in casos:
         revision = await servicios.revisar(TENANT, actor, conexion, "Ventas", sql)
         assert revision["motivo"] == motivo
+    # El Administrador le quitó modificar en DEV (CU-001-002-C).
+    restringido = replace(_actor(), restricciones=("DEV:modificar",))
+    update = "UPDATE dbo.clientes SET estado = 1 WHERE id = 1"
+    revision = await servicios.revisar(TENANT, restringido, conexion, "Ventas", update)
+    assert revision["motivo"] == "restringido"
     # En PROD el Analista solo lee.
     prod = await conexiones.crear(TENANT, _actor(), _datos(alias="PROD-01", ambiente="PROD"))
     update = "UPDATE dbo.clientes SET estado = 1 WHERE id = 1"
@@ -461,6 +466,9 @@ async def test_politica_de_escritura(chat):
     r = await servicios.ejecutar(TENANT, _actor(), hilo_dev, m_dev["id"], m_dev["sql"], "Ventas")
     assert r["filas_afectadas"] == 3 and r["tipo"] == "UPDATE"
     assert chat["escrituras"][-1] == ("Ventas", m_dev["sql"])
+
+    restringido = replace(_actor(), restricciones=("DEV:modificar",))
+    assert (await intentar(restringido, hilo_dev, m_dev, m_dev["sql"])).codigo == "USR_PER_006"
 
     # El Analista modifica en DEV; en PROD no, aun con segundo factor.
     analista = _actor("ANALISTA", segundo_factor_en=time.time())

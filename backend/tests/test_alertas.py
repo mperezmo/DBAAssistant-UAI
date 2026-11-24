@@ -398,6 +398,11 @@ async def test_reglas_validacion_y_permisos(alertas):
     with pytest.raises(ErrorDominio) as error:
         await servicios.crear_regla(TENANT, _actor("LECTURA"), _regla())
     assert error.value.codigo == "USR_PER_000"
+    # Una regla para todas las conexiones exige poder configurar en todos los ambientes.
+    sin_prod = replace(dba, restricciones=("PROD:configurar_alertas",))
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.crear_regla(TENANT, sin_prod, _regla())
+    assert error.value.codigo == "USR_PER_006"
     for cambios in (
         {"nombre": " "},
         {"metrica": "x"},
@@ -448,6 +453,14 @@ async def test_atender_valida_y_audita(alertas):
     with pytest.raises(ErrorDominio) as error:
         await servicios.atender(TENANT, _actor(), 999, "manual", "x")
     assert error.value.codigo == "ALR_VAL_000"
+    # La alerta es de PROD: sin permiso para atender ahí, no la toma (CU-001-002-C).
+    restringido = replace(_actor(), restricciones=("PROD:atender_alertas",))
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.atender(TENANT, restringido, alerta_id, "manual", "x")
+    assert error.value.codigo == "USR_PER_006"
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.desestimar(TENANT, restringido, alerta_id, "Mantenimiento", None)
+    assert error.value.codigo == "USR_PER_006"
 
     atendida = await servicios.atender(
         TENANT, _actor(), alerta_id, "manual", "Reinicié el servicio"

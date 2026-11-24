@@ -231,6 +231,10 @@ async def test_guardar_umbrales_audita_y_exige_rol(monitor):
     with pytest.raises(ErrorDominio) as error:
         await servicios.guardar_umbrales(TENANT, _actor("LECTURA"), conexion.id, [])
     assert error.value.codigo == "USR_PER_000"
+    restringido = replace(_actor(), restricciones=(f"{conexion.ambiente}:configurar_alertas",))
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.guardar_umbrales(TENANT, restringido, conexion.id, [])
+    assert error.value.codigo == "USR_PER_006"
     with pytest.raises(ErrorDominio):
         await servicios.guardar_umbrales(
             TENANT, _actor(), conexion.id, [Umbral("cpu"), Umbral("cpu")]

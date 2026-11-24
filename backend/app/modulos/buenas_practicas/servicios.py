@@ -17,7 +17,13 @@ from app.core import cifrado
 from app.core.errores import ErrorDominio
 from app.datos import sqlserver
 from app.identidad import repositorios as usuarios
-from app.identidad.entidades import ROL_ANALISTA, ROLES_OPERATIVOS, Sesion
+from app.identidad.entidades import (
+    APLICAR_BUENAS_PRACTICAS,
+    ROL_ANALISTA,
+    ROLES_OPERATIVOS,
+    Sesion,
+)
+from app.identidad.permisos import exigir as exigir_permiso
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.buenas_practicas import analisis_ia, chequeos, repositorios
@@ -259,6 +265,7 @@ async def validar_en_sandbox(
     if not (sugerencia.get("sql") or "").strip():
         raise ErrorDominio("BPR_VAL_001")
     conexion = await _conexion_habilitada(tenant, sesion, documento["conexion_id"])
+    exigir_permiso(sesion, APLICAR_BUENAS_PRACTICAS, conexion.ambiente)
     resultado = await sandbox.ejecutar(
         tenant, sesion, conexion.id, documento["base"], sugerencia["sql"], False
     )

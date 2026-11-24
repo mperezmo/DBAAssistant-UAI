@@ -14,7 +14,8 @@ from app.core import cifrado
 from app.core.errores import ErrorDominio
 from app.datos import sqlserver
 from app.identidad import reautenticacion
-from app.identidad.entidades import ROLES_OPERATIVOS, Sesion
+from app.identidad.entidades import PROMOVER, ROLES_OPERATIVOS, Sesion
+from app.identidad.permisos import exigir as exigir_permiso
 from app.modulos.alertas import notificaciones
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
@@ -327,8 +328,7 @@ async def _promovible(tenant: Tenant, actor: Sesion, registro_id: str) -> tuple[
     if registro is None or registro["estado"] != "ok" or registro.get("promocion"):
         raise ErrorDominio("SBX_PRM_000", registro_id)
     conexion = await conexiones.obtener(tenant, registro["conexion_id"])
-    if not actor.puede_modificar(conexion.ambiente):
-        raise ErrorDominio("USR_PER_000", f"sandbox.promover en {conexion.ambiente}")
+    exigir_permiso(actor, PROMOVER, conexion.ambiente)
     return registro, conexion
 
 

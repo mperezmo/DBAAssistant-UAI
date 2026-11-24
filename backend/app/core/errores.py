@@ -42,6 +42,7 @@ ESTADOS_HTTP: dict[str, int] = {
     "USR_PER_003": 422,
     "USR_PER_004": 422,
     "USR_PER_005": 422,
+    "USR_PER_006": 403,
     "AUT_API_000": 502,
     "CON_DB_000": 422,
     "CON_DB_001": 409,

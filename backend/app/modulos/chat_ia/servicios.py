@@ -27,7 +27,8 @@ from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad import reautenticacion
 from app.identidad import repositorios as usuarios
-from app.identidad.entidades import ROL_ANALISTA, ROLES_OPERATIVOS, Sesion
+from app.identidad.entidades import MODIFICAR, ROL_ANALISTA, ROLES_OPERATIVOS, Sesion, techo
+from app.identidad.permisos import exigir as exigir_permiso
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.chat_ia import ejecucion, motor_ia, repositorios
@@ -158,8 +159,7 @@ async def revisar(tenant: Tenant, sesion: Sesion, conexion: Conexion, base: str,
     elif analisis.tipo not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         motivo = "sandbox"
     elif not analisis.es_lectura and not sesion.puede_modificar(conexion.ambiente):
-        # El Analista modifica en DEV y TESTING; en PROD, como Lectura, solo lee.
-        motivo = "solo_lectura_prod" if sesion.rol == ROL_ANALISTA else "solo_lectura"
+        motivo = _motivo_sin_permiso(sesion, conexion.ambiente)
     elif analisis.falta_where:
         motivo = "falta_where"
     elif any(sesion.rol not in s["roles_consulta"] for s in sensibles):
@@ -184,6 +184,14 @@ async def revisar(tenant: Tenant, sesion: Sesion, conexion: Conexion, base: str,
         "puede_sandbox": sesion.puede_ver("sandbox"),
         "destructiva": analisis.destructiva,
     }
+
+
+def _motivo_sin_permiso(sesion: Sesion, ambiente: str) -> str:
+    if MODIFICAR in techo(sesion.rol, ambiente):
+        # El rol lo permite, pero el Administrador se lo quitó en este ambiente.
+        return "restringido"
+    # El Analista modifica en DEV y TESTING; en PROD, como Lectura, solo lee.
+    return "solo_lectura_prod" if sesion.rol == ROL_ANALISTA else "solo_lectura"
 
 
 def puede_consultar_motor(sesion: Sesion) -> bool:
@@ -351,8 +359,8 @@ async def _validar_ejecucion(
     analisis = analizar(sql, base)
     if analisis.tipo not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         raise ErrorDominio("SQL_VAL_001", analisis.motivo)
-    if not analisis.es_lectura and not sesion.puede_modificar(conexion.ambiente):
-        raise ErrorDominio("USR_PER_000", f"{sesion.rol} no modifica en {conexion.ambiente}")
+    if not analisis.es_lectura:
+        exigir_permiso(sesion, MODIFICAR, conexion.ambiente)
     if analisis.falta_where:
         raise ErrorDominio("SQL_VAL_002")
     sensibles = await contexto.sensibles_de(tenant, conexion.id, analisis.tablas)

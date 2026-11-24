@@ -39,8 +39,8 @@ async def sesion_actual(request: Request, tenant: Tenant | None) -> Sesion | Non
         return None
     if sesion.es_operador:
         return await _sesion_de_soporte(request, sesion)
-    # El rol y el estado se releen en cada petición: un cambio de rol se ve con solo
-    # recargar la página y una baja corta el acceso de inmediato.
+    # El rol, los ambientes, las restricciones y el estado se releen en cada petición: un
+    # cambio del Administrador rige desde la acción siguiente y una baja corta el acceso.
     usuario = await run_in_threadpool(
         repositorios.obtener, tenant.base_sqlserver, sesion.tenant_id, sesion.usuario_id
     )
@@ -51,7 +51,13 @@ async def sesion_actual(request: Request, tenant: Tenant | None) -> Sesion | Non
     request.state.usuario = usuario.email
     if usuario.idioma:
         contexto.idioma.set(usuario.idioma)
-    return replace(sesion, rol=usuario.rol, nombre=usuario.nombre or sesion.nombre)
+    return replace(
+        sesion,
+        rol=usuario.rol,
+        nombre=usuario.nombre or sesion.nombre,
+        ambientes=usuario.ambientes,
+        restricciones=usuario.restricciones,
+    )
 
 
 async def _sesion_de_soporte(request: Request, sesion: Sesion) -> Sesion | None:

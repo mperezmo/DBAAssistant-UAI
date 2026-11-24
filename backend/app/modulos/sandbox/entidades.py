@@ -8,7 +8,7 @@ from app.identidad.entidades import ROL_ANALISTA, ROLES_OPERATIVOS
 SINCRONIZANDO, LISTO, ERROR = "sincronizando", "listo", "error"
 
 # Promueven en todos los ambientes; el Analista, solo en DEV y TESTING
-# (identidad.entidades.puede_modificar_en).
+# (identidad.entidades.techo).
 ROLES_PROMUEVEN = ROLES_OPERATIVOS + (ROL_ANALISTA,)
 # Con más antigüedad que esta, la estructura copiada se considera desactualizada.
 VIGENCIA_ESTRUCTURA = timedelta(hours=24)

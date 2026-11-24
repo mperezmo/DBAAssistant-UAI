@@ -444,3 +444,75 @@ async def test_auth0_pide_el_correo_de_cambio_de_contrasena():
     with pytest.raises(ErrorDominio) as error:
         await cliente.cambiar_contrasena("lu@acme.com", None)
     assert error.value.codigo == "AUT_API_000"
+
+
+# --- Permisos por ambiente (CU-001-002-C) -------------------------------------------
+
+
+async def test_permisos_por_ambiente_restringen_sin_ampliar(entorno):
+    repo, admin = entorno["repo"], entorno["admin"]
+    dba = repo.agregar("dba@acme.com", "DBA", "activo", ambientes=("DEV", "PROD"))
+    actor = _sesion(admin)
+
+    matriz = await usuarios.permisos_de(TENANT, actor, dba.id)
+    assert matriz["ambientes"] == ["DEV", "PROD"]
+    assert matriz["permitidas"]["PROD"] == list(matriz["acciones"])
+
+    # Se le quita modificar y promover en PROD.
+    todas = [a for a in matriz["acciones"] if a not in ("modificar", "promover")]
+    matriz = await usuarios.guardar_permisos(
+        TENANT, actor, dba.id, ("DEV", "PROD"), {"DEV": matriz["acciones"], "PROD": todas}
+    )
+    assert matriz["permitidas"]["PROD"] == todas
+    assert repo.usuarios[dba.id].restricciones == ("PROD:modificar", "PROD:promover")
+    accion, detalle = entorno["eventos"][-1]
+    assert accion == "usuario.permisos"
+    assert detalle["antes"]["restricciones"] == []
+    assert detalle["despues"]["restricciones"] == ["PROD:modificar", "PROD:promover"]
+
+    # Sin acceso a PROD, sus restricciones se conservan por si se vuelve a habilitar.
+    matriz = await usuarios.guardar_permisos(
+        TENANT, actor, dba.id, ("DEV",), {"DEV": list(matriz["acciones"])}
+    )
+    assert matriz["ambientes"] == ["DEV"]
+    assert repo.usuarios[dba.id].restricciones == ("PROD:modificar", "PROD:promover")
+
+    # Un cambio de rol no pierde las restricciones: el techo nuevo se aplica solo.
+    analista = repo.agregar("an@acme.com", "ANALISTA", "activo", ambientes=("DEV", "PROD"))
+    matriz = await usuarios.permisos_de(TENANT, actor, analista.id)
+    assert matriz["techo"] == {
+        "DEV": ["modificar", "promover"],
+        "TESTING": ["modificar", "promover"],
+        "PROD": [],
+    }
+    with pytest.raises(ErrorDominio) as error:
+        await usuarios.guardar_permisos(
+            TENANT, actor, analista.id, ("DEV", "PROD"), {"PROD": ["modificar"]}
+        )
+    assert error.value.codigo == "USR_PER_003"
+    for ambientes, permitidas in ((("QA",), {}), (("DEV",), {"DEV": ["borrar_todo"]})):
+        with pytest.raises(ErrorDominio) as error:
+            await usuarios.guardar_permisos(TENANT, actor, analista.id, ambientes, permitidas)
+        assert error.value.codigo == "USR_VAL_002"
+
+
+async def test_api_permisos_por_ambiente(entorno):
+    navegador = await _navegador_con_sesion(entorno["admin"])
+    dba = entorno["repo"].agregar("dba@acme.com", "DBA", "activo", ambientes=("DEV",))
+
+    matriz = navegador.get(f"/api/usuarios/{dba.id}/permisos").json()
+    assert matriz["ambientes"] == ["DEV"] and matriz["rol"] == "DBA"
+    guardado = navegador.put(
+        f"/api/usuarios/{dba.id}/permisos",
+        json={"ambientes": ["DEV", "TESTING"], "permitidas": {"DEV": ["modificar"], "TESTING": []}},
+        headers=CABECERA,
+    )
+    assert guardado.status_code == 200
+    assert guardado.json()["permitidas"]["DEV"] == ["modificar"]
+    assert guardado.json()["permitidas"]["TESTING"] == []
+    ampliado = navegador.put(
+        f"/api/usuarios/{dba.id}/permisos",
+        json={"ambientes": ["DEV"], "permitidas": {"DEV": ["no_existe"]}},
+        headers=CABECERA,
+    )
+    assert ampliado.json()["codigo"] == "USR_VAL_002"

@@ -6,6 +6,8 @@ Reglas:
 - Un Administrador no puede quitarse su rol ni darse de baja, y siempre debe quedar
   al menos un Administrador vigente.
 - El cambio de rol no cierra sesiones: el rol se relee en cada petición.
+- Permisos por ambiente (CU-001-002-C): el rol fija el techo de cada ambiente; el
+  Administrador solo puede quitar acciones (se guardan las restricciones), nunca ampliar.
 """
 
 import logging
@@ -18,7 +20,15 @@ from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad import invitaciones, repositorios
 from app.identidad.auth0 import ClienteAuth0
-from app.identidad.entidades import AMBIENTES, ROLES, Sesion, Usuario
+from app.identidad.entidades import (
+    ACCIONES,
+    AMBIENTES,
+    ROLES,
+    Sesion,
+    Usuario,
+    clave_restriccion,
+    techo,
+)
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.tenants.entidades import Tenant
@@ -208,3 +218,89 @@ async def obtener_propio(tenant: Tenant, actor: Sesion) -> Usuario:
 
 async def auditar_propio(tenant: Tenant, actor: Sesion, accion: str, detalle: dict) -> None:
     await _auditar(tenant, actor, accion, detalle)
+
+
+# --- Permisos por ambiente (CU-001-002-C) -------------------------------------------
+
+
+def matriz_de_permisos(usuario: Usuario) -> dict:
+    """Ambientes habilitados (fila Acceso) y, por ambiente, el techo del rol y lo permitido."""
+    restringidas = set(usuario.restricciones)
+    return {
+        "usuario_id": usuario.id,
+        "rol": usuario.rol,
+        "ambientes": list(usuario.ambientes),
+        "acciones": list(ACCIONES),
+        "techo": {a: [x for x in ACCIONES if x in techo(usuario.rol, a)] for a in AMBIENTES},
+        "permitidas": {
+            a: [
+                x
+                for x in ACCIONES
+                if x in techo(usuario.rol, a) and clave_restriccion(a, x) not in restringidas
+            ]
+            for a in AMBIENTES
+        },
+    }
+
+
+async def permisos_de(tenant: Tenant, actor: Sesion, usuario_id: str) -> dict:
+    return matriz_de_permisos(await _obtener(tenant, usuario_id))
+
+
+async def guardar_permisos(
+    tenant: Tenant,
+    actor: Sesion,
+    usuario_id: str,
+    ambientes: tuple[str, ...],
+    permitidas: dict[str, list[str]],
+) -> dict:
+    usuario = await _obtener(tenant, usuario_id)
+    if usuario.estado == "baja":
+        raise ErrorDominio("USR_VAL_006")
+    if any(a not in AMBIENTES for a in ambientes) or any(a not in AMBIENTES for a in permitidas):
+        raise ErrorDominio("USR_VAL_002", "Ambiente inválido.")
+    for ambiente, acciones in permitidas.items():
+        for accion in acciones:
+            if accion not in ACCIONES:
+                raise ErrorDominio("USR_VAL_002", f"Acción inválida: {accion}")
+            # No se puede ampliar más allá de lo que permite el rol (USR_PER_003).
+            if accion not in techo(usuario.rol, ambiente):
+                raise ErrorDominio("USR_PER_003", f"{accion} en {ambiente}")
+    ambientes = tuple(a for a in AMBIENTES if a in ambientes)
+    # En los ambientes habilitados se guarda lo que se quitó; en los demás se conservan
+    # las restricciones anteriores, por si se vuelven a habilitar.
+    anteriores = {tuple(r.split(":", 1)) for r in usuario.restricciones}
+    restricciones = sorted(
+        {(a, x) for a, x in anteriores if a not in ambientes}
+        | {
+            (a, x)
+            for a in ambientes
+            for x in techo(usuario.rol, a)
+            if x not in permitidas.get(a, [])
+        }
+    )
+    await run_in_threadpool(
+        repositorios.guardar_permisos,
+        tenant.base_sqlserver,
+        str(tenant.id),
+        usuario.id,
+        ambientes,
+        restricciones,
+    )
+    await _auditar(
+        tenant,
+        actor,
+        "usuario.permisos",
+        {
+            "email": usuario.email,
+            "antes": {
+                "ambientes": list(usuario.ambientes),
+                "restricciones": sorted(usuario.restricciones),
+            },
+            "despues": {
+                "ambientes": list(ambientes),
+                "restricciones": [clave_restriccion(a, x) for a, x in restricciones],
+            },
+        },
+    )
+    return matriz_de_permisos(await _obtener(tenant, usuario.id))

@@ -7,7 +7,9 @@ COLUMNAS = (
     "u.id, u.tenant_id, u.email, u.nombre, u.rol, u.estado, u.auth0_usuario_id,"
     " u.fecha_baja, u.ultimo_ingreso, u.idioma,"
     " (SELECT STRING_AGG(a.ambiente, ',') FROM dbo.usuario_ambiente a"
-    "  WHERE a.usuario_id = u.id) AS ambientes"
+    "  WHERE a.usuario_id = u.id) AS ambientes,"
+    " (SELECT STRING_AGG(r.ambiente + ':' + r.accion, ',') FROM dbo.usuario_restriccion r"
+    "  WHERE r.usuario_id = u.id) AS restricciones"
 )
 ORDEN_AMBIENTES = {"DEV": 0, "TESTING": 1, "PROD": 2}
 
@@ -28,6 +30,7 @@ def _a_entidad(fila) -> Usuario:
         fecha_baja=fila.fecha_baja,
         ultimo_ingreso=fila.ultimo_ingreso,
         idioma=fila.idioma,
+        restricciones=tuple(sorted(fila.restricciones.split(","))) if fila.restricciones else (),
     )
 
 
@@ -149,6 +152,29 @@ def _reemplazar_ambientes(cursor, tenant_id: str, usuario_id: str, ambientes) ->
             "INSERT INTO dbo.usuario_ambiente (usuario_id, tenant_id, ambiente) VALUES (?, ?, ?)",
             [(usuario_id, tenant_id, ambiente) for ambiente in ambientes],
         )
+
+
+def guardar_permisos(
+    base: str, tenant_id: str, usuario_id: str, ambientes, restricciones: list[tuple[str, str]]
+) -> None:
+    """Ambientes habilitados y restricciones por ambiente, juntos (CU-001-002-C)."""
+    with sqlserver.conectar(base) as conexion:
+        cursor = conexion.cursor()
+        _reemplazar_ambientes(cursor, tenant_id, usuario_id, ambientes)
+        cursor.execute("DELETE FROM dbo.usuario_restriccion WHERE usuario_id = ?", usuario_id)
+        if restricciones:
+            cursor.executemany(
+                """INSERT INTO dbo.usuario_restriccion (usuario_id, tenant_id, ambiente, accion)
+                   VALUES (?, ?, ?, ?)""",
+                [(usuario_id, tenant_id, ambiente, accion) for ambiente, accion in restricciones],
+            )
+        cursor.execute(
+            """UPDATE dbo.usuario SET actualizado_en = SYSUTCDATETIME()
+               WHERE tenant_id = ? AND id = ?""",
+            tenant_id,
+            usuario_id,
+        )
+        conexion.commit()
 
 
 def crear(base: str, tenant_id: str, email: str, nombre: str | None, rol: str, ambientes) -> str:

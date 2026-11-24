@@ -7,7 +7,9 @@ from uuid import UUID
 from starlette.concurrency import run_in_threadpool
 
 from app.core.errores import ErrorDominio
-from app.identidad.entidades import ROLES, Sesion
+from app.identidad.entidades import ATENDER_ALERTAS, CONFIGURAR_ALERTAS, ROLES, Sesion
+from app.identidad.permisos import exigir as exigir_permiso
+from app.identidad.permisos import exigir_en as exigir_permiso_en
 from app.modulos.alertas import repositorios
 from app.modulos.alertas.entidades import (
     ACCIONES_ATENCION,
@@ -88,6 +90,7 @@ async def atender(
     if len(comentario) > LARGO_COMENTARIO:
         raise ErrorDominio("USR_VAL_002", "Comentario demasiado largo.")
     alerta = await obtener(tenant, alerta_id)
+    exigir_permiso(actor, ATENDER_ALERTAS, alerta.ambiente)
     atendida = await run_in_threadpool(
         repositorios.atender,
         tenant.base_sqlserver,
@@ -131,6 +134,7 @@ async def desestimar(
         if hasta <= datetime.now(UTC).replace(tzinfo=None):
             raise ErrorDominio("USR_VAL_002", "La fecha de vencimiento debe ser futura.")
     alerta = await obtener(tenant, alerta_id)
+    exigir_permiso(actor, ATENDER_ALERTAS, alerta.ambiente)
     if not await run_in_threadpool(
         repositorios.desestimar,
         tenant.base_sqlserver,
@@ -169,6 +173,12 @@ async def reactivar(tenant: Tenant, actor: Sesion, desestimada_id: str) -> None:
         UUID(desestimada_id)
     except ValueError:
         raise ErrorDominio("ALR_VAL_000", desestimada_id) from None
+    desestimada = next(
+        (d for d in await listar_desestimadas(tenant) if d.id == desestimada_id), None
+    )
+    if desestimada is None:
+        raise ErrorDominio("ALR_VAL_000", desestimada_id)
+    exigir_permiso(actor, ATENDER_ALERTAS, await _ambiente_de(tenant, desestimada.conexion_id))
     if not await run_in_threadpool(
         repositorios.reactivar, tenant.base_sqlserver, str(tenant.id), desestimada_id, actor.email
     ):
@@ -221,8 +231,14 @@ async def _validar(tenant: Tenant, r: Regla) -> Regla:
     return replace(r, nombre=nombre, destinatarios=destinatarios)
 
 
+async def _ambiente_de(tenant: Tenant, conexion_id: str | None) -> str | None:
+    """Ambiente de la conexión; None si la regla alcanza a todas las conexiones."""
+    return (await conexiones.obtener(tenant, conexion_id)).ambiente if conexion_id else None
+
+
 async def crear_regla(tenant: Tenant, actor: Sesion, regla: Regla) -> Regla:
     _exigir(actor, ROLES_CONFIGURAN, "alertas.configurar")
+    exigir_permiso_en(actor, CONFIGURAR_ALERTAS, await _ambiente_de(tenant, regla.conexion_id))
     regla = await _validar(
         tenant, replace(regla, id="", tenant_id=str(tenant.id), creada_por=actor.email)
     )
@@ -236,6 +252,8 @@ async def crear_regla(tenant: Tenant, actor: Sesion, regla: Regla) -> Regla:
 async def modificar_regla(tenant: Tenant, actor: Sesion, regla_id: str, regla: Regla) -> Regla:
     _exigir(actor, ROLES_CONFIGURAN, "alertas.configurar")
     actual = await _obtener_regla(tenant, regla_id)
+    for conexion_id in {actual.conexion_id, regla.conexion_id}:
+        exigir_permiso_en(actor, CONFIGURAR_ALERTAS, await _ambiente_de(tenant, conexion_id))
     regla = await _validar(
         tenant,
         replace(regla, id=regla_id, tenant_id=str(tenant.id), creada_por=actual.creada_por),
@@ -253,6 +271,7 @@ async def modificar_regla(tenant: Tenant, actor: Sesion, regla_id: str, regla: R
 async def eliminar_regla(tenant: Tenant, actor: Sesion, regla_id: str) -> int:
     _exigir(actor, ROLES_CONFIGURAN, "alertas.configurar")
     regla = await _obtener_regla(tenant, regla_id)
+    exigir_permiso_en(actor, CONFIGURAR_ALERTAS, await _ambiente_de(tenant, regla.conexion_id))
     cerradas = await run_in_threadpool(
         repositorios.eliminar_regla, tenant.base_sqlserver, str(tenant.id), regla_id, actor.email
     )

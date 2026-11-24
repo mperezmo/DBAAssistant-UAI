@@ -3,11 +3,12 @@
 import re
 from dataclasses import dataclass
 
-# Tablas de la base de la aplicación con historia de datos (tablas temporales, migración
-# 014). Limita qué tabla se puede consultar: el nombre llega desde la pantalla.
+# Tablas de la base de la aplicación con historia de datos (tablas temporales, migraciones
+# 014 y 017). Limita qué tabla se puede consultar: el nombre llega desde la pantalla.
 TABLAS_CON_HISTORIA = (
     "usuario",
     "usuario_ambiente",
+    "usuario_restriccion",
     "conexion",
     "umbral_metrica",
     "regla_alerta",

@@ -11,7 +11,8 @@ from starlette.concurrency import run_in_threadpool
 from app.core import cifrado
 from app.core.errores import ErrorDominio
 from app.datos import sqlserver
-from app.identidad.entidades import Sesion
+from app.identidad.entidades import CONFIGURAR_ALERTAS, Sesion
+from app.identidad.permisos import exigir as exigir_permiso
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
 from app.modulos.conexiones import servicios as conexiones
@@ -175,6 +176,7 @@ async def guardar_umbrales(
     if not puede_configurar(actor):
         raise ErrorDominio("USR_PER_000", "monitor.configurar")
     conexion = await conexiones.obtener(tenant, conexion_id)
+    exigir_permiso(actor, CONFIGURAR_ALERTAS, conexion.ambiente)
     validados = [_validar(u) for u in umbrales]
     if len({u.metrica for u in validados}) != len(validados):
         raise ErrorDominio("USR_VAL_002", "Métricas repetidas.")
@@ -219,6 +221,7 @@ async def guardar_politica(
     if not puede_configurar(actor):
         raise ErrorDominio("USR_PER_000", "monitor.configurar")
     conexion = await conexiones.obtener(tenant, conexion_id)
+    exigir_permiso(actor, CONFIGURAR_ALERTAS, conexion.ambiente)
     if not (
         LIMITES_FULL_HORAS[0] <= politica.full_horas <= LIMITES_FULL_HORAS[1]
         and LIMITES_LOG_MINUTOS[0] <= politica.log_minutos <= LIMITES_LOG_MINUTOS[1]

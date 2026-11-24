@@ -261,7 +261,9 @@ async def test_conexion_inexistente(entorno):
 
 
 async def _navegador(entorno, rol, segundo_factor=True) -> TestClient:
-    usuario = entorno["usuarios"].agregar(f"{rol.lower()}@acme.com", rol, "activo")
+    usuario = entorno["usuarios"].agregar(
+        f"{rol.lower()}@acme.com", rol, "activo", ambientes=("DEV", "TESTING", "PROD")
+    )
     sesion = await sesiones.crear(
         {
             "usuario_id": usuario.id,

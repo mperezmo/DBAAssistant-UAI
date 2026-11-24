@@ -1,5 +1,6 @@
 import asyncio
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -262,8 +263,12 @@ async def test_solicitar_y_aplicar(bp, monkeypatch):
     aplicada = await servicios.validar_en_sandbox(TENANT, _actor(), informe["id"], 0)
     assert aplicada["sandbox"]["registro_id"] == "r1" and llamadas[0][0] == "Ventas"
     assert bp["informes"][informe["id"]]["sugerencias"][0]["sandbox"]["estado"] == "ok"
+    restringido = replace(
+        _actor(), restricciones=(f"{conexion.ambiente}:aplicar_buenas_practicas",)
+    )
     for actor, sugerencia, codigo in (
         (_actor("LECTURA"), 0, "USR_PER_000"),
+        (restringido, 0, "USR_PER_006"),
         (_actor(), 1, "BPR_VAL_001"),
         (_actor(), 9, "BPR_VAL_000"),
     ):

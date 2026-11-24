@@ -51,6 +51,7 @@ class RepositorioUsuariosFalso:
             "listar",
             "crear",
             "actualizar",
+            "guardar_permisos",
             "dar_baja",
             "rehabilitar",
             "purgar_bajas",
@@ -101,6 +102,14 @@ class RepositorioUsuariosFalso:
     def actualizar(self, base, tenant_id, usuario_id, nombre, rol, ambientes):
         u = self.usuarios[usuario_id]
         self.usuarios[usuario_id] = replace(u, nombre=nombre, rol=rol, ambientes=tuple(ambientes))
+
+    def guardar_permisos(self, base, tenant_id, usuario_id, ambientes, restricciones):
+        u = self.usuarios[usuario_id]
+        self.usuarios[usuario_id] = replace(
+            u,
+            ambientes=tuple(ambientes),
+            restricciones=tuple(sorted(f"{a}:{x}" for a, x in restricciones)),
+        )
 
     def dar_baja(self, base, tenant_id, usuario_id):
         u = self.usuarios[usuario_id]

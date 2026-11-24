@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorDominio
 from app.identidad.dependencias import sesion_actual, tenant_actual
-from app.identidad.entidades import AMBIENTES, MODULO_SOPORTE_OPERADOR, ROLES
+from app.identidad.entidades import ACCIONES, AMBIENTES, MODULO_SOPORTE_OPERADOR, ROLES
 from app.modulos.monitor.entidades import METRICAS
 from app.modulos.soporte.entidades import TABLAS_CON_HISTORIA
 from app.plataforma import correos as correos_plataforma
@@ -242,6 +242,7 @@ async def admin(request: Request, tenant: Tenant | None = Depends(tenant_actual)
         {
             "roles": ROLES,
             "ambientes": AMBIENTES,
+            "acciones": ACCIONES,
             "textos_roles": {rol: traducir(f"rol.{rol}") for rol in ROLES},
             "textos_estados": {
                 e: traducir(f"estado.{e}") for e in ("invitado", "activo", "baja", "inactivo")

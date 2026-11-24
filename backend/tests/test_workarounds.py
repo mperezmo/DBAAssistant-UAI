@@ -619,6 +619,11 @@ async def test_ejecutar_controles_y_registro(wk):
             TENANT, _actor("LECTURA"), "kill_bloqueos", conexion.id, None, {}, "web"
         )
     assert error.value.codigo == "USR_PER_000"
+    # El Administrador le quitó ejecutar remediaciones en ese ambiente (CU-001-002-C).
+    restringido = replace(dba, restricciones=(f"{conexion.ambiente}:ejecutar_remediaciones",))
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.ejecutar(TENANT, restringido, "checkpoint", conexion.id, "ERP", {}, "web")
+    assert error.value.codigo == "USR_PER_006"
     with pytest.raises(ErrorDominio) as error:
         await servicios.ejecutar(
             TENANT, _dba(wk, ("PROD",)), "checkpoint", conexion.id, "ERP", {}, "web"
@@ -696,6 +701,11 @@ async def test_ventana_y_autorizaciones(wk):
         (otro, "no-uuid", "WKR_AUT_000"),
         (otro, "00000000-0000-0000-0000-000000009999", "WKR_AUT_000"),
         (_actor("LECTURA"), pedido["id"], "USR_PER_000"),
+        (
+            replace(otro, restricciones=(f"{conexion.ambiente}:autorizar_remediaciones",)),
+            pedido["id"],
+            "USR_PER_006",
+        ),
     ):
         with pytest.raises(ErrorDominio) as error:
             await servicios.resolver_autorizacion(TENANT, actor, autorizacion_id, True)

@@ -94,6 +94,27 @@ async def modificar(usuario_id: str, datos: UsuarioCambios, ctx=contexto) -> dic
     return _a_json(usuario)
 
 
+class Permisos(BaseModel):
+    """Ambientes habilitados (fila Acceso) y acciones permitidas por ambiente."""
+
+    ambientes: list[Ambiente] = Field(default_factory=list)
+    permitidas: dict[Ambiente, list[str]] = Field(default_factory=dict)
+
+
+@router.get("/{usuario_id}/permisos")
+async def permisos(usuario_id: str, ctx=contexto) -> dict:
+    tenant, sesion = ctx
+    return await usuarios.permisos_de(tenant, sesion, usuario_id)
+
+
+@router.put("/{usuario_id}/permisos")
+async def guardar_permisos(usuario_id: str, datos: Permisos, ctx=contexto) -> dict:
+    tenant, sesion = ctx
+    return await usuarios.guardar_permisos(
+        tenant, sesion, usuario_id, tuple(datos.ambientes), dict(datos.permitidas)
+    )
+
+
 @router.delete("/{usuario_id}", status_code=204)
 async def dar_baja(usuario_id: str, ctx=contexto) -> None:
     tenant, sesion = ctx

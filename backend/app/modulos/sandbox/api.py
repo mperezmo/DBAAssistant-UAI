@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.identidad.dependencias import requerir_modulo
-from app.identidad.entidades import ambientes_que_modifica
+from app.identidad.entidades import AMBIENTES, PROMOVER
 from app.modulos.sandbox import servicios
 
 router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
@@ -52,8 +52,9 @@ async def historial(
     tenant, sesion = ctx
     return {
         "registros": await servicios.historial(tenant, conexion_id, usuario, estado),
-        # Ambientes en los que el usuario puede promover (el Analista, fuera de PROD).
-        "ambientes_promover": list(ambientes_que_modifica(sesion.rol)),
+        # Ambientes en los que el usuario puede promover (rol, ambientes habilitados y
+        # permisos por ambiente; el Analista, fuera de PROD).
+        "ambientes_promover": [a for a in AMBIENTES if sesion.puede(PROMOVER, a)],
     }
 
 

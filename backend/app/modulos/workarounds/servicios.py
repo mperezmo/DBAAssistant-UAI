@@ -14,7 +14,15 @@ from app.core.errores import ErrorDominio
 from app.datos import sqlserver, winrm
 from app.identidad import reautenticacion
 from app.identidad import repositorios as usuarios
-from app.identidad.entidades import AMBIENTES, ROLES_OPERATIVOS, Sesion
+from app.identidad.entidades import (
+    AMBIENTES,
+    AUTORIZAR_REMEDIACIONES,
+    EJECUTAR_REMEDIACIONES,
+    ROLES_OPERATIVOS,
+    Sesion,
+)
+from app.identidad.permisos import exigir as exigir_permiso
+from app.identidad.permisos import exigir_en as exigir_permiso_en
 from app.modulos.alertas import notificaciones
 from app.modulos.auditoria import repositorios as auditoria
 from app.modulos.auditoria.entidades import EventoAuditoria
@@ -503,6 +511,7 @@ async def ejecutar(
         )
         if datos_usuario is None or conexion.ambiente not in datos_usuario.ambientes:
             raise ErrorDominio("USR_PER_000", f"ambiente {conexion.ambiente}")
+        exigir_permiso(actor, EJECUTAR_REMEDIACIONES, conexion.ambiente)
         if conexion.ambiente == "PROD":
             reautenticacion.exigir_segundo_factor_reciente(actor)
 
@@ -742,6 +751,8 @@ async def resolver_autorizacion(
     )
     if pedido is None:
         raise ErrorDominio("WKR_AUT_000", autorizacion_id)
+    conexion = await conexiones.obtener(tenant, pedido.conexion_id)
+    exigir_permiso(actor, AUTORIZAR_REMEDIACIONES, conexion.ambiente)
     # Quien pidió la autorización también puede darla (equipos de una sola persona), pero
     # confirmando con el segundo factor; queda marcada como propia en la bitácora.
     propia = pedido.solicitada_por == actor.email
@@ -794,6 +805,8 @@ async def crear_automatizacion(
     ):
         raise ErrorDominio("WKR_AUT_002")
     conexion = await conexiones.obtener(tenant, conexion_id) if conexion_id else None
+    # Configurar una ejecución automática exige poder ejecutar en esos ambientes.
+    exigir_permiso_en(actor, EJECUTAR_REMEDIACIONES, conexion.ambiente if conexion else None)
     # Habilitar ejecuciones sin intervención humana sobre PROD exige segundo factor;
     # "todas las conexiones" incluye las de PROD.
     if conexion is None or conexion.ambiente == "PROD":

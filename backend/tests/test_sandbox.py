@@ -252,6 +252,12 @@ async def test_sincronizar_ejecutar_y_promover(sbx, monkeypatch):
         with pytest.raises(ErrorDominio) as error:
             await servicios.previa(TENANT, _actor(rol), resultado["id"])
         assert error.value.codigo == "USR_PER_000"
+    # Un DBA al que el Administrador le quitó promover en PROD (CU-001-002-C).
+    with pytest.raises(ErrorDominio) as error:
+        await servicios.previa(
+            TENANT, replace(dba, restricciones=("PROD:promover",)), resultado["id"]
+        )
+    assert error.value.codigo == "USR_PER_006"
     with pytest.raises(ErrorDominio) as error:
         await servicios.promover(TENANT, dba, resultado["id"])
     assert error.value.codigo == "AMB_VAL_000"

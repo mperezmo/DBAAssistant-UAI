@@ -18,19 +18,48 @@ ROLES_OPERATIVOS = ("ADMINISTRADOR", "DBA")
 DIAS_GRACIA_BAJA = 30
 
 
-def puede_modificar_en(rol: str, ambiente: str | None) -> bool:
-    """Si el rol modifica datos o estructura en el ambiente (y promueve desde el Sandbox).
+# Acciones que el Administrador puede restringir por usuario y ambiente (CU-001-002-C). El
+# acceso a cada ambiente son los ambientes habilitados del usuario (usuario_ambiente).
+MODIFICAR = "modificar"
+PROMOVER = "promover"
+EJECUTAR_REMEDIACIONES = "ejecutar_remediaciones"
+AUTORIZAR_REMEDIACIONES = "autorizar_remediaciones"
+APLICAR_BUENAS_PRACTICAS = "aplicar_buenas_practicas"
+CONFIGURAR_ALERTAS = "configurar_alertas"
+ATENDER_ALERTAS = "atender_alertas"
+ACCIONES = (
+    MODIFICAR,
+    PROMOVER,
+    EJECUTAR_REMEDIACIONES,
+    AUTORIZAR_REMEDIACIONES,
+    APLICAR_BUENAS_PRACTICAS,
+    CONFIGURAR_ALERTAS,
+    ATENDER_ALERTAS,
+)
+ACCIONES_ANALISTA_SIN_PROD = frozenset({MODIFICAR, PROMOVER})
 
-    Administrador y DBA, en todos los ambientes; el Analista, solo en DEV y TESTING (en
-    PROD solo lee); Lectura, en ninguno.
+
+def techo(rol: str, ambiente: str | None) -> frozenset[str]:
+    """Lo máximo que el rol permite en el ambiente: el Administrador puede restringirlo por
+    usuario, nunca ampliarlo.
+
+    Administrador y DBA, todas las acciones en todos los ambientes; el Analista modifica y
+    promueve solo en DEV y TESTING (en PROD solo lee); Lectura, ninguna.
     """
-    if rol in ROLES_OPERATIVOS:
-        return True
-    return rol == ROL_ANALISTA and ambiente in AMBIENTES_SIN_PROD
+    if rol in ROLES_OPERATIVOS and (ambiente in AMBIENTES):
+        return frozenset(ACCIONES)
+    if rol == ROL_ANALISTA and ambiente in AMBIENTES_SIN_PROD:
+        return ACCIONES_ANALISTA_SIN_PROD
+    return frozenset()
 
 
-def ambientes_que_modifica(rol: str) -> tuple[str, ...]:
-    return tuple(a for a in AMBIENTES if puede_modificar_en(rol, a))
+def puede_modificar_en(rol: str, ambiente: str | None) -> bool:
+    """Si el rol, por sí solo, modifica datos o estructura en el ambiente."""
+    return MODIFICAR in techo(rol, ambiente)
+
+
+def clave_restriccion(ambiente: str, accion: str) -> str:
+    return f"{ambiente}:{accion}"
 
 
 # Módulos del menú habilitados por rol (docs/arquitectura.md, "Módulos por rol").
@@ -99,6 +128,8 @@ class Usuario:
     fecha_baja: datetime | None = None
     ultimo_ingreso: datetime | None = None
     idioma: str | None = None  # None: el del navegador
+    # Acciones que el Administrador le quitó, como "AMBIENTE:accion" (CU-001-002-C).
+    restricciones: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def puede_ingresar(self) -> bool:
@@ -117,12 +148,28 @@ class Sesion:
     creada_en: float
     # Momento de la última confirmación con segundo factor, que habilita acciones en PROD.
     segundo_factor_en: float | None = None
+    # Se releen del usuario en cada petición (identidad.dependencias.sesion_actual), igual
+    # que el rol: los cambios del Administrador rigen desde la acción siguiente.
+    ambientes: tuple[str, ...] = AMBIENTES
+    restricciones: tuple[str, ...] = ()
 
     def puede_ver(self, modulo: str) -> bool:
         return modulo in MODULOS_POR_ROL.get(self.rol, frozenset())
 
+    def puede(self, accion: str, ambiente: str | None) -> bool:
+        """Permiso efectivo: acceso al ambiente, techo del rol y sin restricción."""
+        return (
+            ambiente in self.ambientes
+            and accion in techo(self.rol, ambiente)
+            and clave_restriccion(ambiente, accion) not in self.restricciones
+        )
+
+    def puede_en_todos(self, accion: str) -> bool:
+        """Para lo que alcanza a todas las conexiones (por ejemplo, una regla general)."""
+        return all(self.puede(accion, a) for a in AMBIENTES)
+
     def puede_modificar(self, ambiente: str | None) -> bool:
-        return puede_modificar_en(self.rol, ambiente)
+        return self.puede(MODIFICAR, ambiente)
 
     @property
     def es_operador(self) -> bool:

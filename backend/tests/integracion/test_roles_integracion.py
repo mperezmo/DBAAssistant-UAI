@@ -100,3 +100,38 @@ async def test_tablas_sensibles_pasan_consulta_a_analista_y_lectura(prefijo_aisl
     # Idempotente: al volver a arrancar no cambia nada.
     assert await mongo.migrar_roles_contexto(db) == 0
     await mongo.cliente().drop_database(tenant.base_mongodb)
+
+
+async def test_permisos_por_ambiente_en_la_base(prefijo_aislado):
+    """Migración 017: restricciones por ambiente, con historia temporal."""
+    from app.identidad import repositorios as usuarios
+
+    tenant = await servicios.aprovisionar("acme", "ACME S.A.", "admin@acme.com")
+    base, tenant_id = tenant.base_sqlserver, str(tenant.id)
+    admin = usuarios.obtener_por_email(base, tenant_id, "admin@acme.com")
+    assert admin.restricciones == ()
+
+    usuarios.guardar_permisos(
+        base, tenant_id, admin.id, ("DEV", "PROD"), [("PROD", "modificar"), ("PROD", "promover")]
+    )
+    admin = usuarios.obtener(base, tenant_id, admin.id)
+    assert admin.ambientes == ("DEV", "PROD")
+    assert admin.restricciones == ("PROD:modificar", "PROD:promover")
+
+    usuarios.guardar_permisos(base, tenant_id, admin.id, ("DEV",), [])
+    admin = usuarios.obtener(base, tenant_id, admin.id)
+    assert (admin.ambientes, admin.restricciones) == (("DEV",), ())
+
+    with sqlserver.conectar(base) as conexion:
+        cursor = conexion.cursor()
+        # Lo que se quitó queda en la historia de la tabla temporal.
+        historia = cursor.execute("SELECT COUNT(*) FROM historia.usuario_restriccion").fetchone()
+        assert historia[0] == 2
+        with pytest.raises(Exception, match="CK_usuario_restriccion_accion"):
+            cursor.execute(
+                "INSERT INTO dbo.usuario_restriccion (usuario_id, tenant_id, ambiente, accion) "
+                "VALUES (?, ?, 'DEV', 'borrar_todo')",
+                admin.id,
+                tenant_id,
+            )
+        conexion.rollback()
